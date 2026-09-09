@@ -1,0 +1,8 @@
+{
+  "name": "Ah Beres",
+  "description": "Aplikasi Pembuat Laporan Pertanggungjawaban (LPJ) Keuangan Proyek Rehabilitasi & Pembangunan Sekolah Standar DAK Fisik",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
