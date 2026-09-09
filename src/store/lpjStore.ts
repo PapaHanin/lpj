@@ -1,8 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ActiveTab, ProjectProfile, Transaction } from '../types';
+import { ActiveTab, ProjectProfile, Transaction, TransactionJenis, TransactionMetode } from '../types';
 import { INITIAL_PROFILE, INITIAL_TRANSACTIONS } from '../utils/calculations';
 import { getClosingDateForMonth } from '../utils/dateUtils';
+
+export interface ModalPreset {
+  metode?: TransactionMetode;
+  jenis?: TransactionJenis;
+  withSubItems?: boolean;
+  uraian?: string;
+}
 
 export interface ToastNotification {
   id: string;
@@ -23,6 +30,7 @@ interface LpjState {
   isTransactionModalOpen: boolean;
   isProfileModalOpen: boolean;
   transactionToEdit: Transaction | null;
+  modalPreset: ModalPreset | null;
 
   // Print & Toast States
   isPrintModalOpen: boolean;
@@ -38,7 +46,7 @@ interface LpjState {
   deleteTransaction: (id: string) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setSelectedTransactionForKwitansi: (id: string) => void;
-  openTransactionModal: (tx?: Transaction) => void;
+  openTransactionModal: (tx?: Transaction, preset?: ModalPreset) => void;
   closeTransactionModal: () => void;
   openProfileModal: () => void;
   closeProfileModal: () => void;
@@ -60,6 +68,7 @@ export const useLpjStore = create<LpjState>()(
       isTransactionModalOpen: false,
       isProfileModalOpen: false,
       transactionToEdit: null,
+      modalPreset: null,
 
       isPrintModalOpen: false,
       printModalDocTitle: 'Buku Kas Umum (BKU)',
@@ -126,16 +135,18 @@ export const useLpjStore = create<LpjState>()(
       setSelectedTransactionForKwitansi: (id) =>
         set({ selectedTransactionIdForKwitansi: id }),
 
-      openTransactionModal: (tx) =>
+      openTransactionModal: (tx, preset) =>
         set({
           isTransactionModalOpen: true,
           transactionToEdit: tx || null,
+          modalPreset: preset || null,
         }),
 
       closeTransactionModal: () =>
         set({
           isTransactionModalOpen: false,
           transactionToEdit: null,
+          modalPreset: null,
         }),
 
       openProfileModal: () => set({ isProfileModalOpen: true }),

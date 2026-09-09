@@ -62,11 +62,18 @@ export const BkuTunaiView: React.FC = () => {
             <span>Bulan: {profile.bulanLaporan}</span>
           </button>
           <button
-            onClick={() => openTransactionModal()}
-            className="flex items-center space-x-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-purple-950 text-xs font-black px-3.5 py-2 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
+            onClick={() =>
+              openTransactionModal(undefined, {
+                metode: 'TUNAI',
+                jenis: 'PENGELUARAN',
+                withSubItems: true,
+              })
+            }
+            className="flex items-center space-x-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-purple-950 text-xs font-black px-4 py-2.5 rounded-xl shadow-md transition active:scale-95 cursor-pointer border border-amber-300 ring-2 ring-amber-300/50"
+            title="Input Belanja Baru & Rincian Barang di Kas Tunai (Otomatis Masuk ke Kas Umum)"
           >
-            <PlusCircle className="w-4 h-4" />
-            <span>+ Transaksi</span>
+            <PlusCircle className="w-4 h-4 text-purple-950" />
+            <span>+ Input Belanja & Rincian</span>
           </button>
           <button
             onClick={() => exportLpjToExcel(profile, transactions)}
@@ -82,6 +89,26 @@ export const BkuTunaiView: React.FC = () => {
             <Printer className="w-4 h-4 text-sky-400" />
             <span>Cetak BKU Tunai</span>
           </button>
+        </div>
+      </div>
+
+      {/* Banner Informasi Sinkronisasi Otomatis Kas Tunai ke Kas Umum */}
+      <div className="bg-emerald-50 border-2 border-emerald-400/80 rounded-2xl p-4 text-slate-900 flex items-start gap-3.5 shadow-xs print:hidden">
+        <div className="p-2 bg-emerald-600 text-white rounded-xl font-bold shrink-0 mt-0.5 shadow-xs">
+          <Layers className="w-5 h-5" />
+        </div>
+        <div className="flex-1 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-black text-sm text-emerald-950">
+              Sinkronisasi Otomatis Kas Tunai ➔ Kas Umum (BKU)
+            </h3>
+            <span className="bg-emerald-700 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Aktif Otomatis
+            </span>
+          </div>
+          <p className="text-emerald-900 font-medium mt-1 leading-relaxed">
+            Setiap kali Anda menginput belanja di Kas Tunai ini dengan rincian barang (volume, satuan, dan harga), sistem akan <strong>otomatis menginput ke Buku Kas Umum (BKU)</strong> sebesar <strong>jumlah total belanjanya saja (tanpa rincian item)</strong>. Saldo kas umum Anda akan langsung terpotong secara rapi dan seimbang tanpa perlu input ulang.
+          </p>
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import {
   Trash2,
   Receipt,
   Calendar,
+  Layers,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { calculateBkuRows, calculateSummary } from '../utils/calculations';
@@ -173,7 +174,20 @@ export const BkuGeneralView: React.FC = () => {
                     {row.tanggal}
                   </td>
                   <td className="border border-slate-900 py-2 px-4 font-bold text-black">
-                    <div>{row.uraian}</div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{row.uraian}</span>
+                      {row.transaction.subItems && row.transaction.subItems.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('bku-tunai')}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-950 border border-purple-300 hover:bg-purple-200 transition shrink-0 print:hidden cursor-pointer"
+                          title="Lihat rincian belanja transaksi ini di lembar Kas Tunai"
+                        >
+                          <Layers className="w-3 h-3 text-purple-800" />
+                          <span>{row.transaction.subItems.length} Rincian di Kas Tunai</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="border border-slate-900 py-2 px-3 text-center font-mono font-bold text-black">
                     {row.nomorBukti || ''}

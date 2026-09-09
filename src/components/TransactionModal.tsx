@@ -7,6 +7,9 @@ import {
   Calendar,
   Check,
   Sparkles,
+  Receipt,
+  Layers,
+  Info,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { SubItem, TransactionJenis, TransactionMetode } from '../types';
@@ -25,6 +28,7 @@ export const TransactionModal: React.FC = () => {
     addTransaction,
     updateTransaction,
     transactionToEdit,
+    modalPreset,
     transactions,
     profile,
   } = useLpjStore();
@@ -87,22 +91,37 @@ export const TransactionModal: React.FC = () => {
           : transactionToEdit.pengeluaran;
       setManualNominal(nominalVal);
     } else {
-      // Default new transaction based on active reporting month
+      // Default new transaction based on active reporting month and optional modalPreset
       const info = activeMonthInfo();
       const defaultDateStr = `15 ${info.month} ${info.year}`;
       setTanggal(defaultDateStr);
       setIsoDate(indonesianDateToIso(defaultDateStr));
-      setUraian('');
+      setUraian(modalPreset?.uraian || '');
       setNomorBukti(getNextBkuSuggestion());
-      setMetode('TUNAI');
-      setJenis('PENGELUARAN');
+      setMetode(modalPreset?.metode || 'TUNAI');
+      setJenis(modalPreset?.jenis || 'PENGELUARAN');
       setManualNominal(0);
       setPenerima('');
       setKeterangan('');
-      setHasSubItems(false);
-      setSubItems([]);
+
+      const wantsSub = Boolean(modalPreset?.withSubItems);
+      setHasSubItems(wantsSub);
+      if (wantsSub) {
+        setSubItems([
+          {
+            id: `sub-${Date.now()}-1`,
+            nama: '',
+            volume: 1,
+            satuan: 'Ret',
+            hargaSatuan: 0,
+            subtotal: 0,
+          },
+        ]);
+      } else {
+        setSubItems([]);
+      }
     }
-  }, [transactionToEdit, isTransactionModalOpen]);
+  }, [transactionToEdit, isTransactionModalOpen, modalPreset]);
 
   // Handle native HTML date picker change
   const handleIsoDateChange = (isoVal: string) => {
@@ -225,11 +244,17 @@ export const TransactionModal: React.FC = () => {
             <div className="flex items-center space-x-2">
               <span className="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
               <h2 className="text-lg sm:text-xl font-black text-white tracking-wide">
-                {transactionToEdit ? 'Edit Transaksi Pembukuan' : 'Input Transaksi Cepat'}
+                {transactionToEdit
+                  ? 'Edit Transaksi Pembukuan'
+                  : hasSubItems && metode === 'TUNAI'
+                  ? 'Input Belanja Kas Tunai (+ Rincian Barang)'
+                  : 'Input Transaksi Cepat'}
               </h2>
             </div>
             <p className="text-xs text-purple-200/95 mt-1 font-medium">
-              Otomatis masuk ke BKU Umum, BKU Tunai / Bank, dan lembar Kwitansi resmi.
+              {hasSubItems && metode === 'TUNAI'
+                ? 'Rincian disimpan di Kas Tunai. Nilai total belanja otomatis masuk ke Buku Kas Umum (BKU).'
+                : 'Otomatis masuk ke BKU Umum, BKU Tunai / Bank, dan lembar Kwitansi resmi.'}
             </p>
           </div>
           <button
@@ -243,6 +268,30 @@ export const TransactionModal: React.FC = () => {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-7 space-y-6 bg-white text-slate-950">
+          {/* Banner Sinkronisasi Otomatis Kas Tunai ke Kas Umum */}
+          {metode === 'TUNAI' && jenis === 'PENGELUARAN' && (
+            <div className="bg-emerald-50 border-2 border-emerald-400/80 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+              <div className="p-2 bg-emerald-600 text-white rounded-xl font-bold shrink-0 mt-0.5 shadow-xs">
+                <Check className="w-4 h-4 text-white" />
+              </div>
+              <div className="text-xs flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-emerald-950 text-sm">
+                    Sinkronisasi Otomatis ke Kas Umum (BKU)
+                  </span>
+                  <span className="bg-emerald-700 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wide">
+                    Otomatis Aktif
+                  </span>
+                </div>
+                <p className="text-emerald-900 font-medium mt-1 leading-relaxed">
+                  {hasSubItems
+                    ? `Rincian barang (volume, satuan, harga) akan dicatat lengkap di Kas Tunai. Sedangkan di Buku Kas Umum (BKU), sistem otomatis mencatat nama belanja dan JUMLAH TOTALNYA SAJA (${formatRupiah(totalNominal)}) tanpa rincian.`
+                    : `Transaksi tunai ini otomatis tercatat di Kas Tunai dan Buku Kas Umum (BKU) sebesar nominal transaksi.`}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Baris 1: Metode & Jenis */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-purple-950/5 p-4 rounded-2xl border border-purple-200">
             <div>
@@ -451,104 +500,171 @@ export const TransactionModal: React.FC = () => {
             />
           </div>
 
-          {/* Sub-Item / Rincian Barang (Pasir, Semen, Kayu, dll) */}
-          <div className="bg-purple-950/5 p-4 sm:p-5 rounded-2xl border-2 border-purple-300/80 space-y-3">
+          {/* Pilihan Format Belanja: Format Nota (Rincian) vs Nominal Langsung */}
+          <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <span className="text-xs font-black text-purple-950 flex items-center gap-1.5 uppercase tracking-wide">
-                  <Calculator className="w-4 h-4 text-amber-500" />
-                  Rincian Barang / Sub-Nota (Sesuai Format Excel)
-                </span>
-                <p className="text-[11px] text-slate-600 font-medium mt-0.5">
-                  Gunakan untuk rincian belanja seperti Pasir Kasar, Kayu Lata, dsb. Otomatis masuk ke kolom khusus di BKU Tunai.
-                </p>
+              <label className="block text-xs font-black text-purple-950 uppercase tracking-wide">
+                Format Input Belanja
+              </label>
+              <div className="flex rounded-xl p-1 bg-purple-950/10 border border-purple-200 gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHasSubItems(true);
+                    if (subItems.length === 0) {
+                      handleAddSubItem();
+                    }
+                  }}
+                  className={`py-1.5 px-3 text-xs font-black rounded-lg transition text-center cursor-pointer flex items-center gap-1.5 ${
+                    hasSubItems
+                      ? 'bg-amber-400 text-purple-950 shadow-xs border border-amber-500'
+                      : 'text-purple-900 hover:bg-white/60 font-bold'
+                  }`}
+                >
+                  <Calculator className="w-3.5 h-3.5 text-purple-950" />
+                  <span>Format Nota (Rincian Barang)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHasSubItems(false)}
+                  className={`py-1.5 px-3 text-xs font-black rounded-lg transition text-center cursor-pointer flex items-center gap-1.5 ${
+                    !hasSubItems
+                      ? 'bg-purple-900 text-amber-300 shadow-xs border border-purple-800'
+                      : 'text-purple-900 hover:bg-white/60 font-bold'
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Nominal Langsung (Satu Total)</span>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleAddSubItem}
-                className="inline-flex items-center space-x-1.5 text-xs font-black text-purple-950 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 px-3.5 py-2 rounded-xl border border-amber-400 shadow-xs transition active:scale-95 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>+ Tambah Baris Barang</span>
-              </button>
             </div>
 
-            {hasSubItems && subItems.length > 0 ? (
-              <div className="space-y-2 mt-3">
-                {/* Table Header */}
-                <div className="grid grid-cols-12 gap-2 text-[11px] font-black text-amber-300 bg-[#220738] p-2.5 rounded-xl uppercase tracking-wider">
-                  <div className="col-span-5 sm:col-span-5">Nama Barang / Pekerjaan</div>
-                  <div className="col-span-2 text-center">Volume</div>
-                  <div className="col-span-2 text-center">Satuan</div>
-                  <div className="col-span-2 text-right">Harga (Rp)</div>
-                  <div className="col-span-1 text-center">Hapus</div>
+            {hasSubItems ? (
+              <div className="bg-purple-950/5 p-4 sm:p-5 rounded-2xl border-2 border-purple-300/80 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-black text-purple-950 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Calculator className="w-4 h-4 text-amber-500" />
+                      Rincian Barang Belanja (Khusus Kas Tunai)
+                    </span>
+                    <p className="text-[11px] text-slate-600 font-medium mt-0.5">
+                      Input item barang belanja (misal: Pasir Kasar, Kayu, Upah). Nilai total nota otomatis masuk ke Buku Kas Umum.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddSubItem}
+                    className="inline-flex items-center space-x-1.5 text-xs font-black text-purple-950 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 px-3.5 py-2 rounded-xl border border-amber-400 shadow-xs transition active:scale-95 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Tambah Baris Barang</span>
+                  </button>
                 </div>
 
-                {/* Sub-item rows */}
-                {subItems.map((item, idx) => (
-                  <div key={item.id} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-xl border border-purple-200 shadow-xs">
-                    <div className="col-span-5 sm:col-span-5">
-                      <input
-                        type="text"
-                        value={item.nama}
-                        onChange={(e) => handleUpdateSubItem(idx, 'nama', e.target.value)}
-                        placeholder="e.g. Pasir Kasar / Kayu 5x5"
-                        className="w-full text-xs font-bold text-slate-950 bg-white border border-purple-300 rounded-lg px-2.5 py-2 focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
-                        required
-                      />
+                {subItems.length > 0 ? (
+                  <div className="space-y-2 mt-3">
+                    {/* Table Header */}
+                    <div className="grid grid-cols-12 gap-2 text-[11px] font-black text-amber-300 bg-[#220738] p-2.5 rounded-xl uppercase tracking-wider">
+                      <div className="col-span-5 sm:col-span-5">Nama Barang / Pekerjaan</div>
+                      <div className="col-span-2 text-center">Volume</div>
+                      <div className="col-span-2 text-center">Satuan</div>
+                      <div className="col-span-2 text-right">Harga Satuan (Rp)</div>
+                      <div className="col-span-1 text-center">Hapus</div>
                     </div>
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        step="any"
-                        value={item.volume}
-                        onChange={(e) => handleUpdateSubItem(idx, 'volume', parseFloat(e.target.value) || 0)}
-                        className="w-full text-xs font-black text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-center font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
-                        required
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <input
-                        type="text"
-                        value={item.satuan}
-                        onChange={(e) => handleUpdateSubItem(idx, 'satuan', e.target.value)}
-                        placeholder="Ret / Kbk / Zak"
-                        className="w-full text-xs font-bold text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-center focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
-                        required
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <input
-                        type="number"
-                        value={item.hargaSatuan || ''}
-                        onChange={(e) => handleUpdateSubItem(idx, 'hargaSatuan', parseInt(e.target.value, 10) || 0)}
-                        placeholder="900000"
-                        className="w-full text-xs font-black text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-right font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
-                        required
-                      />
-                    </div>
-                    <div className="col-span-1 flex justify-center">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSubItem(idx)}
-                        className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition cursor-pointer"
-                        title="Hapus baris barang"
+
+                    {/* Sub-item rows */}
+                    {subItems.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-xl border border-purple-200 shadow-xs"
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        <div className="col-span-5 sm:col-span-5">
+                          <input
+                            type="text"
+                            value={item.nama}
+                            onChange={(e) => handleUpdateSubItem(idx, 'nama', e.target.value)}
+                            placeholder="Contoh: Pasir Kasar / Kayu 5x5"
+                            className="w-full text-xs font-bold text-slate-950 bg-white border border-purple-300 rounded-lg px-2.5 py-2 focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
+                            required
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={item.volume}
+                            onChange={(e) => handleUpdateSubItem(idx, 'volume', parseFloat(e.target.value) || 0)}
+                            className="w-full text-xs font-black text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-center font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
+                            required
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <input
+                            type="text"
+                            value={item.satuan}
+                            onChange={(e) => handleUpdateSubItem(idx, 'satuan', e.target.value)}
+                            placeholder="Ret / Kbk / Zak / Ls"
+                            className="w-full text-xs font-bold text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-center focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
+                            required
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.hargaSatuan || ''}
+                            onChange={(e) => handleUpdateSubItem(idx, 'hargaSatuan', parseInt(e.target.value, 10) || 0)}
+                            placeholder="900000"
+                            className="w-full text-xs font-black text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-right font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
+                            required
+                          />
+                        </div>
+                        <div className="col-span-1 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSubItem(idx)}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition cursor-pointer"
+                            title="Hapus baris barang"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="pt-2.5 border-t-2 border-purple-200 flex justify-between items-center bg-[#220738] text-white p-3 rounded-xl">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-black uppercase text-amber-300">
+                          Total Rincian Nota (Jumlah Belanja):
+                        </span>
+                        <span className="text-[10px] text-purple-200">
+                          *Total ini yang otomatis masuk ke Buku Kas Umum (BKU)
+                        </span>
+                      </div>
+                      <span className="font-mono font-black text-amber-400 text-sm sm:text-base">
+                        {formatRupiah(subItemsTotal)}
+                      </span>
                     </div>
                   </div>
-                ))}
-
-                <div className="pt-2.5 border-t-2 border-purple-200 flex justify-between items-center bg-[#220738] text-white p-3 rounded-xl">
-                  <span className="text-xs font-black uppercase text-amber-300">Total Rincian Nota (Jumlah Nota):</span>
-                  <span className="font-mono font-black text-amber-400 text-sm sm:text-base">
-                    {formatRupiah(subItemsTotal)}
-                  </span>
-                </div>
+                ) : (
+                  <div className="text-center py-6 border border-dashed border-purple-300 rounded-xl bg-white/50">
+                    <p className="text-xs font-bold text-purple-950 mb-2">
+                      Belum ada baris barang yang ditambahkan
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleAddSubItem}
+                      className="inline-flex items-center space-x-1 text-xs font-black text-purple-950 bg-amber-400 hover:bg-amber-300 px-3 py-1.5 rounded-lg shadow-xs transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah Baris Pertama</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
-              <div>
+              <div className="bg-purple-950/5 p-4 rounded-2xl border-2 border-purple-200">
                 <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-1.5">
                   Nominal Transaksi (Rp)
                 </label>
@@ -558,6 +674,7 @@ export const TransactionModal: React.FC = () => {
                   </span>
                   <input
                     type="number"
+                    min="0"
                     value={manualNominal || ''}
                     onChange={(e) => setManualNominal(parseInt(e.target.value, 10) || 0)}
                     placeholder="0"
