@@ -188,7 +188,19 @@ export const useLpjStore = create<LpjState>()(
         }),
     }),
     {
-      name: 'ah-beres-lpj-storage-v1',
+      name: 'ah-beres-lpj-storage-v2',
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2 && persistedState && persistedState.transactions) {
+          persistedState.transactions = persistedState.transactions.map((tx: any) => {
+            if (tx.id === 'tx-2' && (tx.penerimaan === 160848000 || tx.pengeluaran === 160848000)) {
+              return { ...tx, penerimaan: 395455000, pengeluaran: 395455000 };
+            }
+            return tx;
+          });
+        }
+        return persistedState;
+      },
     }
   )
 );

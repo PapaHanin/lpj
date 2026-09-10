@@ -122,6 +122,24 @@ export const BkBankView: React.FC = () => {
           </div>
         </div>
 
+        {/* Banner Rumus Saldo Kas Bank Berjalan */}
+        <div className="mb-4 bg-emerald-50/90 border border-emerald-300 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs print:hidden">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-700 text-white font-black text-[11px] shrink-0">
+              fx
+            </span>
+            <div>
+              <span className="font-bold text-emerald-950">Rumus Saldo Kas Bank Aktif: </span>
+              <span className="font-mono font-semibold text-emerald-900 bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                Saldo [7] = Saldo Sebelumnya + Debet [5] - Kredit [6]
+              </span>
+            </div>
+          </div>
+          <div className="text-[11px] text-emerald-800 font-medium">
+            Sesuai Rumus Excel: <code className="font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">=G(prev)+E-F</code>. Penarikan tunai otomatis mengurangi saldo bank.
+          </div>
+        </div>
+
         {/* Tabel BK Bank */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse border border-slate-900 text-xs text-black">
@@ -138,7 +156,8 @@ export const BkBankView: React.FC = () => {
                   Kredit (Rp)
                 </th>
                 <th className="border border-slate-900 py-2.5 px-3 w-36 text-right text-black font-bold">
-                  Saldo (Rp)
+                  <div>Saldo (Rp)</div>
+                  <div className="text-[10px] font-normal text-slate-600 print:hidden font-mono">[7]=[prev]+[5]-[6]</div>
                 </th>
                 <th className="border border-slate-900 py-2.5 px-2 w-16 text-center print:hidden text-black font-bold">
                   Aksi

@@ -91,6 +91,28 @@ export function exportLpjToExcel(
   sheet1Rows.push([`NIP. ${profile.nipKepalaSekolah}`, '', '', '', `NIP. ${profile.nipBendahara}`]);
 
   const ws1 = XLSX.utils.aoa_to_sheet(sheet1Rows);
+
+  // Injeksi Rumus Excel Dinamis BKU: Saldo = Saldo Sebelumnya + Penerimaan - Pengeluaran (Sesuai =M13+K15-L15)
+  bkuData.rows.forEach((r, i) => {
+    const rNum = 12 + i;
+    if (i === 0) {
+      ws1['G' + rNum] = { t: 'n', f: `E${rNum}-F${rNum}`, v: r.saldo, z: '#,##0.00' };
+    } else {
+      ws1['G' + rNum] = { t: 'n', f: `G${rNum - 1}+E${rNum}-F${rNum}`, v: r.saldo, z: '#,##0.00' };
+    }
+    if (r.penerimaan > 0) {
+      ws1['E' + rNum] = { t: 'n', v: r.penerimaan, z: '#,##0.00' };
+    }
+    if (r.pengeluaran > 0) {
+      ws1['F' + rNum] = { t: 'n', v: r.pengeluaran, z: '#,##0.00' };
+    }
+  });
+
+  const totalRow1 = 12 + bkuData.rows.length;
+  ws1['E' + totalRow1] = { t: 'n', f: `SUM(E12:E${totalRow1 - 1})`, v: bkuData.totalPenerimaan, z: '#,##0.00' };
+  ws1['F' + totalRow1] = { t: 'n', f: `SUM(F12:F${totalRow1 - 1})`, v: bkuData.totalPengeluaran, z: '#,##0.00' };
+  ws1['G' + totalRow1] = { t: 'n', f: `G${totalRow1 - 1}`, v: bkuData.saldoAkhir, z: '#,##0.00' };
+
   ws1['!cols'] = [
     { wch: 6 },
     { wch: 18 },
@@ -201,6 +223,51 @@ export function exportLpjToExcel(
   sheet2Rows.push([`NIP. ${profile.nipKepalaSekolah}`, '', '', '', '', '', '', '', `NIP. ${profile.nipBendahara}`]);
 
   const ws2 = XLSX.utils.aoa_to_sheet(sheet2Rows);
+
+  // Injeksi Rumus Excel Dinamis BKU TUNAI: Saldo = Saldo Sebelumnya + Penerimaan - Pengeluaran
+  let currRow2 = 12;
+  let prevTxRow2: number | null = null;
+  tunaiData.rows.forEach((r) => {
+    const txRow = currRow2;
+    const hasSub = Boolean(r.transaction.subItems && r.transaction.subItems.length > 0);
+
+    if (prevTxRow2 === null) {
+      ws2['J' + txRow] = { t: 'n', f: `H${txRow}-I${txRow}`, v: r.saldo, z: '#,##0.00' };
+    } else {
+      ws2['J' + txRow] = { t: 'n', f: `J${prevTxRow2}+H${txRow}-I${txRow}`, v: r.saldo, z: '#,##0.00' };
+    }
+
+    if (r.penerimaan > 0) {
+      ws2['H' + txRow] = { t: 'n', v: r.penerimaan, z: '#,##0.00' };
+    }
+    if (r.pengeluaran > 0) {
+      ws2['I' + txRow] = { t: 'n', v: r.pengeluaran, z: '#,##0.00' };
+    }
+
+    prevTxRow2 = txRow;
+    currRow2++;
+
+    if (hasSub && r.transaction.subItems) {
+      const firstSub = currRow2;
+      r.transaction.subItems.forEach((item) => {
+        const subRow = currRow2;
+        ws2['I' + subRow] = { t: 'n', f: `D${subRow}*F${subRow}`, v: item.subtotal, z: '#,##0.00' };
+        currRow2++;
+      });
+      const lastSub = currRow2 - 1;
+      const notaRow = currRow2;
+      ws2['I' + notaRow] = { t: 'n', f: `SUM(I${firstSub}:I${lastSub})`, v: r.pengeluaran, z: '#,##0.00' };
+      currRow2++;
+    }
+  });
+
+  const totalRow2 = currRow2;
+  ws2['H' + totalRow2] = { t: 'n', f: `SUM(H12:H${totalRow2 - 1})`, v: tunaiData.totalPenerimaan, z: '#,##0.00' };
+  ws2['I' + totalRow2] = { t: 'n', f: `SUM(I12:I${totalRow2 - 1})`, v: tunaiData.totalPengeluaran, z: '#,##0.00' };
+  if (prevTxRow2 !== null) {
+    ws2['J' + totalRow2] = { t: 'n', f: `J${prevTxRow2}`, v: tunaiData.saldoAkhir, z: '#,##0.00' };
+  }
+
   ws2['!cols'] = [
     { wch: 6 },
     { wch: 18 },
@@ -262,6 +329,27 @@ export function exportLpjToExcel(
   sheet3Rows.push([`NIP. ${profile.nipKepalaSekolah}`, '', '', '', `NIP. ${profile.nipBendahara}`]);
 
   const ws3 = XLSX.utils.aoa_to_sheet(sheet3Rows);
+
+  // Injeksi Rumus Excel Dinamis BK BANK: Saldo = Saldo Sebelumnya + Debet - Kredit
+  bankData.rows.forEach((r, i) => {
+    const rNum = 12 + i;
+    if (i === 0) {
+      ws3['G' + rNum] = { t: 'n', f: `E${rNum}-F${rNum}`, v: r.saldo, z: '#,##0.00' };
+    } else {
+      ws3['G' + rNum] = { t: 'n', f: `G${rNum - 1}+E${rNum}-F${rNum}`, v: r.saldo, z: '#,##0.00' };
+    }
+    if (r.debet > 0) {
+      ws3['E' + rNum] = { t: 'n', v: r.debet, z: '#,##0.00' };
+    }
+    if (r.kredit > 0) {
+      ws3['F' + rNum] = { t: 'n', v: r.kredit, z: '#,##0.00' };
+    }
+  });
+
+  const totalRow3 = 12 + bankData.rows.length;
+  ws3['E' + totalRow3] = { t: 'n', f: `SUM(E12:E${totalRow3 - 1})`, v: bankData.totalDebet, z: '#,##0.00' };
+  ws3['F' + totalRow3] = { t: 'n', f: `SUM(F12:F${totalRow3 - 1})`, v: bankData.totalKredit, z: '#,##0.00' };
+  ws3['G' + totalRow3] = { t: 'n', f: `G${totalRow3 - 1}`, v: bankData.saldoAkhir, z: '#,##0.00' };
   ws3['!cols'] = [
     { wch: 6 },
     { wch: 18 },

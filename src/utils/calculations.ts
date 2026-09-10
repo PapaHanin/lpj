@@ -81,8 +81,8 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     nomorBukti: '',
     metode: 'TARIK_TUNAI',
     jenis: 'PENERIMAAN',
-    penerimaan: 160848000,
-    pengeluaran: 160848000,
+    penerimaan: 395455000,
+    pengeluaran: 395455000,
     penerima: 'BENDAHARA SEKOLAH',
   },
   {
