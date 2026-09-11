@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Plus,
@@ -20,6 +20,7 @@ import {
   extractMonthAndYear,
   BULAN_LIST,
 } from '../utils/dateUtils';
+import { extractTransactionHistory } from '../utils/transactionHistory';
 
 export const TransactionModal: React.FC = () => {
   const {
@@ -44,6 +45,13 @@ export const TransactionModal: React.FC = () => {
   const [keterangan, setKeterangan] = useState('');
   const [hasSubItems, setHasSubItems] = useState(false);
   const [subItems, setSubItems] = useState<SubItem[]>([]);
+  const [autoFillNotice, setAutoFillNotice] = useState<string | null>(null);
+
+  // Extract history of transactions previously created by the user
+  const history = useMemo(
+    () => extractTransactionHistory(transactions, transactionToEdit?.id),
+    [transactions, transactionToEdit?.id]
+  );
 
   // Suggest next BKU number
   const getNextBkuSuggestion = () => {
@@ -103,6 +111,7 @@ export const TransactionModal: React.FC = () => {
       setManualNominal(0);
       setPenerima('');
       setKeterangan('');
+      setAutoFillNotice(null);
 
       const wantsSub = Boolean(modalPreset?.withSubItems);
       setHasSubItems(wantsSub);
@@ -141,6 +150,63 @@ export const TransactionModal: React.FC = () => {
     }
   };
 
+  // Handle Uraian input change and autocomplete matching from previous transactions
+  const handleUraianChange = (val: string) => {
+    setUraian(val);
+
+    const trimmed = val.trim().toLowerCase();
+    if (!trimmed) {
+      setAutoFillNotice(null);
+      return;
+    }
+
+    const matchedTx = history.transactionsByUraian.get(trimmed);
+    if (matchedTx && !transactionToEdit) {
+      const filledDetails: string[] = [];
+
+      // Autofill recipient if current input is empty
+      if (!penerima && matchedTx.penerima) {
+        setPenerima(matchedTx.penerima);
+        filledDetails.push(`Penerima: "${matchedTx.penerima}"`);
+      }
+
+      // Autofill sub-items or nominal if not modified yet
+      if (matchedTx.subItems && matchedTx.subItems.length > 0) {
+        const isCurrentEmpty =
+          subItems.length === 0 ||
+          (subItems.length === 1 && !subItems[0].nama && subItems[0].hargaSatuan === 0);
+        if (isCurrentEmpty) {
+          setHasSubItems(true);
+          setSubItems(
+            matchedTx.subItems.map((si, i) => ({
+              ...si,
+              id: `sub-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 5)}`,
+            }))
+          );
+          filledDetails.push(`${matchedTx.subItems.length} rincian belanja`);
+        }
+      } else if (!hasSubItems && manualNominal === 0) {
+        const nom =
+          matchedTx.jenis === 'PENERIMAAN'
+            ? matchedTx.penerimaan
+            : matchedTx.pengeluaran;
+        if (nom > 0) {
+          setManualNominal(nom);
+          filledDetails.push(`Nominal: ${formatRupiah(nom)}`);
+        }
+      }
+
+      if (matchedTx.metode) setMetode(matchedTx.metode);
+      if (matchedTx.jenis) setJenis(matchedTx.jenis);
+
+      if (filledDetails.length > 0) {
+        setAutoFillNotice(
+          `Ditemukan dari riwayat transaksi yang pernah dibuat. Otomatis memuat ${filledDetails.join(' & ')}.`
+        );
+      }
+    }
+  };
+
   // Sub-items calculation
   const subItemsTotal = subItems.reduce((acc, item) => acc + (item.subtotal || 0), 0);
   const totalNominal = hasSubItems ? subItemsTotal : manualNominal;
@@ -158,11 +224,45 @@ export const TransactionModal: React.FC = () => {
     setHasSubItems(true);
   };
 
+  // Handle item name change with automatic autofill for Satuan and Harga from history
+  const handleSubItemNameChange = (index: number, newNama: string) => {
+    const updated = [...subItems];
+    const current = { ...updated[index], nama: newNama };
+
+    const trimmed = newNama.trim().toLowerCase();
+    if (trimmed) {
+      const histItem = history.itemsMap.get(trimmed);
+      if (histItem) {
+        // Automatically populate satuan if currently empty or default
+        if (!current.satuan || current.satuan === 'Ret' || current.satuan === '') {
+          current.satuan = histItem.satuan || current.satuan;
+        }
+        // Automatically populate hargaSatuan if currently 0 or unset
+        if (!current.hargaSatuan || current.hargaSatuan === 0) {
+          current.hargaSatuan = histItem.hargaSatuan;
+        }
+        const vol =
+          typeof current.volume === 'number'
+            ? current.volume
+            : parseFloat(String(current.volume)) || 0;
+        current.subtotal = vol * (current.hargaSatuan || 0);
+      }
+    }
+
+    updated[index] = current;
+    setSubItems(updated);
+  };
+
   const handleUpdateSubItem = (
     index: number,
     field: keyof SubItem,
     value: string | number
   ) => {
+    if (field === 'nama') {
+      handleSubItemNameChange(index, String(value));
+      return;
+    }
+
     const updated = [...subItems];
     const current = { ...updated[index], [field]: value };
 
@@ -473,31 +573,122 @@ export const TransactionModal: React.FC = () => {
 
           {/* Baris 3: Uraian Transaksi */}
           <div>
-            <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-1.5">
-              Uraian Transaksi
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-black text-purple-950 uppercase tracking-wide">
+                Uraian Transaksi
+              </label>
+              {history.uniqueUraian.length > 0 && (
+                <span className="text-[11px] font-bold text-amber-600 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  Auto-fill dari riwayat aktif ({history.uniqueUraian.length} tersimpan)
+                </span>
+              )}
+            </div>
             <input
               type="text"
+              list="historical-uraian-list"
               value={uraian}
-              onChange={(e) => setUraian(e.target.value)}
+              onChange={(e) => handleUraianChange(e.target.value)}
               placeholder="Contoh: Belanja Material Pasir & Kayu / Bayar Upah Tukang Tahap 1"
               className="w-full text-sm font-bold text-slate-950 bg-white border-2 border-purple-900/40 rounded-xl px-3.5 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden placeholder:text-slate-400"
               required
             />
+
+            {/* Banner saat terdeteksi dan terisi otomatis dari riwayat transaksi */}
+            {autoFillNotice && (
+              <div className="mt-2 p-2.5 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-300 rounded-xl flex items-center justify-between gap-2 shadow-xs">
+                <div className="flex items-center gap-2 text-xs text-amber-950 font-medium">
+                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>{autoFillNotice}</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAutoFillNotice(null);
+                      setPenerima('');
+                      setSubItems([]);
+                      setHasSubItems(false);
+                      setManualNominal(0);
+                    }}
+                    className="text-[11px] font-bold text-rose-700 hover:text-rose-900 px-2 py-0.5 hover:bg-rose-100 rounded transition cursor-pointer"
+                    title="Kosongkan penerima dan rincian otomatis"
+                  >
+                    Reset Isian
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAutoFillNotice(null)}
+                    className="text-[11px] font-bold text-purple-900 hover:text-purple-950 px-2 py-0.5 hover:bg-purple-100 rounded transition cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Quick suggestion chips dari riwayat yang pernah dibuat */}
+            {history.uniqueUraian.length > 0 && !uraian && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  Pernah dibuat sebelumnya:
+                </span>
+                {history.uniqueUraian.slice(0, 4).map((pastUraian, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleUraianChange(pastUraian)}
+                    className="text-[11px] font-bold text-purple-950 bg-amber-100 hover:bg-amber-300 hover:text-purple-950 px-2.5 py-1 rounded-lg transition border border-amber-300 cursor-pointer truncate max-w-xs"
+                    title={`Klik untuk mengisi otomatis: ${pastUraian}`}
+                  >
+                    {pastUraian}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Baris 4: Penerima / Fasilitator */}
           <div>
-            <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-1.5">
-              Penerima / Pihak Ketiga (Toko / Tukang / Fasilitator)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-black text-purple-950 uppercase tracking-wide">
+                Penerima / Pihak Ketiga (Toko / Tukang / Fasilitator)
+              </label>
+              {history.uniquePenerima.length > 0 && (
+                <span className="text-[11px] font-bold text-purple-700">
+                  {history.uniquePenerima.length} penerima dari riwayat
+                </span>
+              )}
+            </div>
             <input
               type="text"
+              list="historical-penerima-list"
               value={penerima}
               onChange={(e) => setPenerima(e.target.value)}
               placeholder="Contoh: Toko Bangunan Berkah / Moh. Rizal Daudo / Tukang Ahmad"
               className="w-full text-sm font-bold text-slate-950 bg-white border-2 border-purple-900/40 rounded-xl px-3.5 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden placeholder:text-slate-400"
             />
+
+            {/* Quick chips penerima dari riwayat */}
+            {history.uniquePenerima.length > 0 && !penerima && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  Penerima sebelumnya:
+                </span>
+                {history.uniquePenerima.slice(0, 4).map((pastPenerima, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setPenerima(pastPenerima)}
+                    className="text-[11px] font-bold text-purple-900 bg-purple-100/90 hover:bg-amber-300 hover:text-purple-950 px-2.5 py-1 rounded-lg transition border border-purple-200 cursor-pointer"
+                  >
+                    {pastPenerima}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Pilihan Format Belanja: Format Nota (Rincian) vs Nominal Langsung */}
@@ -548,7 +739,7 @@ export const TransactionModal: React.FC = () => {
                       Rincian Barang Belanja (Khusus Kas Tunai)
                     </span>
                     <p className="text-[11px] text-slate-600 font-medium mt-0.5">
-                      Input item barang belanja (misal: Pasir Kasar, Kayu, Upah). Nilai total nota otomatis masuk ke Buku Kas Umum.
+                      Input item barang belanja. Nama barang yang pernah dibeli otomatis memunculkan satuan & harga riwayat.
                     </p>
                   </div>
                   <button
@@ -560,6 +751,15 @@ export const TransactionModal: React.FC = () => {
                     <span>+ Tambah Baris Barang</span>
                   </button>
                 </div>
+
+                {history.uniqueItemNames.length > 0 && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-emerald-900 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300 font-medium">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>
+                      {history.uniqueItemNames.length} jenis barang/upah dari riwayat siap pakai. Pilih nama barang untuk mengisi satuan dan harga otomatis.
+                    </span>
+                  </div>
+                )}
 
                 {subItems.length > 0 ? (
                   <div className="space-y-2 mt-3">
@@ -573,65 +773,83 @@ export const TransactionModal: React.FC = () => {
                     </div>
 
                     {/* Sub-item rows */}
-                    {subItems.map((item, idx) => (
-                      <div
-                        key={item.id}
-                        className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-xl border border-purple-200 shadow-xs"
-                      >
-                        <div className="col-span-5 sm:col-span-5">
-                          <input
-                            type="text"
-                            value={item.nama}
-                            onChange={(e) => handleUpdateSubItem(idx, 'nama', e.target.value)}
-                            placeholder="Contoh: Pasir Kasar / Kayu 5x5"
-                            className="w-full text-xs font-bold text-slate-950 bg-white border border-purple-300 rounded-lg px-2.5 py-2 focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
-                            required
-                          />
+                    {subItems.map((item, idx) => {
+                      const matchedHistItem = history.itemsMap.get(item.nama.trim().toLowerCase());
+                      return (
+                        <div
+                          key={item.id}
+                          className="grid grid-cols-12 gap-2 items-start bg-white p-2 rounded-xl border border-purple-200 shadow-xs"
+                        >
+                          <div className="col-span-5 sm:col-span-5">
+                            <input
+                              type="text"
+                              list="historical-subitem-names-list"
+                              value={item.nama}
+                              onChange={(e) => handleUpdateSubItem(idx, 'nama', e.target.value)}
+                              placeholder="Contoh: Pasir Kasar / Kayu 5x5"
+                              className="w-full text-xs font-bold text-slate-950 bg-white border border-purple-300 rounded-lg px-2.5 py-2 focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
+                              required
+                            />
+                            {matchedHistItem && (
+                              <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-bold mt-1 px-1">
+                                <Sparkles className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                                <span className="truncate">
+                                  Riwayat: {matchedHistItem.satuan} • {formatRupiah(matchedHistItem.hargaSatuan)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={item.volume}
+                              onChange={(e) => handleUpdateSubItem(idx, 'volume', parseFloat(e.target.value) || 0)}
+                              className="w-full text-xs font-black text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-center font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
+                              required
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="text"
+                              list="historical-subitem-units-list"
+                              value={item.satuan}
+                              onChange={(e) => handleUpdateSubItem(idx, 'satuan', e.target.value)}
+                              placeholder="Ret / Kbk / Zak / Ls"
+                              className="w-full text-xs font-bold text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-center focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
+                              required
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.hargaSatuan || ''}
+                              onChange={(e) => handleUpdateSubItem(idx, 'hargaSatuan', parseInt(e.target.value, 10) || 0)}
+                              placeholder="900000"
+                              className="w-full text-xs font-black text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-right font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
+                              required
+                            />
+                            {item.subtotal > 0 && (
+                              <div className="text-[9px] text-slate-500 font-mono text-right mt-1 truncate">
+                                Sub: {formatRupiah(item.subtotal)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="col-span-1 flex justify-center pt-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSubItem(idx)}
+                              className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition cursor-pointer"
+                              title="Hapus baris barang"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="col-span-2">
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            value={item.volume}
-                            onChange={(e) => handleUpdateSubItem(idx, 'volume', parseFloat(e.target.value) || 0)}
-                            className="w-full text-xs font-black text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-center font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-400"
-                            required
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <input
-                            type="text"
-                            value={item.satuan}
-                            onChange={(e) => handleUpdateSubItem(idx, 'satuan', e.target.value)}
-                            placeholder="Ret / Kbk / Zak / Ls"
-                            className="w-full text-xs font-bold text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-center focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
-                            required
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.hargaSatuan || ''}
-                            onChange={(e) => handleUpdateSubItem(idx, 'hargaSatuan', parseInt(e.target.value, 10) || 0)}
-                            placeholder="900000"
-                            className="w-full text-xs font-black text-slate-950 bg-white border border-purple-300 rounded-lg px-2 py-2 text-right font-mono focus:border-amber-500 focus:ring-1 focus:ring-amber-400 placeholder:text-slate-400"
-                            required
-                          />
-                        </div>
-                        <div className="col-span-1 flex justify-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSubItem(idx)}
-                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition cursor-pointer"
-                            title="Hapus baris barang"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     <div className="pt-2.5 border-t-2 border-purple-200 flex justify-between items-center bg-[#220738] text-white p-3 rounded-xl">
                       <div className="flex flex-col">
@@ -716,6 +934,39 @@ export const TransactionModal: React.FC = () => {
               <span>{transactionToEdit ? 'Simpan Perubahan' : 'Tambahkan ke Pembukuan'}</span>
             </button>
           </div>
+
+          {/* Datalists untuk Autocomplete dari Riwayat Transaksi yang Pernah Dibuat */}
+          {history.uniqueUraian.length > 0 && (
+            <datalist id="historical-uraian-list">
+              {history.uniqueUraian.map((item, idx) => (
+                <option key={`h-u-${idx}`} value={item} />
+              ))}
+            </datalist>
+          )}
+
+          {history.uniquePenerima.length > 0 && (
+            <datalist id="historical-penerima-list">
+              {history.uniquePenerima.map((item, idx) => (
+                <option key={`h-p-${idx}`} value={item} />
+              ))}
+            </datalist>
+          )}
+
+          {history.uniqueItemNames.length > 0 && (
+            <datalist id="historical-subitem-names-list">
+              {history.uniqueItemNames.map((item, idx) => (
+                <option key={`h-n-${idx}`} value={item} />
+              ))}
+            </datalist>
+          )}
+
+          {history.uniqueUnits.length > 0 && (
+            <datalist id="historical-subitem-units-list">
+              {history.uniqueUnits.map((item, idx) => (
+                <option key={`h-s-${idx}`} value={item} />
+              ))}
+            </datalist>
+          )}
         </form>
       </div>
     </div>
