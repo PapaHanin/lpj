@@ -58,11 +58,20 @@ export const BkBankView: React.FC = () => {
             <span>Bulan: {profile.bulanLaporan}</span>
           </button>
           <button
-            onClick={() => openTransactionModal()}
-            className="flex items-center space-x-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-purple-950 text-xs font-black px-3.5 py-2 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
+            onClick={() => openTransactionModal(undefined, { metode: 'BANK', jenis: 'PENERIMAAN', uraian: 'Dana Masuk DAK Fisik' })}
+            className="flex items-center space-x-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
+            title="Tambah Penerimaan Dana Masuk ke Rekening Bank"
           >
             <PlusCircle className="w-4 h-4" />
-            <span>+ Transaksi Bank</span>
+            <span>+ Dana Masuk Bank</span>
+          </button>
+          <button
+            onClick={() => openTransactionModal(undefined, { metode: 'TARIK_TUNAI', jenis: 'PENERIMAAN', uraian: 'Penarikan Dana dari Rekening Bank' })}
+            className="flex items-center space-x-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-purple-950 text-xs font-black px-3.5 py-2 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
+            title="Tambah Penarikan Tunai dari Rekening Bank"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Tarik Tunai Bank</span>
           </button>
           <button
             onClick={() => exportLpjToExcel(profile, transactions)}
@@ -129,14 +138,14 @@ export const BkBankView: React.FC = () => {
               fx
             </span>
             <div>
-              <span className="font-bold text-emerald-950">Rumus Saldo Kas Bank Aktif: </span>
-              <span className="font-mono font-semibold text-emerald-900 bg-emerald-100/70 px-1.5 py-0.5 rounded">
-                Saldo [7] = Saldo Sebelumnya + Debet [5] - Kredit [6]
+              <span className="font-bold text-emerald-950">Aturan Pencatatan BK Bank: </span>
+              <span className="font-semibold text-emerald-900 bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                Khusus mutasi rekening: Dana Masuk Rekening (Debet) & Penarikan Tunai dari Bank (Kredit). Saldo [7] = Saldo Sebelumnya + Debet [5] - Kredit [6].
               </span>
             </div>
           </div>
           <div className="text-[11px] text-emerald-800 font-medium">
-            Sesuai Rumus Excel: <code className="font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">=G(prev)+E-F</code>. Penarikan tunai otomatis mengurangi saldo bank.
+            Sesuai Rumus Excel: <code className="font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-emerald-200">=G(prev)+E-F</code>.
           </div>
         </div>
 

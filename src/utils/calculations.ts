@@ -280,8 +280,18 @@ export function calculateBkuRows(transactions: Transaction[]): {
 
   const rows: BkuRow[] = transactions.map((t, idx) => {
     runningSaldo += t.penerimaan - t.pengeluaran;
-    totalPenerimaan += t.penerimaan;
-    totalPengeluaran += t.pengeluaran;
+
+    // Pada baris JUMLAH Penerimaan di bawah: hanya mengakumulasi dana riil yang masuk ke rekening sekolah saja.
+    // Penarikan dari bank ke kas tunai (mutasi internal kas) tidak dijumlahkan sebagai penerimaan atau pengeluaran kas umum.
+    const isPenarikanBankKeTunai = t.metode === 'TARIK_TUNAI';
+    if (!isPenarikanBankKeTunai) {
+      if (t.jenis === 'PENERIMAAN' || t.penerimaan > 0) {
+        totalPenerimaan += t.penerimaan;
+      }
+      if (t.jenis === 'PENGELUARAN' || t.pengeluaran > 0) {
+        totalPengeluaran += t.pengeluaran;
+      }
+    }
 
     return {
       no: idx + 1,
@@ -358,9 +368,13 @@ export function calculateBkBankRows(transactions: Transaction[]): {
   totalKredit: number;
   saldoAkhir: number;
 } {
-  // Transaksi yang melibatkan Rekening Bank (BANK atau TARIK_TUNAI)
+  // Sesuai aturan: Buku Kas Bank HANYA mencatat:
+  // 1. Transaksi dana masuk ke rekening sekolah (Debet)
+  // 2. Transaksi dana tarik tunai dari rekening sekolah (Kredit)
   const bankTransactions = transactions.filter(
-    (t) => t.metode === 'BANK' || t.metode === 'TARIK_TUNAI'
+    (t) =>
+      (t.metode === 'BANK' && t.jenis === 'PENERIMAAN') ||
+      t.metode === 'TARIK_TUNAI'
   );
 
   let runningSaldo = 0;
@@ -374,15 +388,11 @@ export function calculateBkBankRows(transactions: Transaction[]): {
     let debet = 0;
     let kredit = 0;
 
-    if (t.metode === 'BANK') {
-      if (t.jenis === 'PENERIMAAN') {
-        debet = t.penerimaan;
-      } else {
-        kredit = t.pengeluaran;
-      }
+    if (t.metode === 'BANK' && t.jenis === 'PENERIMAAN') {
+      debet = t.penerimaan;
     } else if (t.metode === 'TARIK_TUNAI') {
-      // Penarikan tunai mengurangi saldo bank (Kredit Bank)
-      kredit = t.pengeluaran;
+      // Penarikan tunai dari rekening sekolah (Kredit Bank)
+      kredit = t.pengeluaran > 0 ? t.pengeluaran : t.penerimaan;
     }
 
     runningSaldo += debet - kredit;

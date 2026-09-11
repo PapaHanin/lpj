@@ -129,9 +129,9 @@ export const BkuGeneralView: React.FC = () => {
               fx
             </span>
             <div>
-              <span className="font-bold text-emerald-950">Rumus Saldo Berjalan Aktif: </span>
-              <span className="font-mono font-semibold text-emerald-900 bg-emerald-100/70 px-1.5 py-0.5 rounded">
-                Saldo [7] = Saldo Sebelumnya + Penerimaan [5] - Pengeluaran [6]
+              <span className="font-bold text-emerald-950">Aturan Perhitungan BKU: </span>
+              <span className="font-semibold text-emerald-900 bg-emerald-100/70 px-1.5 py-0.5 rounded">
+                Saldo [7] = Saldo Sebelumnya + [5] - [6]. Pada JUMLAH, penerimaan hanya menghitung dana yang masuk ke rekening saja (penarikan ke kas tunai tidak dijumlahkan).
               </span>
             </div>
           </div>
@@ -264,13 +264,16 @@ export const BkuGeneralView: React.FC = () => {
                   JUMLAH
                 </td>
                 <td className="border border-slate-900 py-2.5 px-3 text-right font-mono font-black text-black">
-                  {formatRupiah(bku.totalPenerimaan, false)}
+                  <div>{formatRupiah(bku.totalPenerimaan, false)}</div>
+                  <div className="text-[9px] font-normal text-emerald-800 print:hidden font-sans">Dana masuk rekening</div>
                 </td>
                 <td className="border border-slate-900 py-2.5 px-3 text-right font-mono font-black text-rose-700">
-                  {formatRupiah(bku.totalPengeluaran, false)}
+                  <div>{formatRupiah(bku.totalPengeluaran, false)}</div>
+                  <div className="text-[9px] font-normal text-rose-800 print:hidden font-sans">Total belanja riil</div>
                 </td>
                 <td className="border border-slate-900 py-2.5 px-3 text-right font-mono font-black text-emerald-950">
-                  {formatRupiah(bku.saldoAkhir, false)}
+                  <div>{formatRupiah(bku.saldoAkhir, false)}</div>
+                  <div className="text-[9px] font-normal text-slate-600 print:hidden font-sans">Sisa Kas Umum</div>
                 </td>
                 <td className="border border-slate-900 py-2.5 px-2 print:hidden"></td>
               </tr>

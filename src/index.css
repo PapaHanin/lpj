@@ -1,9 +1,24 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Times New Roman', Times, Georgia, 'Liberation Serif', serif;
+  --font-serif: 'Times New Roman', Times, Georgia, 'Liberation Serif', serif;
+}
+
 @layer base {
-  body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  html, body {
+    font-family: 'Times New Roman', Times, Georgia, 'Liberation Serif', serif;
   }
+}
+
+/* Force Times New Roman for all formal documents, tables, printable sheets & kwitansi */
+.sheet-paper,
+.sheet-paper *,
+.font-formal,
+table,
+th,
+td {
+  font-family: 'Times New Roman', Times, Georgia, 'Liberation Serif', serif !important;
 }
 
 /* Custom smooth scrollbar for sidebar navigation */

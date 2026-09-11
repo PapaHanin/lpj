@@ -109,8 +109,34 @@ export function exportLpjToExcel(
   });
 
   const totalRow1 = 12 + bkuData.rows.length;
-  ws1['E' + totalRow1] = { t: 'n', f: `SUM(E12:E${totalRow1 - 1})`, v: bkuData.totalPenerimaan, z: '#,##0.00' };
-  ws1['F' + totalRow1] = { t: 'n', f: `SUM(F12:F${totalRow1 - 1})`, v: bkuData.totalPengeluaran, z: '#,##0.00' };
+
+  // Rumus Penerimaan pada JUMLAH BKU hanya menjumlahkan dana masuk ke rekening sekolah saja (mengecualikan penarikan bank ke kas tunai)
+  const incomingRows: number[] = [];
+  const realExpenseRows: number[] = [];
+  bkuData.rows.forEach((r, i) => {
+    const rNum = 12 + i;
+    if (r.transaction.metode !== 'TARIK_TUNAI') {
+      if (r.penerimaan > 0) incomingRows.push(rNum);
+      if (r.pengeluaran > 0) realExpenseRows.push(rNum);
+    }
+  });
+
+  const formulaPenerimaan =
+    incomingRows.length === 0
+      ? '0'
+      : incomingRows.length === 1
+      ? `E${incomingRows[0]}`
+      : incomingRows.map((rn) => `E${rn}`).join('+');
+
+  const formulaPengeluaran =
+    realExpenseRows.length === 0
+      ? '0'
+      : realExpenseRows.length === 1
+      ? `F${realExpenseRows[0]}`
+      : realExpenseRows.map((rn) => `F${rn}`).join('+');
+
+  ws1['E' + totalRow1] = { t: 'n', f: formulaPenerimaan, v: bkuData.totalPenerimaan, z: '#,##0.00' };
+  ws1['F' + totalRow1] = { t: 'n', f: formulaPengeluaran, v: bkuData.totalPengeluaran, z: '#,##0.00' };
   ws1['G' + totalRow1] = { t: 'n', f: `G${totalRow1 - 1}`, v: bkuData.saldoAkhir, z: '#,##0.00' };
 
   ws1['!cols'] = [
