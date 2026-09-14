@@ -1,4 +1,10 @@
 import { ProjectProfile, Transaction } from '../types';
+import {
+  BULAN_LIST,
+  extractMonthAndYear,
+  indonesianDateToIso,
+  getClosingDateForMonth,
+} from './dateUtils';
 
 export interface BkuRow {
   no: number | string;
@@ -9,6 +15,7 @@ export interface BkuRow {
   pengeluaran: number;
   saldo: number;
   transaction: Transaction;
+  isInitialRow?: boolean;
 }
 
 export interface BkuTunaiRow {
@@ -21,6 +28,7 @@ export interface BkuTunaiRow {
   saldo: number;
   transaction: Transaction;
   isParent?: boolean;
+  isInitialRow?: boolean;
 }
 
 export interface BkBankRow {
@@ -32,6 +40,58 @@ export interface BkBankRow {
   kredit: number;
   saldo: number;
   transaction: Transaction;
+  isInitialRow?: boolean;
+}
+
+export interface MonthlyBookGroup {
+  monthKey: string; // e.g. "2026-08"
+  monthName: string; // e.g. "Agustus"
+  year: number; // e.g. 2026
+  label: string; // e.g. "Agustus 2026"
+  tanggalTutupBuku: string; // e.g. "Senin, 31 Agustus 2026"
+  isFirstMonth: boolean;
+  prevMonthLabel?: string;
+  transactions: Transaction[];
+
+  // BKU (Kas Umum)
+  bku: {
+    initialRow?: BkuRow;
+    rows: BkuRow[];
+    totalPenerimaan: number;
+    totalPengeluaran: number;
+    saldoAkhir: number;
+    monthPenerimaan: number;
+    monthPengeluaran: number;
+  };
+
+  // BKU Tunai (Buku Pembantu Kas Tunai)
+  bkuTunai: {
+    initialRow?: BkuTunaiRow;
+    rows: BkuTunaiRow[];
+    totalPenerimaan: number;
+    totalPengeluaran: number;
+    saldoAkhir: number;
+    monthPenerimaan: number;
+    monthPengeluaran: number;
+  };
+
+  // BK Bank (Buku Pembantu Kas Bank)
+  bkBank: {
+    initialRow?: BkBankRow;
+    rows: BkBankRow[];
+    totalDebet: number;
+    totalKredit: number;
+    saldoAkhir: number;
+    monthDebet: number;
+    monthKredit: number;
+  };
+
+  // Posisi Kas saat Tutup Buku
+  summary: {
+    saldoBank: number;
+    saldoTunai: number;
+    saldoKumulatif: number;
+  };
 }
 
 export interface SummaryStats {
@@ -453,4 +513,330 @@ export function calculateSummary(transactions: Transaction[]): SummaryStats {
     saldoTunai: tunai.saldoAkhir,
     persentaseRealisasi: Math.min(100, Math.max(0, persentase)),
   };
+}
+
+export function sortTransactionsChronologically(transactions: Transaction[]): Transaction[] {
+  return [...transactions].sort((a, b) => {
+    const isoA = indonesianDateToIso(a.tanggal) || '9999-99-99';
+    const isoB = indonesianDateToIso(b.tanggal) || '9999-99-99';
+    if (isoA !== isoB) {
+      return isoA.localeCompare(isoB);
+    }
+    return (a.nomorBukti || '').localeCompare(b.nomorBukti || '', undefined, { numeric: true });
+  });
+}
+
+export function groupTransactionsByMonthlyBooks(
+  transactions: Transaction[],
+  profile?: ProjectProfile
+): MonthlyBookGroup[] {
+  const sorted = sortTransactionsChronologically(transactions);
+
+  // Group transactions by monthKey (YYYY-MM)
+  const mapMonth = new Map<string, { monthName: string; year: number; list: Transaction[] }>();
+
+  sorted.forEach((t) => {
+    const my = extractMonthAndYear(t.tanggal);
+    const monthName = my?.month || 'Agustus';
+    const year = my?.year || 2026;
+    const monthIdx = BULAN_LIST.findIndex((m) => m.toLowerCase() === monthName.toLowerCase());
+    const padMonth = String(monthIdx >= 0 ? monthIdx + 1 : 8).padStart(2, '0');
+    const monthKey = `${year}-${padMonth}`;
+
+    if (!mapMonth.has(monthKey)) {
+      mapMonth.set(monthKey, {
+        monthName,
+        year,
+        list: [],
+      });
+    }
+    mapMonth.get(monthKey)!.list.push(t);
+  });
+
+  if (mapMonth.size === 0) {
+    const profMonth = profile?.bulanLaporan || 'AGUSTUS 2026';
+    const my = extractMonthAndYear(profMonth);
+    const monthName = my?.month || 'Agustus';
+    const year = my?.year || 2026;
+    const monthIdx = BULAN_LIST.findIndex((m) => m.toLowerCase() === monthName.toLowerCase());
+    const padMonth = String(monthIdx >= 0 ? monthIdx + 1 : 8).padStart(2, '0');
+    const monthKey = `${year}-${padMonth}`;
+    mapMonth.set(monthKey, { monthName, year, list: [] });
+  }
+
+  // Sort month keys ascending (e.g. 2026-08, 2026-09)
+  const sortedMonthKeys = Array.from(mapMonth.keys()).sort();
+  const groups: MonthlyBookGroup[] = [];
+
+  let cumulativePenerimaanBku = 0;
+  let cumulativePengeluaranBku = 0;
+  let runningSaldoBku = 0;
+  let runningSaldoTunai = 0;
+  let runningSaldoBank = 0;
+
+  sortedMonthKeys.forEach((key, idx) => {
+    const { monthName, year, list } = mapMonth.get(key)!;
+    const label = `${monthName} ${year}`;
+    const tanggalTutupBuku = getClosingDateForMonth(monthName, year);
+    const isFirstMonth = idx === 0;
+    const prevGroup = idx > 0 ? groups[idx - 1] : undefined;
+    const prevMonthLabel = prevGroup ? prevGroup.label : undefined;
+    const prevMonthName = prevGroup ? prevGroup.monthName : '';
+
+    const prevPenerimaanBku = cumulativePenerimaanBku;
+    const prevPengeluaranBku = cumulativePengeluaranBku;
+    const prevSaldoBku = runningSaldoBku;
+    const prevSaldoTunai = runningSaldoTunai;
+    const prevSaldoBank = runningSaldoBank;
+
+    // 1. BKU
+    const bkuRows: BkuRow[] = [];
+    let bkuRowNo = 1;
+    let bkuInitialRow: BkuRow | undefined = undefined;
+
+    if (!isFirstMonth) {
+      bkuInitialRow = {
+        no: bkuRowNo++,
+        tanggal: `01 ${monthName} ${year}`,
+        uraian: `Sisa Saldo Bulan ${prevMonthName}`,
+        nomorBukti: '',
+        penerimaan: prevPenerimaanBku,
+        pengeluaran: prevPengeluaranBku,
+        saldo: prevSaldoBku,
+        isInitialRow: true,
+        transaction: {
+          id: `initial-bku-${key}`,
+          tanggal: `01 ${monthName} ${year}`,
+          uraian: `Sisa Saldo Bulan ${prevMonthName}`,
+          nomorBukti: '',
+          metode: 'BANK',
+          jenis: 'PENERIMAAN',
+          penerimaan: prevPenerimaanBku,
+          pengeluaran: prevPengeluaranBku,
+        },
+      };
+      bkuRows.push(bkuInitialRow);
+    }
+
+    let monthPenerimaanBku = 0;
+    let monthPengeluaranBku = 0;
+
+    list.forEach((t) => {
+      runningSaldoBku += t.penerimaan - t.pengeluaran;
+
+      const isPenarikanBankKeTunai = t.metode === 'TARIK_TUNAI';
+      if (!isPenarikanBankKeTunai) {
+        if (t.jenis === 'PENERIMAAN' || t.penerimaan > 0) {
+          monthPenerimaanBku += t.penerimaan;
+        }
+        if (t.jenis === 'PENGELUARAN' || t.pengeluaran > 0) {
+          monthPengeluaranBku += t.pengeluaran;
+        }
+      }
+
+      bkuRows.push({
+        no: bkuRowNo++,
+        tanggal: t.tanggal,
+        uraian: t.uraian,
+        nomorBukti: t.nomorBukti,
+        penerimaan: t.penerimaan,
+        pengeluaran: t.pengeluaran,
+        saldo: runningSaldoBku,
+        transaction: t,
+      });
+    });
+
+    const totalPenerimaanBku = isFirstMonth
+      ? monthPenerimaanBku
+      : prevPenerimaanBku + monthPenerimaanBku;
+    const totalPengeluaranBku = isFirstMonth
+      ? monthPengeluaranBku
+      : prevPengeluaranBku + monthPengeluaranBku;
+
+    // 2. BKU Tunai
+    const tunaiRows: BkuTunaiRow[] = [];
+    let tunaiRowNo = 1;
+    let tunaiInitialRow: BkuTunaiRow | undefined = undefined;
+
+    if (!isFirstMonth) {
+      tunaiInitialRow = {
+        no: tunaiRowNo++,
+        tanggal: `01 ${monthName} ${year}`,
+        uraian: `Sisa Saldo Kas Tunai Bulan ${prevMonthName}`,
+        nomorBukti: '',
+        penerimaan: prevSaldoTunai,
+        pengeluaran: 0,
+        saldo: prevSaldoTunai,
+        isInitialRow: true,
+        transaction: {
+          id: `initial-tunai-${key}`,
+          tanggal: `01 ${monthName} ${year}`,
+          uraian: `Sisa Saldo Kas Tunai Bulan ${prevMonthName}`,
+          nomorBukti: '',
+          metode: 'TUNAI',
+          jenis: 'PENERIMAAN',
+          penerimaan: prevSaldoTunai,
+          pengeluaran: 0,
+        },
+      };
+      tunaiRows.push(tunaiInitialRow);
+    }
+
+    let monthPenerimaanTunai = 0;
+    let monthPengeluaranTunai = 0;
+
+    const tunaiList = list.filter(
+      (t) => t.metode === 'TUNAI' || t.metode === 'TARIK_TUNAI'
+    );
+
+    tunaiList.forEach((t) => {
+      const penerimaanTunai =
+        t.metode === 'TARIK_TUNAI'
+          ? t.penerimaan
+          : t.jenis === 'PENERIMAAN'
+          ? t.penerimaan
+          : 0;
+      const pengeluaranTunai =
+        t.metode === 'TUNAI' && t.jenis === 'PENGELUARAN' ? t.pengeluaran : 0;
+
+      runningSaldoTunai += penerimaanTunai - pengeluaranTunai;
+      monthPenerimaanTunai += penerimaanTunai;
+      monthPengeluaranTunai += pengeluaranTunai;
+
+      tunaiRows.push({
+        no: tunaiRowNo++,
+        tanggal: t.tanggal,
+        uraian: t.uraian,
+        nomorBukti: t.nomorBukti,
+        penerimaan: penerimaanTunai,
+        pengeluaran: pengeluaranTunai,
+        saldo: runningSaldoTunai,
+        transaction: t,
+        isParent: Boolean(t.subItems && t.subItems.length > 0),
+      });
+    });
+
+    const totalPenerimaanTunai = isFirstMonth
+      ? monthPenerimaanTunai
+      : prevSaldoTunai + monthPenerimaanTunai;
+    const totalPengeluaranTunai = monthPengeluaranTunai;
+
+    // 3. BK Bank
+    const bankRows: BkBankRow[] = [];
+    let bankRowNo = 1;
+    let bankInitialRow: BkBankRow | undefined = undefined;
+
+    if (!isFirstMonth) {
+      bankInitialRow = {
+        no: bankRowNo++,
+        tanggal: `01 ${monthName} ${year}`,
+        uraian: `Sisa Saldo Bank Bulan ${prevMonthName}`,
+        nomorBukti: '',
+        debet: prevSaldoBank,
+        kredit: 0,
+        saldo: prevSaldoBank,
+        isInitialRow: true,
+        transaction: {
+          id: `initial-bank-${key}`,
+          tanggal: `01 ${monthName} ${year}`,
+          uraian: `Sisa Saldo Bank Bulan ${prevMonthName}`,
+          nomorBukti: '',
+          metode: 'BANK',
+          jenis: 'PENERIMAAN',
+          penerimaan: prevSaldoBank,
+          pengeluaran: 0,
+        },
+      };
+      bankRows.push(bankInitialRow);
+    }
+
+    let monthDebetBank = 0;
+    let monthKreditBank = 0;
+
+    const bankList = list.filter(
+      (t) =>
+        (t.metode === 'BANK' && t.jenis === 'PENERIMAAN') ||
+        t.metode === 'TARIK_TUNAI'
+    );
+
+    bankList.forEach((t) => {
+      let debet = 0;
+      let kredit = 0;
+
+      if (t.metode === 'BANK' && t.jenis === 'PENERIMAAN') {
+        debet = t.penerimaan;
+      } else if (t.metode === 'TARIK_TUNAI') {
+        kredit = t.pengeluaran > 0 ? t.pengeluaran : t.penerimaan;
+      }
+
+      runningSaldoBank += debet - kredit;
+      monthDebetBank += debet;
+      monthKreditBank += kredit;
+
+      bankRows.push({
+        no: bankRowNo++,
+        tanggal: t.tanggal,
+        uraian: t.uraian,
+        nomorBukti: t.nomorBukti,
+        debet,
+        kredit,
+        saldo: runningSaldoBank,
+        transaction: t,
+      });
+    });
+
+    const totalDebetBank = isFirstMonth
+      ? monthDebetBank
+      : prevSaldoBank + monthDebetBank;
+    const totalKreditBank = monthKreditBank;
+
+    // Update cumulative for next month
+    cumulativePenerimaanBku = totalPenerimaanBku;
+    cumulativePengeluaranBku = totalPengeluaranBku;
+
+    groups.push({
+      monthKey: key,
+      monthName,
+      year,
+      label,
+      tanggalTutupBuku,
+      isFirstMonth,
+      prevMonthLabel,
+      transactions: list,
+      bku: {
+        initialRow: bkuInitialRow,
+        rows: bkuRows,
+        totalPenerimaan: totalPenerimaanBku,
+        totalPengeluaran: totalPengeluaranBku,
+        saldoAkhir: runningSaldoBku,
+        monthPenerimaan: monthPenerimaanBku,
+        monthPengeluaran: monthPengeluaranBku,
+      },
+      bkuTunai: {
+        initialRow: tunaiInitialRow,
+        rows: tunaiRows,
+        totalPenerimaan: totalPenerimaanTunai,
+        totalPengeluaran: totalPengeluaranTunai,
+        saldoAkhir: runningSaldoTunai,
+        monthPenerimaan: monthPenerimaanTunai,
+        monthPengeluaran: monthPengeluaranTunai,
+      },
+      bkBank: {
+        initialRow: bankInitialRow,
+        rows: bankRows,
+        totalDebet: totalDebetBank,
+        totalKredit: totalKreditBank,
+        saldoAkhir: runningSaldoBank,
+        monthDebet: monthDebetBank,
+        monthKredit: monthKreditBank,
+      },
+      summary: {
+        saldoBank: runningSaldoBank,
+        saldoTunai: runningSaldoTunai,
+        saldoKumulatif: runningSaldoBku,
+      },
+    });
+  });
+
+  return groups;
 }
