@@ -6,6 +6,7 @@ import { BkuGeneralView } from './components/BkuGeneralView';
 import { BkuTunaiView } from './components/BkuTunaiView';
 import { BkBankView } from './components/BkBankView';
 import { CetakKwitansiView } from './components/CetakKwitansiView';
+import { DaftarBarangView } from './components/DaftarBarangView';
 import { TransactionModal } from './components/TransactionModal';
 import { ProfileModal } from './components/ProfileModal';
 import { PrintAssistantModal } from './components/PrintAssistantModal';
@@ -34,6 +35,7 @@ export default function App() {
           {activeTab === 'bku-tunai' && <BkuTunaiView />}
           {activeTab === 'bk-bank' && <BkBankView />}
           {activeTab === 'kwitansi' && <CetakKwitansiView />}
+          {activeTab === 'daftar-barang' && <DaftarBarangView />}
         </main>
 
         {/* Bottom Footer in Purple & Yellow Style (Hidden during Print) */}

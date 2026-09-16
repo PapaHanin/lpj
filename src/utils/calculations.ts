@@ -5,6 +5,7 @@ import {
   indonesianDateToIso,
   getClosingDateForMonth,
 } from './dateUtils';
+export { formatRupiah, formatRupiahBulat } from './terbilang';
 
 export interface BkuRow {
   no: number | string;

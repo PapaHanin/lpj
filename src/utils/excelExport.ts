@@ -3,6 +3,13 @@ import { ProjectProfile, Transaction } from '../types';
 import { groupTransactionsByMonthlyBooks } from './calculations';
 import { formatRupiahBulat, terbilangRupiah } from './terbilang';
 import { useLpjStore } from '../store/lpjStore';
+import {
+  extractDaftarBahan,
+  calculateUpahJumlah,
+  calculateTotalHari,
+  formatDayCell,
+  formatTotalHari,
+} from './bahanTukangUtils';
 
 export function exportLpjToExcel(
   profile: ProjectProfile,
@@ -381,6 +388,129 @@ export function exportLpjToExcel(
       { wch: 28 },
     ];
     XLSX.utils.book_append_sheet(wb, ws4, 'CETAK KWITANSI');
+
+    // ==========================================
+    // SHEET 5: DAFTAR BAHAN (Sesuai Foto Excel)
+    // ==========================================
+    const allBahanItems = [
+      ...extractDaftarBahan(transactions, true),
+      ...store.customBahanList,
+    ];
+    const totalBahanSum = allBahanItems.reduce((acc, b) => acc + b.total, 0);
+
+    const sheet5Rows: (string | number)[][] = [
+      ['DAFTAR BAHAN'],
+      [`NAMA SEKOLAH / PROYEK : ${profile.namaSekolah}`],
+      [`BULAN LAPORAN          : ${profile.bulanLaporan}`],
+      [],
+      ['No.', 'Nama Barang', 'Satuan', 'Harga', 'Total'],
+      ...allBahanItems.map((item, idx) => [
+        idx + 1,
+        item.namaBarang,
+        item.satuanDisplay,
+        item.harga,
+        item.total,
+      ]),
+      ['', 'Jumlah Total', '', '', totalBahanSum],
+    ];
+
+    const ws5 = XLSX.utils.aoa_to_sheet(sheet5Rows);
+    ws5['!cols'] = [
+      { wch: 6 },
+      { wch: 38 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 20 },
+    ];
+    XLSX.utils.book_append_sheet(wb, ws5, 'DAFTAR BAHAN');
+
+    // ==========================================
+    // SHEET 6: ABSEN HARIAN TUKANG
+    // ==========================================
+    const activeAbsen =
+      store.absenTukangList.find((w) => w.id === store.selectedAbsenWeekId) ||
+      store.absenTukangList[0];
+
+    if (activeAbsen) {
+      const tukangs = activeAbsen.pekerja.filter((p) => p.kategori === 'TUKANG');
+      const kneks = activeAbsen.pekerja.filter((p) => p.kategori === 'KNEK');
+      const totalUpah = activeAbsen.pekerja.reduce(
+        (sum, p) => sum + calculateUpahJumlah(p),
+        0
+      );
+
+      const sheet6Rows: (string | number)[][] = [
+        ['ABSEN HARIAN TUKANG'],
+        [],
+        ['Proyek', `:\t${activeAbsen.proyek}`],
+        ['Lokasi', `:\t${activeAbsen.lokasi}`],
+        ['Minggu ke', `:\t${activeAbsen.mingguKe}`],
+        ['Hari Tanggal', `:\t${activeAbsen.hariTanggal}`],
+        [],
+        [
+          'No.',
+          'Nama',
+          'Minggu',
+          'Senin',
+          'Selasa',
+          'Rabu',
+          'Kamis',
+          'Jumat',
+          'Sabtu',
+          'Jml Hari',
+          'Upah',
+          'Jumlah',
+        ],
+        ['', 'Tukang', '', '', '', '', '', '', '', '', '', ''],
+        ...tukangs.map((p, idx) => [
+          idx + 1,
+          p.nama,
+          formatDayCell(p.hariKerja.minggu),
+          formatDayCell(p.hariKerja.senin),
+          formatDayCell(p.hariKerja.selasa),
+          formatDayCell(p.hariKerja.rabu),
+          formatDayCell(p.hariKerja.kamis),
+          formatDayCell(p.hariKerja.jumat),
+          formatDayCell(p.hariKerja.sabtu),
+          formatTotalHari(calculateTotalHari(p.hariKerja)),
+          p.upahHarian,
+          calculateUpahJumlah(p),
+        ]),
+        ['', 'Knek', '', '', '', '', '', '', '', '', '', ''],
+        ...kneks.map((p, idx) => [
+          idx + 1,
+          p.nama,
+          formatDayCell(p.hariKerja.minggu),
+          formatDayCell(p.hariKerja.senin),
+          formatDayCell(p.hariKerja.selasa),
+          formatDayCell(p.hariKerja.rabu),
+          formatDayCell(p.hariKerja.kamis),
+          formatDayCell(p.hariKerja.jumat),
+          formatDayCell(p.hariKerja.sabtu),
+          formatTotalHari(calculateTotalHari(p.hariKerja)),
+          p.upahHarian,
+          calculateUpahJumlah(p),
+        ]),
+        ['', 'Jumlah Total', '', '', '', '', '', '', '', '', '', totalUpah],
+      ];
+
+      const ws6 = XLSX.utils.aoa_to_sheet(sheet6Rows);
+      ws6['!cols'] = [
+        { wch: 6 },
+        { wch: 20 },
+        { wch: 8 },
+        { wch: 8 },
+        { wch: 8 },
+        { wch: 8 },
+        { wch: 8 },
+        { wch: 8 },
+        { wch: 8 },
+        { wch: 10 },
+        { wch: 16 },
+        { wch: 18 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws6, 'ABSEN TUKANG');
+    }
 
     // Generate binary output
     const cleanSchoolName = profile.namaSekolah.replace(/[^a-zA-Z0-9]/g, '_');

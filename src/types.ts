@@ -43,4 +43,52 @@ export interface ProjectProfile {
   tempatPelunasan: string;
 }
 
-export type ActiveTab = 'dashboard' | 'bku' | 'bku-tunai' | 'bk-bank' | 'kwitansi' | 'input';
+export type ActiveTab =
+  | 'dashboard'
+  | 'bku'
+  | 'bku-tunai'
+  | 'bk-bank'
+  | 'kwitansi'
+  | 'daftar-barang'
+  | 'input';
+
+export type SubTabDaftarBarang = 'bahan' | 'tukang';
+
+export interface CustomBahanItem {
+  id: string;
+  namaBarang: string;
+  satuanDisplay: string; // Kolom "Satuan" diisi jumlah total + satuan e.g. "50 Sak"
+  volume: number;
+  namaSatuan: string;
+  harga: number;
+  total: number;
+}
+
+export type KategoriPekerja = 'TUKANG' | 'KNEK';
+
+export interface HariKerjaRecord {
+  minggu: number; // 1, 0.5, 0
+  senin: number;
+  selasa: number;
+  rabu: number;
+  kamis: number;
+  jumat: number;
+  sabtu: number;
+}
+
+export interface PekerjaTukang {
+  id: string;
+  kategori: KategoriPekerja;
+  nama: string;
+  hariKerja: HariKerjaRecord;
+  upahHarian: number;
+}
+
+export interface AbsenMingguanTukang {
+  id: string;
+  proyek: string;
+  lokasi: string;
+  mingguKe: number;
+  hariTanggal: string;
+  pekerja: PekerjaTukang[];
+}

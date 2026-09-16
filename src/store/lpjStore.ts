@@ -1,8 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ActiveTab, ProjectProfile, Transaction, TransactionJenis, TransactionMetode } from '../types';
+import {
+  ActiveTab,
+  ProjectProfile,
+  Transaction,
+  TransactionJenis,
+  TransactionMetode,
+  SubTabDaftarBarang,
+  AbsenMingguanTukang,
+  CustomBahanItem,
+  HariKerjaRecord,
+  PekerjaTukang,
+  KategoriPekerja,
+} from '../types';
 import { INITIAL_PROFILE, INITIAL_TRANSACTIONS } from '../utils/calculations';
 import { getClosingDateForMonth } from '../utils/dateUtils';
+import { INITIAL_ABSEN_DATA, DEFAULT_ABSEN_MINGGU_2 } from '../utils/bahanTukangUtils';
 
 export interface ModalPreset {
   metode?: TransactionMetode;
@@ -32,6 +45,12 @@ interface LpjState {
   transactionToEdit: Transaction | null;
   modalPreset: ModalPreset | null;
 
+  // Daftar Barang/Belanja State (Subnavigasi: Bahan & Tukang)
+  activeSubTabDaftarBarang: SubTabDaftarBarang;
+  absenTukangList: AbsenMingguanTukang[];
+  selectedAbsenWeekId: string;
+  customBahanList: CustomBahanItem[];
+
   // Print & Toast States
   isPrintModalOpen: boolean;
   printModalDocTitle: string;
@@ -55,6 +74,35 @@ interface LpjState {
   showToast: (toast: Omit<ToastNotification, 'id'>) => void;
   clearToast: () => void;
   resetToInitialData: () => void;
+
+  // Actions untuk Daftar Barang & Absen Tukang
+  setActiveSubTabDaftarBarang: (subTab: SubTabDaftarBarang) => void;
+  setSelectedAbsenWeekId: (id: string) => void;
+  updateAbsenMingguanHeader: (
+    id: string,
+    updated: Partial<Omit<AbsenMingguanTukang, 'pekerja'>>
+  ) => void;
+  updatePekerjaAttendance: (
+    absenId: string,
+    pekerjaId: string,
+    day: keyof HariKerjaRecord,
+    val: number
+  ) => void;
+  addPekerjaToAbsen: (
+    absenId: string,
+    kategori: KategoriPekerja,
+    nama: string,
+    upahHarian: number
+  ) => void;
+  updatePekerjaInfo: (
+    absenId: string,
+    pekerjaId: string,
+    updated: Partial<PekerjaTukang>
+  ) => void;
+  deletePekerjaFromAbsen: (absenId: string, pekerjaId: string) => void;
+  addNewAbsenWeek: (weekNum: number, tanggal?: string) => void;
+  addCustomBahan: (item: Omit<CustomBahanItem, 'id'>) => void;
+  deleteCustomBahan: (id: string) => void;
 }
 
 export const useLpjStore = create<LpjState>()(
@@ -69,6 +117,12 @@ export const useLpjStore = create<LpjState>()(
       isProfileModalOpen: false,
       transactionToEdit: null,
       modalPreset: null,
+
+      // State Daftar Barang/Belanja
+      activeSubTabDaftarBarang: 'bahan',
+      absenTukangList: INITIAL_ABSEN_DATA,
+      selectedAbsenWeekId: 'absen-minggu-2',
+      customBahanList: [],
 
       isPrintModalOpen: false,
       printModalDocTitle: 'Buku Kas Umum (BKU)',
@@ -185,7 +239,131 @@ export const useLpjStore = create<LpjState>()(
           profile: INITIAL_PROFILE,
           transactions: INITIAL_TRANSACTIONS,
           selectedTransactionIdForKwitansi: 'tx-15',
+          absenTukangList: INITIAL_ABSEN_DATA,
+          selectedAbsenWeekId: 'absen-minggu-2',
+          customBahanList: [],
         }),
+
+      // Reducers Daftar Barang / Belanja & Absen Tukang
+      setActiveSubTabDaftarBarang: (subTab) =>
+        set({ activeSubTabDaftarBarang: subTab }),
+
+      setSelectedAbsenWeekId: (id) =>
+        set({ selectedAbsenWeekId: id }),
+
+      updateAbsenMingguanHeader: (id, updated) =>
+        set((state) => ({
+          absenTukangList: state.absenTukangList.map((week) =>
+            week.id === id ? { ...week, ...updated } : week
+          ),
+        })),
+
+      updatePekerjaAttendance: (absenId, pekerjaId, day, val) =>
+        set((state) => ({
+          absenTukangList: state.absenTukangList.map((week) => {
+            if (week.id !== absenId) return week;
+            return {
+              ...week,
+              pekerja: week.pekerja.map((p) => {
+                if (p.id !== pekerjaId) return p;
+                return {
+                  ...p,
+                  hariKerja: {
+                    ...p.hariKerja,
+                    [day]: val,
+                  },
+                };
+              }),
+            };
+          }),
+        })),
+
+      addPekerjaToAbsen: (absenId, kategori, nama, upahHarian) =>
+        set((state) => {
+          const newPekerja: PekerjaTukang = {
+            id: `pkr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            kategori,
+            nama: nama.trim() || (kategori === 'TUKANG' ? 'Tukang Baru' : 'Knek Baru'),
+            hariKerja: { minggu: 0, senin: 1, selasa: 1, rabu: 1, kamis: 1, jumat: 1, sabtu: 1 },
+            upahHarian,
+          };
+          return {
+            absenTukangList: state.absenTukangList.map((week) => {
+              if (week.id !== absenId) return week;
+              return {
+                ...week,
+                pekerja: [...week.pekerja, newPekerja],
+              };
+            }),
+          };
+        }),
+
+      updatePekerjaInfo: (absenId, pekerjaId, updated) =>
+        set((state) => ({
+          absenTukangList: state.absenTukangList.map((week) => {
+            if (week.id !== absenId) return week;
+            return {
+              ...week,
+              pekerja: week.pekerja.map((p) =>
+                p.id === pekerjaId ? { ...p, ...updated } : p
+              ),
+            };
+          }),
+        })),
+
+      deletePekerjaFromAbsen: (absenId, pekerjaId) =>
+        set((state) => ({
+          absenTukangList: state.absenTukangList.map((week) => {
+            if (week.id !== absenId) return week;
+            return {
+              ...week,
+              pekerja: week.pekerja.filter((p) => p.id !== pekerjaId),
+            };
+          }),
+        })),
+
+      addNewAbsenWeek: (weekNum, tanggal) =>
+        set((state) => {
+          const newId = `absen-minggu-${weekNum}-${Date.now()}`;
+          // Template pekerja diambil dari minggu sebelumnya atau default
+          const basePekerja = state.absenTukangList[0]?.pekerja || DEFAULT_ABSEN_MINGGU_2.pekerja;
+          const clonedPekerja: PekerjaTukang[] = basePekerja.map((p, idx) => ({
+            ...p,
+            id: `pkr-w${weekNum}-${idx + 1}-${Date.now()}`,
+            // reset attendance default to full week or copy
+            hariKerja: { minggu: 0, senin: 1, selasa: 1, rabu: 1, kamis: 1, jumat: 1, sabtu: 1 },
+          }));
+
+          const newWeek: AbsenMingguanTukang = {
+            id: newId,
+            proyek: state.profile.judulPekerjaan ? state.profile.judulPekerjaan.substring(0, 40) + '...' : 'Rehabilitasi Sekolah',
+            lokasi: `${state.profile.alamat}, ${state.profile.kabupaten}`,
+            mingguKe: weekNum,
+            hariTanggal: tanggal || `Sabtu, ${weekNum * 7} ${state.profile.bulanLaporan || '2026'}`,
+            pekerja: clonedPekerja,
+          };
+
+          return {
+            absenTukangList: [...state.absenTukangList, newWeek],
+            selectedAbsenWeekId: newId,
+          };
+        }),
+
+      addCustomBahan: (item) =>
+        set((state) => ({
+          customBahanList: [
+            ...state.customBahanList,
+            {
+              ...item,
+              id: `custom-bhn-${Date.now()}`,
+            },
+          ],
+        })),
+
+      deleteCustomBahan: (id) =>
+        set((state) => ({
+          customBahanList: state.customBahanList.filter((b) => b.id !== id),
+        })),
     }),
     {
       name: 'ah-beres-lpj-storage-v2',
