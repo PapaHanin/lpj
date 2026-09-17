@@ -9,6 +9,8 @@ import {
   calculateTotalHari,
   formatDayCell,
   formatTotalHari,
+  HARI_KERJA_2_MINGGU,
+  getDayValue,
 } from './bahanTukangUtils';
 
 export function exportLpjToExcel(
@@ -432,84 +434,185 @@ export function exportLpjToExcel(
       store.absenTukangList[0];
 
     if (activeAbsen) {
-      const tukangs = activeAbsen.pekerja.filter((p) => p.kategori === 'TUKANG');
-      const kneks = activeAbsen.pekerja.filter((p) => p.kategori === 'KNEK');
       const totalUpah = activeAbsen.pekerja.reduce(
         (sum, p) => sum + calculateUpahJumlah(p),
         0
       );
 
+      const pekerjaan = activeAbsen.proyek || profile.judulPekerjaan || 'Pembangunan Laboratorium Komputer dan UKS';
+      const namaSekolah = activeAbsen.namaSekolah || profile.namaSekolah || 'SDN INPRES 5 PALASA';
+      const alamat = activeAbsen.lokasi || profile.alamat || 'JL. NELAYAN DUSUN 1 BAMBANIPA, DESA PALASA';
+      const periodeKe = activeAbsen.periodeKe || activeAbsen.mingguKe || 1;
+      const mggStart = (periodeKe - 1) * 2 + 1;
+      const mggEnd = periodeKe * 2;
+      const pertanggal = activeAbsen.hariTanggal || `Periode ${periodeKe} (Minggu ${mggStart} s.d ${mggEnd})`;
+      const namaKepalaSekolah = activeAbsen.namaKepalaSekolah || profile.namaKepalaSekolah || 'NURWAHDA, S.Pd.SD';
+      const nipKepalaSekolah = activeAbsen.nipKepalaSekolah || profile.nipKepalaSekolah || '197012271993022004';
+      const namaBendahara = activeAbsen.namaBendahara || profile.namaBendahara || 'RAHMAWATI, S.Pd';
+      const nipBendahara = activeAbsen.nipBendahara || profile.nipBendahara || '197906012014092001';
+
       const sheet6Rows: (string | number)[][] = [
-        ['ABSEN HARIAN TUKANG'],
+        ['REKAPITULASI UPAH KERJA DUA MINGGUAN'],
         [],
-        ['Proyek', `:\t${activeAbsen.proyek}`],
-        ['Lokasi', `:\t${activeAbsen.lokasi}`],
-        ['Minggu ke', `:\t${activeAbsen.mingguKe}`],
-        ['Hari Tanggal', `:\t${activeAbsen.hariTanggal}`],
+        ['PEKERJAAN', `:\t${pekerjaan}`],
+        ['NAMA SEKOLAH', `:\t${namaSekolah}`],
+        ['ALAMAT', `:\t${alamat}`],
+        ['PERIODE (2 MINGGU) KE', `:\t${periodeKe} (Minggu ke-${mggStart} s.d ${mggEnd})`],
+        ['PERTANGGAL', `:\t${pertanggal}`],
         [],
         [
-          'No.',
-          'Nama',
-          'Minggu',
-          'Senin',
-          'Selasa',
-          'Rabu',
-          'Kamis',
-          'Jumat',
-          'Sabtu',
-          'Jml Hari',
-          'Upah',
-          'Jumlah',
+          'NO.',
+          'NAMA TUKANG',
+          'TENAGA KERJA',
+          'MINGGU I (HARI 1 - 7)',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          'MINGGU II (HARI 8 - 14)',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          'JUMLAH',
+          '',
+          '',
+          'PARAF',
         ],
-        ['', 'Tukang', '', '', '', '', '', '', '', '', '', ''],
-        ...tukangs.map((p, idx) => [
+        [
+          '',
+          '',
+          '',
+          'I',
+          'II',
+          'III',
+          'IV',
+          'V',
+          'VI',
+          'VII',
+          'I',
+          'II',
+          'III',
+          'IV',
+          'V',
+          'VI',
+          'VII',
+          'TENAGA',
+          'UPAH/HARI',
+          'UPAH 2 MGG',
+          '',
+        ],
+        [
+          '',
+          '',
+          '',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'Org/2Mgg',
+          '(Rp.)',
+          '(Rp.)',
+          '',
+        ],
+        ...activeAbsen.pekerja.map((p, idx) => [
           idx + 1,
           p.nama,
-          formatDayCell(p.hariKerja.minggu),
-          formatDayCell(p.hariKerja.senin),
-          formatDayCell(p.hariKerja.selasa),
-          formatDayCell(p.hariKerja.rabu),
-          formatDayCell(p.hariKerja.kamis),
-          formatDayCell(p.hariKerja.jumat),
-          formatDayCell(p.hariKerja.sabtu),
+          p.tenagaKerja || p.kategori,
+          ...HARI_KERJA_2_MINGGU.map((col) =>
+            formatDayCell(getDayValue(p.hariKerja, col.key))
+          ),
           formatTotalHari(calculateTotalHari(p.hariKerja)),
           p.upahHarian,
           calculateUpahJumlah(p),
+          p.paraf || `${idx + 1}`,
         ]),
-        ['', 'Knek', '', '', '', '', '', '', '', '', '', ''],
-        ...kneks.map((p, idx) => [
-          idx + 1,
-          p.nama,
-          formatDayCell(p.hariKerja.minggu),
-          formatDayCell(p.hariKerja.senin),
-          formatDayCell(p.hariKerja.selasa),
-          formatDayCell(p.hariKerja.rabu),
-          formatDayCell(p.hariKerja.kamis),
-          formatDayCell(p.hariKerja.jumat),
-          formatDayCell(p.hariKerja.sabtu),
-          formatTotalHari(calculateTotalHari(p.hariKerja)),
-          p.upahHarian,
-          calculateUpahJumlah(p),
-        ]),
-        ['', 'Jumlah Total', '', '', '', '', '', '', '', '', '', totalUpah],
+        [
+          'JUMLAH UPAH 2 MINGGU (Rp.)',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          totalUpah,
+          '',
+        ],
+        [],
+        ['Mengetahui;', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Lunas Bayar,'],
+        ['Kepala Sekolah,', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Bendahara,'],
+        [],
+        [],
+        [],
+        [namaKepalaSekolah, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', namaBendahara],
+        [`NIP.${nipKepalaSekolah.replace(/\s+/g, '')}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', `NIP.${nipBendahara.replace(/\s+/g, '')}`],
       ];
 
       const ws6 = XLSX.utils.aoa_to_sheet(sheet6Rows);
+      ws6['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 20 } },
+        { s: { r: 8, c: 0 }, e: { r: 10, c: 0 } },
+        { s: { r: 8, c: 1 }, e: { r: 10, c: 1 } },
+        { s: { r: 8, c: 2 }, e: { r: 10, c: 2 } },
+        { s: { r: 8, c: 3 }, e: { r: 8, c: 9 } },
+        { s: { r: 8, c: 10 }, e: { r: 8, c: 16 } },
+        { s: { r: 8, c: 17 }, e: { r: 8, c: 19 } },
+        { s: { r: 8, c: 20 }, e: { r: 10, c: 20 } },
+        {
+          s: { r: 11 + activeAbsen.pekerja.length, c: 0 },
+          e: { r: 11 + activeAbsen.pekerja.length, c: 18 },
+        },
+      ];
       ws6['!cols'] = [
         { wch: 6 },
         { wch: 20 },
-        { wch: 8 },
-        { wch: 8 },
-        { wch: 8 },
-        { wch: 8 },
-        { wch: 8 },
-        { wch: 8 },
-        { wch: 8 },
-        { wch: 10 },
+        { wch: 16 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 12 },
         { wch: 16 },
         { wch: 18 },
+        { wch: 8 },
       ];
-      XLSX.utils.book_append_sheet(wb, ws6, 'ABSEN TUKANG');
+      XLSX.utils.book_append_sheet(wb, ws6, 'REKAP UPAH 2 MINGGU');
     }
 
     // Generate binary output

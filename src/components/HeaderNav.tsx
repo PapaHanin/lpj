@@ -14,6 +14,7 @@ import {
 import { useLpjStore } from '../store/lpjStore';
 import { ActiveTab } from '../types';
 import { exportLpjToExcel } from '../utils/excelExport';
+import { triggerPrint } from '../utils/printHelper';
 
 export const HeaderNav: React.FC = () => {
   const {
@@ -31,7 +32,7 @@ export const HeaderNav: React.FC = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    triggerPrint('Laporan Pertanggungjawaban (LPJ)');
   };
 
   const navItems: { id: ActiveTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [

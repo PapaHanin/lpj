@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useLpjStore } from '../store/lpjStore';
 import { extractDaftarBahan } from '../utils/bahanTukangUtils';
 import { formatRupiah } from '../utils/calculations';
+import { triggerPrint } from '../utils/printHelper';
 import {
   Boxes,
   Search,
@@ -75,7 +76,7 @@ export const DaftarBahanTab: React.FC = () => {
   };
 
   const handlePrintBahan = () => {
-    window.print();
+    triggerPrint('Daftar Bahan Material Belanja DAK');
   };
 
   const handleExportExcelBahan = () => {
@@ -192,7 +193,7 @@ export const DaftarBahanTab: React.FC = () => {
       </div>
 
       {/* Printable Paper / Sheet (Styled exactly like Screenshot 2026-09-16 083346.png) */}
-      <div className="bg-white text-slate-900 rounded-xl shadow-2xl overflow-hidden border border-slate-300 print:shadow-none print:border-none print:m-0">
+      <div className="sheet-paper bg-white text-slate-900 rounded-xl shadow-2xl overflow-hidden border border-slate-300 print:shadow-none print:border-none print:m-0">
         {/* Yellow Header Banner: DAFTAR BAHAN */}
         <div className="bg-[#FFEB3B] text-slate-900 font-black text-center py-2 px-4 border-b-2 border-slate-400 uppercase tracking-wider text-base md:text-lg">
           DAFTAR BAHAN
@@ -337,19 +338,19 @@ export const DaftarBahanTab: React.FC = () => {
           </table>
         </div>
 
-        {/* Print Signature Footer (Only printed) */}
-        <div className="hidden print:grid grid-cols-2 gap-8 p-6 text-xs text-slate-800 border-t border-slate-300 mt-4">
+        {/* Print Signature Footer (Visible on Screen Preview & Print) */}
+        <div className="mt-4 p-6 text-xs text-slate-800 border-t border-slate-300 grid grid-cols-1 sm:grid-cols-2 gap-8 break-inside-avoid">
           <div className="text-center">
             <p>Mengetahui,</p>
             <p className="font-bold">Kepala Sekolah / Penanggung Jawab</p>
-            <div className="h-20" />
+            <div className="h-16 sm:h-20" />
             <p className="font-bold underline">{profile.namaKepalaSekolah}</p>
             <p>NIP. {profile.nipKepalaSekolah}</p>
           </div>
           <div className="text-center">
             <p>{profile.tempatPelunasan || 'Palasa'}, {profile.tanggalTutupBuku || '31 Agustus 2026'}</p>
             <p className="font-bold">Panitia Pembangunan / Bendahara</p>
-            <div className="h-20" />
+            <div className="h-16 sm:h-20" />
             <p className="font-bold underline">{profile.namaBendahara}</p>
             <p>NIP. {profile.nipBendahara || '-'}</p>
           </div>

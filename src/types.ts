@@ -64,31 +64,70 @@ export interface CustomBahanItem {
   total: number;
 }
 
-export type KategoriPekerja = 'TUKANG' | 'KNEK';
+export type KategoriPekerja = 'Kepala Tukang' | 'Tukang' | 'Pekerja' | 'Knek' | 'TUKANG' | 'KNEK' | string;
 
 export interface HariKerjaRecord {
-  minggu: number; // 1, 0.5, 0
-  senin: number;
-  selasa: number;
-  rabu: number;
-  kamis: number;
-  jumat: number;
-  sabtu: number;
+  // Minggu I (Hari 1 s.d 7)
+  m1_1?: number; // Hari I
+  m1_2?: number; // Hari II
+  m1_3?: number; // Hari III
+  m1_4?: number; // Hari IV
+  m1_5?: number; // Hari V
+  m1_6?: number; // Hari VI
+  m1_7?: number; // Hari VII
+
+  // Minggu II (Hari 8 s.d 14)
+  m2_1?: number; // Hari I
+  m2_2?: number; // Hari II
+  m2_3?: number; // Hari III
+  m2_4?: number; // Hari IV
+  m2_5?: number; // Hari V
+  m2_6?: number; // Hari VI
+  m2_7?: number; // Hari VII
+
+  // Legacy single-week keys for backward-compatibility
+  minggu?: number;
+  senin?: number;
+  selasa?: number;
+  rabu?: number;
+  kamis?: number;
+  jumat?: number;
+  sabtu?: number;
 }
 
 export interface PekerjaTukang {
   id: string;
   kategori: KategoriPekerja;
+  tenagaKerja?: string; // e.g. "Kepala Tukang", "Tukang", "Pekerja"
   nama: string;
   hariKerja: HariKerjaRecord;
   upahHarian: number;
+  paraf?: string;
+}
+
+export interface BangunanProyek {
+  id: string;
+  nama: string;         // e.g. "Pembangunan Laboratorium Komputer dan UKS"
+  kode?: string;        // e.g. "BG-01"
+  lokasi?: string;      // ALAMAT
+  keterangan?: string;  // Keterangan / jenis pekerjaan bangunan
+  createdAt?: string;
 }
 
 export interface AbsenMingguanTukang {
   id: string;
-  proyek: string;
-  lokasi: string;
-  mingguKe: number;
-  hariTanggal: string;
+  bangunanId?: string;  // ID Bangunan yang dikerjakan
+  proyek: string;       // PEKERJAAN
+  namaSekolah?: string; // NAMA SEKOLAH
+  lokasi: string;       // ALAMAT
+  periodeKe?: number;   // PERIODE (2 MINGGU) KE (1, 2, 3...)
+  mingguKe: number;     // MINGGU KE (atau nomor periode 2-mingguan)
+  hariTanggal: string;  // PERTANGGAL (e.g. "14 s.d 27 Agustus 2023")
   pekerja: PekerjaTukang[];
+  hariLibur?: string[];
+  namaKepalaSekolah?: string;
+  nipKepalaSekolah?: string;
+  namaBendahara?: string;
+  nipBendahara?: string;
 }
+

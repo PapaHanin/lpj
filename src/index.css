@@ -76,17 +76,35 @@ td {
 
 @media print {
   @page {
-    margin: 1cm;
+    margin: 0.8cm 1cm;
     size: auto;
   }
 
-  body {
+  html,
+  body,
+  #root,
+  #root > div,
+  .min-h-screen,
+  main {
     background-color: #ffffff !important;
+    background: #ffffff !important;
     color: #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     padding: 0 !important;
     margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Force sheet papers to have clean white background and exact colors */
+  .sheet-paper {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   /* Table borders in print */
@@ -111,7 +129,14 @@ td {
   }
 
   /* Hide navigation, buttons, and helpers */
-  header, nav, aside, button, #sidebar-navigation, #global-app-toast, #print-assistant-modal, .print\:hidden {
+  header,
+  nav,
+  aside,
+  button,
+  #sidebar-navigation,
+  #global-app-toast,
+  #print-assistant-modal,
+  .print\:hidden {
     display: none !important;
   }
 
