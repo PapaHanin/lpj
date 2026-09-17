@@ -439,17 +439,19 @@ export function exportLpjToExcel(
         0
       );
 
-      const pekerjaan = activeAbsen.proyek || profile.judulPekerjaan || 'Pembangunan Laboratorium Komputer dan UKS';
-      const namaSekolah = activeAbsen.namaSekolah || profile.namaSekolah || 'SDN INPRES 5 PALASA';
-      const alamat = activeAbsen.lokasi || profile.alamat || 'JL. NELAYAN DUSUN 1 BAMBANIPA, DESA PALASA';
+      const pekerjaan = activeAbsen.proyek || profile.judulPekerjaan || 'Pekerjaan Bangunan';
+      const namaSekolah = profile.namaSekolah || activeAbsen.namaSekolah || 'NAMA SEKOLAH';
+      const alamat = profile.alamat
+        ? `${profile.alamat}${profile.kecamatan ? ', ' + profile.kecamatan : ''}${profile.kabupaten ? ', ' + profile.kabupaten : ''}`
+        : (activeAbsen.lokasi || '-');
       const periodeKe = activeAbsen.periodeKe || activeAbsen.mingguKe || 1;
       const mggStart = (periodeKe - 1) * 2 + 1;
       const mggEnd = periodeKe * 2;
       const pertanggal = activeAbsen.hariTanggal || `Periode ${periodeKe} (Minggu ${mggStart} s.d ${mggEnd})`;
-      const namaKepalaSekolah = activeAbsen.namaKepalaSekolah || profile.namaKepalaSekolah || 'NURWAHDA, S.Pd.SD';
-      const nipKepalaSekolah = activeAbsen.nipKepalaSekolah || profile.nipKepalaSekolah || '197012271993022004';
-      const namaBendahara = activeAbsen.namaBendahara || profile.namaBendahara || 'RAHMAWATI, S.Pd';
-      const nipBendahara = activeAbsen.nipBendahara || profile.nipBendahara || '197906012014092001';
+      const namaKepalaSekolah = profile.namaKepalaSekolah || activeAbsen.namaKepalaSekolah || 'Nama Kepala Sekolah';
+      const nipKepalaSekolah = profile.nipKepalaSekolah || activeAbsen.nipKepalaSekolah || '-';
+      const namaBendahara = profile.namaBendahara || activeAbsen.namaBendahara || 'Nama Bendahara';
+      const nipBendahara = profile.nipBendahara || activeAbsen.nipBendahara || '-';
 
       const sheet6Rows: (string | number)[][] = [
         ['REKAPITULASI UPAH KERJA DUA MINGGUAN'],

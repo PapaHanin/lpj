@@ -157,9 +157,21 @@ export const useLpjStore = create<LpjState>()(
       toast: null,
 
       setProfile: (updatedProfile) =>
-        set((state) => ({
-          profile: { ...state.profile, ...updatedProfile },
-        })),
+        set((state) => {
+          const nextProfile = { ...state.profile, ...updatedProfile };
+          return {
+            profile: nextProfile,
+            // Sync school and signatories to all absen periods
+            absenTukangList: state.absenTukangList.map((week) => ({
+              ...week,
+              namaSekolah: nextProfile.namaSekolah,
+              namaKepalaSekolah: nextProfile.namaKepalaSekolah,
+              nipKepalaSekolah: nextProfile.nipKepalaSekolah,
+              namaBendahara: nextProfile.namaBendahara,
+              nipBendahara: nextProfile.nipBendahara,
+            })),
+          };
+        }),
 
       setSelectedMonthFilter: (filter) =>
         set({ selectedMonthFilter: filter }),

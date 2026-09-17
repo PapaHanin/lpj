@@ -28,6 +28,7 @@ import {
   SlidersHorizontal,
   FolderPlus,
   CheckCheck,
+  Settings,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { HariKerjaRecord, PekerjaTukang, BangunanProyek } from '../types';
@@ -35,6 +36,8 @@ import { HariKerjaRecord, PekerjaTukang, BangunanProyek } from '../types';
 export const DaftarTukangTab: React.FC = () => {
   const {
     profile,
+    setProfile,
+    openProfileModal,
     bangunanList,
     selectedBangunanId,
     setSelectedBangunanId,
@@ -171,19 +174,21 @@ export const DaftarTukangTab: React.FC = () => {
     return uniqueAbsenTukangList[0] || DEFAULT_ABSEN_MINGGU_4;
   }, [uniqueAbsenTukangList, selectedAbsenWeekId]);
 
-  // Derived metadata for 2-week period
-  const pekerjaan = currentAbsen.proyek || currentBangunan.nama || profile.judulPekerjaan || 'Pembangunan Laboratorium Komputer dan UKS';
-  const namaSekolah = currentAbsen.namaSekolah || profile.namaSekolah || 'SDN INPRES 5 PALASA';
-  const alamat = currentAbsen.lokasi || currentBangunan.lokasi || profile.alamat || 'JL. NELAYAN DUSUN 1 BAMBANIPA, DESA PALASA';
+  // Derived metadata for 2-week period - STRICTLY prioritize data entered in Pengaturan (profile)
+  const pekerjaan = currentBangunan.nama || profile.judulPekerjaan || currentAbsen.proyek || 'Pekerjaan Bangunan';
+  const namaSekolah = profile.namaSekolah || currentAbsen.namaSekolah || 'NAMA SEKOLAH';
+  const alamat = profile.alamat
+    ? `${profile.alamat}${profile.kecamatan ? `, ${profile.kecamatan}` : ''}${profile.kabupaten ? `, ${profile.kabupaten}` : ''}`
+    : (currentBangunan.lokasi || currentAbsen.lokasi || '-');
   const periodeKe = currentAbsen.periodeKe || currentAbsen.mingguKe || 1;
   const mggStart = (periodeKe - 1) * 2 + 1;
   const mggEnd = periodeKe * 2;
-  const pertanggal = currentAbsen.hariTanggal || '14 s.d 27 Agustus 2023';
+  const pertanggal = currentAbsen.hariTanggal || `Periode ${periodeKe} (Minggu ${mggStart} s.d ${mggEnd})`;
 
-  const namaKepalaSekolah = currentAbsen.namaKepalaSekolah || profile.namaKepalaSekolah || 'NURWAHDA, S.Pd.SD';
-  const nipKepalaSekolah = currentAbsen.nipKepalaSekolah || profile.nipKepalaSekolah || '197012271993022004';
-  const namaBendahara = currentAbsen.namaBendahara || profile.namaBendahara || 'RAHMAWATI, S.Pd';
-  const nipBendahara = currentAbsen.nipBendahara || profile.nipBendahara || '197906012014092001';
+  const namaKepalaSekolah = profile.namaKepalaSekolah || currentAbsen.namaKepalaSekolah || 'Nama Kepala Sekolah';
+  const nipKepalaSekolah = profile.nipKepalaSekolah || currentAbsen.nipKepalaSekolah || '-';
+  const namaBendahara = profile.namaBendahara || currentAbsen.namaBendahara || 'Nama Bendahara';
+  const nipBendahara = profile.nipBendahara || currentAbsen.nipBendahara || '-';
 
   // Grand Total of Wages for the 2-week period
   const grandTotalUpah = useMemo(() => {
@@ -338,10 +343,17 @@ export const DaftarTukangTab: React.FC = () => {
   };
 
   const handleResetToScreenshotDefault = () => {
-    if (!confirm('Kembalikan data Rekapitulasi Upah Kerja 2 Mingguan ke format standar (Periode 1 - 4 Tukang)?')) return;
+    if (!confirm('Kembalikan format Rekapitulasi Upah Kerja 2 Mingguan ke susunan standar (Periode 1 - 4 Tukang)? Nama sekolah dan pejabat akan tetap menggunakan data Pengaturan Profil Anda.')) return;
     useLpjStore.setState((state) => ({
       absenTukangList: [
-        DEFAULT_ABSEN_MINGGU_4,
+        {
+          ...DEFAULT_ABSEN_MINGGU_4,
+          namaSekolah: state.profile.namaSekolah,
+          namaKepalaSekolah: state.profile.namaKepalaSekolah,
+          nipKepalaSekolah: state.profile.nipKepalaSekolah,
+          namaBendahara: state.profile.namaBendahara,
+          nipBendahara: state.profile.nipBendahara,
+        },
         ...state.absenTukangList.filter((w) => w.id !== 'absen-minggu-4'),
       ],
       selectedAbsenWeekId: 'absen-minggu-4',
@@ -690,6 +702,15 @@ export const DaftarTukangTab: React.FC = () => {
         {/* Right: Actions */}
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={openProfileModal}
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs bg-purple-900/80 hover:bg-purple-800 text-amber-300 rounded-lg transition border border-amber-400/40 cursor-pointer font-bold shadow-xs"
+            title="Buka Pengaturan Sekolah, Kepala Sekolah & Bendahara"
+          >
+            <Settings className="w-3.5 h-3.5 text-amber-400" />
+            <span>Pengaturan</span>
+          </button>
+
+          <button
             onClick={() => setIsEditHeaderOpen(true)}
             className="flex items-center space-x-1 px-3 py-1.5 text-xs bg-purple-900/60 hover:bg-purple-800 text-purple-200 rounded-lg transition border border-purple-700/60 cursor-pointer"
             title="Edit Data Pekerjaan, Sekolah, Alamat & Penandatangan"
@@ -781,6 +802,44 @@ export const DaftarTukangTab: React.FC = () => {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* Profile Synchronization Notice Bar */}
+      <div className="bg-[#1a0428] border border-purple-800/60 rounded-xl px-3.5 py-2.5 text-xs flex flex-wrap items-center justify-between gap-2.5 shadow-sm print:hidden">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-purple-200">
+          <div className="flex items-center space-x-1.5 font-bold text-amber-300">
+            <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="uppercase">{namaSekolah}</span>
+          </div>
+          <div className="text-purple-300 text-[11px] flex items-center gap-1">
+            <span className="text-purple-400">Kepala Sekolah:</span>
+            <strong className="text-white">{namaKepalaSekolah}</strong>
+            {nipKepalaSekolah && nipKepalaSekolah !== '-' && (
+              <span className="font-mono text-purple-300">({nipKepalaSekolah})</span>
+            )}
+          </div>
+          <div className="text-purple-300 text-[11px] flex items-center gap-1">
+            <span className="text-purple-400">Bendahara:</span>
+            <strong className="text-white">{namaBendahara}</strong>
+            {nipBendahara && nipBendahara !== '-' && (
+              <span className="font-mono text-purple-300">({nipBendahara})</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <span className="text-[10px] text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-700/50 flex items-center gap-1">
+            <Check className="w-3 h-3 text-emerald-400" />
+            <span>Sesuai Pengaturan</span>
+          </span>
+          <button
+            onClick={openProfileModal}
+            className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-300 hover:text-amber-200 bg-amber-400/15 hover:bg-amber-400/25 px-2.5 py-1 rounded-lg border border-amber-400/40 transition cursor-pointer"
+          >
+            <Settings className="w-3 h-3 text-amber-400" />
+            <span>Ubah di Pengaturan</span>
+          </button>
         </div>
       </div>
 
@@ -1117,6 +1176,25 @@ export const DaftarTukangTab: React.FC = () => {
               <span>Edit Data Rekapitulasi & Penandatangan</span>
             </h3>
 
+            {/* Sync notice inside modal */}
+            <div className="bg-purple-950/80 border border-purple-700/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs mb-3">
+              <div className="flex items-center space-x-2 text-purple-200">
+                <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Nama Sekolah, Kepala Sekolah & Bendahara terhubung ke <strong>Pengaturan Profil</strong>.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditHeaderOpen(false);
+                  openProfileModal();
+                }}
+                className="inline-flex items-center space-x-1 px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-purple-950 font-bold rounded-lg text-xs shrink-0 cursor-pointer shadow-sm transition"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Buka Pengaturan</span>
+              </button>
+            </div>
+
             <div className="space-y-3.5 text-xs">
               <div>
                 <label className="block text-purple-200 font-medium mb-1">
@@ -1124,7 +1202,7 @@ export const DaftarTukangTab: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={currentAbsen.proyek}
+                  value={currentAbsen.proyek || currentBangunan.nama}
                   onChange={(e) =>
                     updateAbsenMingguanHeader(currentAbsen.id, { proyek: e.target.value })
                   }
@@ -1134,28 +1212,32 @@ export const DaftarTukangTab: React.FC = () => {
 
               <div>
                 <label className="block text-purple-200 font-medium mb-1">
-                  Nama Sekolah
+                  Nama Sekolah (Terhubung ke Pengaturan)
                 </label>
                 <input
                   type="text"
-                  value={currentAbsen.namaSekolah || profile.namaSekolah}
-                  onChange={(e) =>
-                    updateAbsenMingguanHeader(currentAbsen.id, { namaSekolah: e.target.value })
-                  }
+                  value={profile.namaSekolah || currentAbsen.namaSekolah || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateAbsenMingguanHeader(currentAbsen.id, { namaSekolah: val });
+                    setProfile({ namaSekolah: val });
+                  }}
+                  placeholder="Nama Sekolah dari Pengaturan"
                   className="w-full bg-[#160424] border border-purple-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-400 font-bold"
                 />
               </div>
 
               <div>
                 <label className="block text-purple-200 font-medium mb-1">
-                  Alamat Proyek
+                  Alamat Proyek / Sekolah
                 </label>
                 <input
                   type="text"
-                  value={currentAbsen.lokasi}
+                  value={currentAbsen.lokasi || profile.alamat || ''}
                   onChange={(e) =>
                     updateAbsenMingguanHeader(currentAbsen.id, { lokasi: e.target.value })
                   }
+                  placeholder="Alamat Proyek"
                   className="w-full bg-[#160424] border border-purple-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -1201,26 +1283,30 @@ export const DaftarTukangTab: React.FC = () => {
               </div>
 
               <div className="border-t border-purple-800/60 pt-3">
-                <h4 className="text-amber-300 font-bold mb-2">Penandatangan Laporan:</h4>
+                <h4 className="text-amber-300 font-bold mb-2">Penandatangan Laporan (Terhubung ke Pengaturan):</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <p className="text-[11px] text-purple-300 font-semibold">Kepala Sekolah:</p>
                     <input
                       type="text"
                       placeholder="Nama Kepala Sekolah"
-                      value={currentAbsen.namaKepalaSekolah || profile.namaKepalaSekolah}
-                      onChange={(e) =>
-                        updateAbsenMingguanHeader(currentAbsen.id, { namaKepalaSekolah: e.target.value })
-                      }
+                      value={profile.namaKepalaSekolah || currentAbsen.namaKepalaSekolah || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateAbsenMingguanHeader(currentAbsen.id, { namaKepalaSekolah: val });
+                        setProfile({ namaKepalaSekolah: val });
+                      }}
                       className="w-full bg-[#160424] border border-purple-800 rounded px-2.5 py-1.5 text-white"
                     />
                     <input
                       type="text"
                       placeholder="NIP Kepala Sekolah"
-                      value={currentAbsen.nipKepalaSekolah || profile.nipKepalaSekolah}
-                      onChange={(e) =>
-                        updateAbsenMingguanHeader(currentAbsen.id, { nipKepalaSekolah: e.target.value })
-                      }
+                      value={profile.nipKepalaSekolah || currentAbsen.nipKepalaSekolah || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateAbsenMingguanHeader(currentAbsen.id, { nipKepalaSekolah: val });
+                        setProfile({ nipKepalaSekolah: val });
+                      }}
                       className="w-full bg-[#160424] border border-purple-800 rounded px-2.5 py-1.5 text-white font-mono"
                     />
                   </div>
@@ -1230,19 +1316,23 @@ export const DaftarTukangTab: React.FC = () => {
                     <input
                       type="text"
                       placeholder="Nama Bendahara"
-                      value={currentAbsen.namaBendahara || profile.namaBendahara}
-                      onChange={(e) =>
-                        updateAbsenMingguanHeader(currentAbsen.id, { namaBendahara: e.target.value })
-                      }
+                      value={profile.namaBendahara || currentAbsen.namaBendahara || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateAbsenMingguanHeader(currentAbsen.id, { namaBendahara: val });
+                        setProfile({ namaBendahara: val });
+                      }}
                       className="w-full bg-[#160424] border border-purple-800 rounded px-2.5 py-1.5 text-white"
                     />
                     <input
                       type="text"
                       placeholder="NIP Bendahara"
-                      value={currentAbsen.nipBendahara || profile.nipBendahara}
-                      onChange={(e) =>
-                        updateAbsenMingguanHeader(currentAbsen.id, { nipBendahara: e.target.value })
-                      }
+                      value={profile.nipBendahara || currentAbsen.nipBendahara || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateAbsenMingguanHeader(currentAbsen.id, { nipBendahara: val });
+                        setProfile({ nipBendahara: val });
+                      }}
                       className="w-full bg-[#160424] border border-purple-800 rounded px-2.5 py-1.5 text-white font-mono"
                     />
                   </div>
