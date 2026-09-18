@@ -10,6 +10,7 @@ import { DaftarBarangView } from './components/DaftarBarangView';
 import { TransactionModal } from './components/TransactionModal';
 import { ProfileModal } from './components/ProfileModal';
 import { PrintAssistantModal } from './components/PrintAssistantModal';
+import { SwapAndRenumberModal } from './components/SwapAndRenumberModal';
 import { ToastNotification } from './components/ToastNotification';
 
 export default function App() {
@@ -59,6 +60,7 @@ export default function App() {
       <TransactionModal />
       <ProfileModal />
       <PrintAssistantModal />
+      <SwapAndRenumberModal />
       <ToastNotification />
     </div>
   );

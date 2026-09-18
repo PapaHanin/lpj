@@ -9,12 +9,17 @@ import {
   Layers,
   Calendar,
   CheckCircle2,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { groupTransactionsByMonthlyBooks } from '../utils/calculations';
 import { formatRupiah, terbilangRupiah } from '../utils/terbilang';
 import { exportLpjToExcel } from '../utils/excelExport';
 import { triggerPrint } from '../utils/printHelper';
+import { TransactionSelectionBar } from './TransactionSelectionBar';
+import { Transaction } from '../types';
 
 export const BkuTunaiView: React.FC = () => {
   const {
@@ -25,9 +30,13 @@ export const BkuTunaiView: React.FC = () => {
     setSelectedTransactionForKwitansi,
     setActiveTab,
     openProfileModal,
+    openSwapRenumberModal,
+    swapTransactionNomorBukti,
+    showToast,
   } = useLpjStore();
 
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
+  const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
 
   const monthlyGroups = useMemo(
     () => groupTransactionsByMonthlyBooks(transactions, profile),
@@ -102,6 +111,14 @@ export const BkuTunaiView: React.FC = () => {
           >
             <Calendar className="w-4 h-4 text-amber-400" />
             <span>Pengaturan Profil</span>
+          </button>
+          <button
+            onClick={() => openSwapRenumberModal()}
+            className="flex items-center space-x-1.5 bg-amber-400 hover:bg-amber-300 text-purple-950 text-xs font-black px-3.5 py-2 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
+            title="Tukar nomor BKU atau urutkan ulang nomor BKU otomatis"
+          >
+            <ArrowLeftRight className="w-4 h-4 text-purple-900" />
+            <span>Urutkan & Tukar BKU</span>
           </button>
           <button
             onClick={() =>
@@ -202,238 +219,377 @@ export const BkuTunaiView: React.FC = () => {
 
           {/* Tabel BKU Tunai (Format Sesuai Screenshot 3) */}
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse border border-slate-900 text-black">
-              <thead>
-                <tr className="bg-slate-100 font-bold text-center text-black">
-                  <th className="border border-slate-900 py-2.5 px-1 w-10 text-black font-black">
-                    No
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-2 w-28 text-black font-black">
-                    Tanggal
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-3 text-left min-w-[200px] text-black font-black">
-                    Nama Barang / Uraian
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-2 w-16 text-center text-black font-black">
-                    Volume
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-2 w-16 text-center text-black font-black">
-                    Satuan
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-2.5 w-24 text-right text-black font-black">
-                    Harga Satuan (Rp)
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-2 w-24 text-center text-black font-black">
-                    No Bukti
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-2.5 w-28 text-right text-black font-black">
-                    Penerimaan (Rp)
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-2.5 w-28 text-right text-black font-black">
-                    Pengeluaran (Rp)
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-2.5 w-28 text-right text-black font-black">
-                    Saldo (Rp)
-                  </th>
-                  <th className="border border-slate-900 py-2.5 px-1 w-16 text-center print:hidden">
-                    Aksi
-                  </th>
-                </tr>
-                <tr className="bg-slate-50 font-bold text-center text-[10px] text-slate-800">
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">1</th>
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">2</th>
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">3</th>
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">4</th>
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">5</th>
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">6</th>
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">7</th>
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">8</th>
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">9</th>
-                  <th className="border border-slate-900 py-1 text-black font-serif italic">10</th>
-                  <th className="border border-slate-900 py-1 print:hidden"></th>
-                </tr>
-              </thead>
+            {(() => {
+              const nonInitialRows = group.bkuTunai.rows.filter((r) => !r.isInitialRow);
+              const groupTxIds = nonInitialRows.map((r) => r.transaction.id);
+              const isAllGroupSelected =
+                groupTxIds.length > 0 &&
+                groupTxIds.every((id) => selectedTxIds.includes(id));
 
-              <tbody>
-                {group.bkuTunai.rows.map((row) => {
-                  if (row.isInitialRow) {
-                    return (
-                      <tr
-                        key={`initial-tunai-${group.monthKey}`}
-                        className="bg-amber-50/60 font-bold text-black"
-                      >
-                        <td className="border border-slate-900 py-2 px-1 text-center font-mono font-bold text-black">
-                          {row.no}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium">
-                          {row.tanggal}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-3 font-black italic text-purple-950">
-                          {row.uraian}
-                          <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 border border-amber-400 print:hidden not-italic">
-                            Saldo Awal Kas Tunai
-                          </span>
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">-</td>
-                        <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">-</td>
-                        <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400">-</td>
-                        <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">-</td>
-                        <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
-                          {formatRupiah(row.penerimaan, false)}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400">-</td>
-                        <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
-                          {formatRupiah(row.saldo, false)}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-1 print:hidden"></td>
-                      </tr>
-                    );
-                  }
-
-                  const hasSub =
-                    row.transaction.subItems && row.transaction.subItems.length > 0;
-
-                  return (
-                    <React.Fragment key={row.transaction.id}>
-                      {/* Baris Utama Transaksi */}
-                      <tr
-                        className={`hover:bg-slate-50 text-black transition ${
-                          hasSub ? 'bg-amber-50/20 font-bold' : 'bg-white'
-                        }`}
-                      >
-                        <td className="border border-slate-900 py-2 px-1 text-center font-mono font-bold text-black">
-                          {row.no}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium">
-                          {row.tanggal}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-3 font-bold text-black">
-                          <div className="flex items-center justify-between gap-2">
-                            <span>{row.uraian}</span>
-                            {hasSub && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:hidden shrink-0">
-                                {row.transaction.subItems?.length} item nota
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">
-                          {hasSub ? '-' : ''}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">
-                          {hasSub ? '-' : ''}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400">
-                          {hasSub ? '-' : ''}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
-                          {row.nomorBukti || ''}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
-                          {row.penerimaan > 0 ? formatRupiah(row.penerimaan, false) : ''}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
-                          {hasSub ? '' : row.pengeluaran > 0 ? formatRupiah(row.pengeluaran, false) : ''}
-                        </td>
-                        <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
-                          {formatRupiah(row.saldo, false)}
-                        </td>
-                        {/* Actions */}
-                        <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
-                          <div className="flex items-center justify-center space-x-1">
-                            {row.pengeluaran > 0 && (
-                              <button
-                                onClick={() => {
-                                  setSelectedTransactionForKwitansi(row.transaction.id);
-                                  setActiveTab('kwitansi');
-                                }}
-                                className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded cursor-pointer"
-                                title="Cetak Kwitansi"
-                              >
-                                <Receipt className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => openTransactionModal(row.transaction)}
-                              className="p-1 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
-                              title="Edit Transaksi & Rincian"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Hapus transaksi "${row.uraian}"?`)) {
-                                  deleteTransaction(row.transaction.id);
-                                }
-                              }}
-                              className="p-1 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                              title="Hapus"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Sub-Rows Rincian Barang */}
-                      {hasSub &&
-                        row.transaction.subItems?.map((item) => (
-                          <tr key={item.id} className="bg-slate-50/60 hover:bg-amber-50/40 text-black transition">
-                            <td className="border border-slate-900 py-1.5 px-1 text-black"></td>
-                            <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
-                            <td className="border border-slate-900 py-1.5 px-3 pl-6 font-bold text-black">
-                              {item.nama}
-                            </td>
-                            <td className="border border-slate-900 py-1.5 px-2 text-center font-mono font-bold text-black">
-                              {typeof item.volume === 'number'
-                                ? item.volume.toLocaleString('id-ID', {
-                                    minimumFractionDigits: 1,
-                                    maximumFractionDigits: 2,
-                                  })
-                                : item.volume}
-                            </td>
-                            <td className="border border-slate-900 py-1.5 px-2 text-center font-bold text-black">
-                              {item.satuan}
-                            </td>
-                            <td className="border border-slate-900 py-1.5 px-2.5 text-right font-mono font-bold text-black">
-                              {formatRupiah(item.hargaSatuan, false)}
-                            </td>
-                            <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
-                            <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
-                            <td className="border border-slate-900 py-1.5 px-2.5 text-right font-mono text-black font-bold">
-                              {formatRupiah(item.subtotal, false)}
-                            </td>
-                            <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
-                            <td className="border border-slate-900 py-1.5 px-1 print:hidden"></td>
-                          </tr>
-                        ))}
-
-                      {/* Baris "Jumlah Nota" */}
-                      {hasSub && (
-                        <tr className="bg-slate-100/80 font-bold text-black">
-                          <td className="border border-slate-900 py-1.5 px-1 text-black"></td>
-                          <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
-                          <td colSpan={4} className="border border-slate-900 py-1.5 px-3 pl-6 italic font-bold text-black">
-                            Jumlah Nota
-                          </td>
-                          <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
-                          <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
-                          <td className="border border-slate-900 py-1.5 px-2.5 text-right font-mono font-black text-black">
-                            {formatRupiah(row.pengeluaran, false)}
-                          </td>
-                          <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
-                          <td className="border border-slate-900 py-1.5 px-1 print:hidden"></td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+              const toggleSelectAllGroup = () => {
+                if (isAllGroupSelected) {
+                  setSelectedTxIds((prev) =>
+                    prev.filter((id) => !groupTxIds.includes(id))
                   );
-                })}
+                } else {
+                  setSelectedTxIds((prev) =>
+                    Array.from(new Set([...prev, ...groupTxIds]))
+                  );
+                }
+              };
 
-                {/* Baris Total / JUMLAH */}
-                <tr className="bg-slate-100 font-bold text-black text-xs">
-                  <td className="border border-slate-900 py-2.5 px-3 text-center text-black font-black" colSpan={6}>
-                    JUMLAH
-                  </td>
+              const handleToggleSelect = (id: string) => {
+                setSelectedTxIds((prev) =>
+                  prev.includes(id)
+                    ? prev.filter((item) => item !== id)
+                    : [...prev, id]
+                );
+              };
+
+              const handleMoveRowUp = (currTx: Transaction, prevTx?: Transaction) => {
+                if (!prevTx) return;
+                swapTransactionNomorBukti(currTx.id, prevTx.id, {
+                  swapPositions: true,
+                  swapDates: currTx.tanggal !== prevTx.tanggal,
+                });
+                showToast({
+                  type: 'success',
+                  title: 'Pindah Baris ke Atas',
+                  message: `"${currTx.uraian.slice(0, 24)}..." dipindahkan ke atas & nomor BKU diselaraskan.`,
+                });
+              };
+
+              const handleMoveRowDown = (currTx: Transaction, nextTx?: Transaction) => {
+                if (!nextTx) return;
+                swapTransactionNomorBukti(currTx.id, nextTx.id, {
+                  swapPositions: true,
+                  swapDates: currTx.tanggal !== nextTx.tanggal,
+                });
+                showToast({
+                  type: 'success',
+                  title: 'Pindah Baris ke Bawah',
+                  message: `"${currTx.uraian.slice(0, 24)}..." dipindahkan ke bawah & nomor BKU diselaraskan.`,
+                });
+              };
+
+              return (
+                <table className="w-full text-xs border-collapse border border-slate-900 text-black">
+                  <thead>
+                    <tr className="bg-slate-100 font-bold text-center text-black">
+                      <th className="border border-slate-900 py-2 px-1 w-10 text-center print:hidden bg-[#220738] text-white select-none">
+                        <input
+                          type="checkbox"
+                          title="Pilih Semua Transaksi Bulan Ini"
+                          checked={isAllGroupSelected}
+                          onChange={toggleSelectAllGroup}
+                          className="w-4 h-4 text-purple-900 rounded cursor-pointer align-middle accent-amber-400"
+                        />
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-1 w-10 text-black font-black">
+                        No
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-2 w-28 text-black font-black">
+                        Tanggal
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-3 text-left min-w-[200px] text-black font-black">
+                        Nama Barang / Uraian
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-2 w-16 text-center text-black font-black">
+                        Volume
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-2 w-16 text-center text-black font-black">
+                        Satuan
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-2.5 w-24 text-right text-black font-black">
+                        Harga Satuan (Rp)
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-2 w-24 text-center text-black font-black">
+                        No Bukti
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-2.5 w-28 text-right text-black font-black">
+                        Penerimaan (Rp)
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-2.5 w-28 text-right text-black font-black">
+                        Pengeluaran (Rp)
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-2.5 w-28 text-right text-black font-black">
+                        Saldo (Rp)
+                      </th>
+                      <th className="border border-slate-900 py-2.5 px-1 w-28 text-center print:hidden">
+                        Aksi
+                      </th>
+                    </tr>
+                    <tr className="bg-slate-50 font-bold text-center text-[10px] text-slate-800">
+                      <th className="border border-slate-900 py-1 print:hidden bg-purple-950/20"></th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">1</th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">2</th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">3</th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">4</th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">5</th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">6</th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">7</th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">8</th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">9</th>
+                      <th className="border border-slate-900 py-1 text-black font-serif italic">10</th>
+                      <th className="border border-slate-900 py-1 print:hidden"></th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {group.bkuTunai.rows.map((row) => {
+                      if (row.isInitialRow) {
+                        return (
+                          <tr
+                            key={`initial-tunai-${group.monthKey}`}
+                            className="bg-amber-50/60 font-bold text-black"
+                          >
+                            <td className="border border-slate-900 py-2 px-1 text-center print:hidden bg-amber-100/50 text-slate-400 font-mono text-[10px]">
+                              -
+                            </td>
+                            <td className="border border-slate-900 py-2 px-1 text-center font-mono font-bold text-black">
+                              {row.no}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium">
+                              {row.tanggal}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-3 font-black italic text-purple-950">
+                              {row.uraian}
+                              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 border border-amber-400 print:hidden not-italic">
+                                Saldo Awal Kas Tunai
+                              </span>
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">-</td>
+                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">-</td>
+                            <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400">-</td>
+                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">-</td>
+                            <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
+                              {formatRupiah(row.penerimaan, false)}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400">-</td>
+                            <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
+                              {formatRupiah(row.saldo, false)}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-1 print:hidden"></td>
+                          </tr>
+                        );
+                      }
+
+                      const hasSub =
+                        row.transaction.subItems && row.transaction.subItems.length > 0;
+                      const isSelected = selectedTxIds.includes(row.transaction.id);
+
+                      const currentIndexInNonInitial = nonInitialRows.findIndex(
+                        (r) => r.transaction.id === row.transaction.id
+                      );
+                      const canMoveUp = currentIndexInNonInitial > 0;
+                      const canMoveDown =
+                        currentIndexInNonInitial >= 0 &&
+                        currentIndexInNonInitial < nonInitialRows.length - 1;
+
+                      return (
+                        <React.Fragment key={row.transaction.id}>
+                          {/* Baris Utama Transaksi */}
+                          <tr
+                            className={`hover:bg-slate-50 text-black transition ${
+                              isSelected
+                                ? 'bg-amber-100/70 border-l-4 border-l-amber-500 font-semibold ring-1 ring-amber-300 inset'
+                                : hasSub
+                                ? 'bg-amber-50/20 font-bold'
+                                : 'bg-white'
+                            }`}
+                          >
+                            {/* Kotak Centang (Screen only) */}
+                            <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleSelect(row.transaction.id)}
+                                className="w-4 h-4 text-purple-900 rounded cursor-pointer align-middle accent-purple-800"
+                                title="Centang untuk edit / hapus / tukar nomor BKU"
+                              />
+                            </td>
+
+                            <td className="border border-slate-900 py-2 px-1 text-center font-mono font-bold text-black">
+                              {row.no}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium">
+                              {row.tanggal}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-3 font-bold text-black">
+                              <div className="flex items-center justify-between gap-2">
+                                <span>{row.uraian}</span>
+                                {hasSub && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:hidden shrink-0">
+                                    {row.transaction.subItems?.length} item nota
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">
+                              {hasSub ? '-' : ''}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">
+                              {hasSub ? '-' : ''}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400">
+                              {hasSub ? '-' : ''}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
+                              {row.nomorBukti || ''}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
+                              {row.penerimaan > 0 ? formatRupiah(row.penerimaan, false) : ''}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
+                              {hasSub ? '' : row.pengeluaran > 0 ? formatRupiah(row.pengeluaran, false) : ''}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
+                              {formatRupiah(row.saldo, false)}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
+                              <div className="flex items-center justify-center space-x-1">
+                                {/* Pindah ke Atas */}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleMoveRowUp(
+                                      row.transaction,
+                                      nonInitialRows[currentIndexInNonInitial - 1]?.transaction
+                                    )
+                                  }
+                                  disabled={!canMoveUp}
+                                  className="p-1 text-slate-600 hover:text-purple-900 hover:bg-purple-100 rounded disabled:opacity-20 disabled:cursor-not-allowed transition cursor-pointer"
+                                  title="Pindah ke Atas & selaraskan nomor BKU dengan baris di atasnya"
+                                >
+                                  <ArrowUp className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Pindah ke Bawah */}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleMoveRowDown(
+                                      row.transaction,
+                                      nonInitialRows[currentIndexInNonInitial + 1]?.transaction
+                                    )
+                                  }
+                                  disabled={!canMoveDown}
+                                  className="p-1 text-slate-600 hover:text-purple-900 hover:bg-purple-100 rounded disabled:opacity-20 disabled:cursor-not-allowed transition cursor-pointer"
+                                  title="Pindah ke Bawah & selaraskan nomor BKU dengan baris di bawahnya"
+                                >
+                                  <ArrowDown className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Tukar Nomor BKU */}
+                                <button
+                                  type="button"
+                                  onClick={() => openSwapRenumberModal(row.transaction.id)}
+                                  className="p-1 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded transition cursor-pointer"
+                                  title="Tukar Nomor BKU dengan transaksi lain"
+                                >
+                                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                                </button>
+
+                                {row.pengeluaran > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedTransactionForKwitansi(row.transaction.id);
+                                      setActiveTab('kwitansi');
+                                    }}
+                                    className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded cursor-pointer"
+                                    title="Cetak Kwitansi"
+                                  >
+                                    <Receipt className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => openTransactionModal(row.transaction)}
+                                  className="p-1 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                                  title="Edit Transaksi & Rincian"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Hapus transaksi "${row.uraian}"?`)) {
+                                      deleteTransaction(row.transaction.id);
+                                    }
+                                  }}
+                                  className="p-1 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                  title="Hapus"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Sub-Rows Rincian Barang */}
+                          {hasSub &&
+                            row.transaction.subItems?.map((item) => (
+                              <tr key={item.id} className="bg-slate-50/60 hover:bg-amber-50/40 text-black transition">
+                                <td className="border border-slate-900 py-1.5 px-1 text-center text-slate-300 print:hidden font-mono">
+                                  ↳
+                                </td>
+                                <td className="border border-slate-900 py-1.5 px-1 text-black"></td>
+                                <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
+                                <td className="border border-slate-900 py-1.5 px-3 pl-6 font-bold text-black">
+                                  {item.nama}
+                                </td>
+                                <td className="border border-slate-900 py-1.5 px-2 text-center font-mono font-bold text-black">
+                                  {typeof item.volume === 'number'
+                                    ? item.volume.toLocaleString('id-ID', {
+                                        minimumFractionDigits: 1,
+                                        maximumFractionDigits: 2,
+                                      })
+                                    : item.volume}
+                                </td>
+                                <td className="border border-slate-900 py-1.5 px-2 text-center font-bold text-black">
+                                  {item.satuan}
+                                </td>
+                                <td className="border border-slate-900 py-1.5 px-2.5 text-right font-mono font-bold text-black">
+                                  {formatRupiah(item.hargaSatuan, false)}
+                                </td>
+                                <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
+                                <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
+                                <td className="border border-slate-900 py-1.5 px-2.5 text-right font-mono text-black font-bold">
+                                  {formatRupiah(item.subtotal, false)}
+                                </td>
+                                <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
+                                <td className="border border-slate-900 py-1.5 px-1 print:hidden"></td>
+                              </tr>
+                            ))}
+
+                          {/* Baris "Jumlah Nota" */}
+                          {hasSub && (
+                            <tr className="bg-slate-100/80 font-bold text-black">
+                              <td className="border border-slate-900 py-1.5 px-1 print:hidden bg-slate-100/80"></td>
+                              <td className="border border-slate-900 py-1.5 px-1 text-black"></td>
+                              <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
+                              <td colSpan={4} className="border border-slate-900 py-1.5 px-3 pl-6 italic font-bold text-black">
+                                Jumlah Nota
+                              </td>
+                              <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
+                              <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
+                              <td className="border border-slate-900 py-1.5 px-2.5 text-right font-mono font-black text-black">
+                                {formatRupiah(row.pengeluaran, false)}
+                              </td>
+                              <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
+                              <td className="border border-slate-900 py-1.5 px-1 print:hidden"></td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+
+                    {/* Baris Total / JUMLAH */}
+                    <tr className="bg-slate-100 font-bold text-black text-xs">
+                      <td className="border border-slate-900 py-2.5 px-1 print:hidden bg-slate-100"></td>
+                      <td className="border border-slate-900 py-2.5 px-3 text-center text-black font-black" colSpan={6}>
+                        JUMLAH
+                      </td>
                   <td className="border border-slate-900 py-2.5 px-2 text-black"></td>
                   <td className="border border-slate-900 py-2.5 px-2.5 text-right font-mono font-black text-black">
                     {formatRupiah(group.bkuTunai.totalPenerimaan, false)}
@@ -448,6 +604,8 @@ export const BkuTunaiView: React.FC = () => {
                 </tr>
               </tbody>
             </table>
+              );
+            })()}
           </div>
 
           {/* Bagian Bawah: Penutupan Kas Tunai Per Bulan (Tutup Buku) */}
@@ -504,6 +662,13 @@ export const BkuTunaiView: React.FC = () => {
           </div>
         </div>
       ))}
+
+      {/* Floating Selection Bar for bulk operations */}
+      <TransactionSelectionBar
+        selectedIds={selectedTxIds}
+        onClearSelection={() => setSelectedTxIds([])}
+        transactionsInCurrentView={transactions}
+      />
     </div>
   );
 };

@@ -14,8 +14,12 @@ import {
   KategoriPekerja,
   BangunanProyek,
 } from '../types';
-import { INITIAL_PROFILE, INITIAL_TRANSACTIONS } from '../utils/calculations';
-import { getClosingDateForMonth } from '../utils/dateUtils';
+import {
+  INITIAL_PROFILE,
+  INITIAL_TRANSACTIONS,
+  sortTransactionsChronologically,
+} from '../utils/calculations';
+import { getClosingDateForMonth, extractMonthAndYear, BULAN_LIST } from '../utils/dateUtils';
 import {
   INITIAL_ABSEN_DATA,
   DEFAULT_ABSEN_MINGGU_2,
@@ -51,6 +55,10 @@ interface LpjState {
   transactionToEdit: Transaction | null;
   modalPreset: ModalPreset | null;
 
+  // Modal Tukar & Urutkan Ulang Nomor BKU
+  isSwapRenumberModalOpen: boolean;
+  swapRenumberInitialTxIds: [string, string] | null;
+
   // Bangunan Proyek & Daftar Barang/Belanja State
   bangunanList: BangunanProyek[];
   selectedBangunanId: string;
@@ -73,6 +81,22 @@ interface LpjState {
   addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void;
   updateTransaction: (id: string, tx: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
+  deleteMultipleTransactions: (ids: string[]) => void;
+  moveTransaction: (id: string, direction: 'up' | 'down', swapNomorBukti?: boolean) => void;
+  swapTransactionNomorBukti: (
+    idA: string,
+    idB: string,
+    options?: { swapDates?: boolean; swapPositions?: boolean }
+  ) => void;
+  renumberBku: (params?: {
+    prefix?: string;
+    startNumber?: number;
+    padDigits?: number;
+    monthKey?: string;
+    onlyExpenses?: boolean;
+  }) => void;
+  openSwapRenumberModal: (txIdA?: string, txIdB?: string) => void;
+  closeSwapRenumberModal: () => void;
   setActiveTab: (tab: ActiveTab) => void;
   setSelectedTransactionForKwitansi: (id: string) => void;
   openTransactionModal: (tx?: Transaction, preset?: ModalPreset) => void;
@@ -147,6 +171,8 @@ export const useLpjStore = create<LpjState>()(
       isProfileModalOpen: false,
       transactionToEdit: null,
       modalPreset: null,
+      isSwapRenumberModalOpen: false,
+      swapRenumberInitialTxIds: null,
 
       // State Bangunan & Daftar Barang/Belanja
       bangunanList: INITIAL_BANGUNAN_LIST,
@@ -229,6 +255,151 @@ export const useLpjStore = create<LpjState>()(
               ? state.transactions.find((tx) => tx.id !== id)?.id || null
               : state.selectedTransactionIdForKwitansi,
         })),
+
+      deleteMultipleTransactions: (ids) =>
+        set((state) => {
+          const idSet = new Set(ids);
+          const remaining = state.transactions.filter((tx) => !idSet.has(tx.id));
+          const nextSelectedKwitansi = idSet.has(state.selectedTransactionIdForKwitansi || '')
+            ? remaining.find((tx) => tx.pengeluaran > 0)?.id || null
+            : state.selectedTransactionIdForKwitansi;
+
+          return {
+            transactions: remaining,
+            selectedTransactionIdForKwitansi: nextSelectedKwitansi,
+          };
+        }),
+
+      moveTransaction: (id, direction, swapNomorBukti = true) =>
+        set((state) => {
+          const currentIndex = state.transactions.findIndex((t) => t.id === id);
+          if (currentIndex === -1) return state;
+
+          const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+          if (targetIndex < 0 || targetIndex >= state.transactions.length) {
+            return state;
+          }
+
+          const currentTx = state.transactions[currentIndex];
+          const targetTx = state.transactions[targetIndex];
+          const newTransactions = [...state.transactions];
+
+          if (swapNomorBukti) {
+            const tempNo = currentTx.nomorBukti;
+            const targetNo = targetTx.nomorBukti;
+            const tempTanggal = currentTx.tanggal;
+            const targetTanggal = targetTx.tanggal;
+            const shouldSwapDate = tempTanggal !== targetTanggal;
+
+            newTransactions[currentIndex] = {
+              ...targetTx,
+              nomorBukti: tempNo,
+              tanggal: shouldSwapDate ? tempTanggal : targetTx.tanggal,
+            };
+            newTransactions[targetIndex] = {
+              ...currentTx,
+              nomorBukti: targetNo,
+              tanggal: shouldSwapDate ? targetTanggal : currentTx.tanggal,
+            };
+          } else {
+            newTransactions[currentIndex] = targetTx;
+            newTransactions[targetIndex] = currentTx;
+          }
+
+          return { transactions: newTransactions };
+        }),
+
+      swapTransactionNomorBukti: (idA, idB, options) =>
+        set((state) => {
+          const idxA = state.transactions.findIndex((t) => t.id === idA);
+          const idxB = state.transactions.findIndex((t) => t.id === idB);
+          if (idxA === -1 || idxB === -1) return state;
+
+          const txA = state.transactions[idxA];
+          const txB = state.transactions[idxB];
+          const swapDates = options?.swapDates ?? false;
+          const swapPositions = options?.swapPositions ?? true;
+
+          const newTxA = {
+            ...txA,
+            nomorBukti: txB.nomorBukti,
+            tanggal: swapDates ? txB.tanggal : txA.tanggal,
+          };
+          const newTxB = {
+            ...txB,
+            nomorBukti: txA.nomorBukti,
+            tanggal: swapDates ? txA.tanggal : txB.tanggal,
+          };
+
+          const newTransactions = [...state.transactions];
+
+          if (swapPositions) {
+            newTransactions[idxA] = newTxB;
+            newTransactions[idxB] = newTxA;
+          } else {
+            newTransactions[idxA] = newTxA;
+            newTransactions[idxB] = newTxB;
+          }
+
+          return { transactions: newTransactions };
+        }),
+
+      renumberBku: (params) =>
+        set((state) => {
+          const prefix = params?.prefix !== undefined ? params.prefix : 'BKU ';
+          const startNumber = params?.startNumber !== undefined ? params.startNumber : 1;
+          const padDigits = params?.padDigits !== undefined ? params.padDigits : 2;
+          const monthKey = params?.monthKey;
+          const onlyExpenses = params?.onlyExpenses !== false;
+
+          let counter = startNumber;
+          const sorted = sortTransactionsChronologically(state.transactions);
+          const updatedMap = new Map<string, string>();
+
+          sorted.forEach((tx) => {
+            if (monthKey && monthKey !== 'ALL') {
+              const my = extractMonthAndYear(tx.tanggal);
+              const monthName = my?.month || 'Agustus';
+              const year = my?.year || 2026;
+              const monthIdx = BULAN_LIST.findIndex((m) => m.toLowerCase() === monthName.toLowerCase());
+              const padMonth = String(monthIdx >= 0 ? monthIdx + 1 : 8).padStart(2, '0');
+              const txMonthKey = `${year}-${padMonth}`;
+              if (txMonthKey !== monthKey) return;
+            }
+
+            const isExpense = tx.pengeluaran > 0 && tx.metode !== 'TARIK_TUNAI';
+            const hasExistingNo = Boolean(tx.nomorBukti && tx.nomorBukti.trim().length > 0);
+
+            if ((onlyExpenses && isExpense) || (!onlyExpenses && hasExistingNo)) {
+              const numStr = String(counter).padStart(padDigits, '0');
+              const newNo = `${prefix}${numStr}`;
+              updatedMap.set(tx.id, newNo);
+              counter++;
+            }
+          });
+
+          const newTransactions = state.transactions.map((tx) => {
+            if (updatedMap.has(tx.id)) {
+              return { ...tx, nomorBukti: updatedMap.get(tx.id)! };
+            }
+            return tx;
+          });
+
+          return { transactions: newTransactions };
+        }),
+
+      openSwapRenumberModal: (txIdA, txIdB) =>
+        set({
+          isSwapRenumberModalOpen: true,
+          swapRenumberInitialTxIds:
+            txIdA && txIdB ? [txIdA, txIdB] : txIdA ? [txIdA, ''] : null,
+        }),
+
+      closeSwapRenumberModal: () =>
+        set({
+          isSwapRenumberModalOpen: false,
+          swapRenumberInitialTxIds: null,
+        }),
 
       setActiveTab: (tab) => set({ activeTab: tab }),
 
