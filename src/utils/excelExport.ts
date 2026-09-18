@@ -7,6 +7,8 @@ import {
   extractDaftarBahan,
   calculateUpahJumlah,
   calculateTotalHari,
+  calculateTotalHariForWeek,
+  calculateUpahJumlahForWeek,
   formatDayCell,
   formatTotalHari,
   HARI_KERJA_2_MINGGU,
@@ -615,6 +617,140 @@ export function exportLpjToExcel(
         { wch: 8 },
       ];
       XLSX.utils.book_append_sheet(wb, ws6, 'REKAP UPAH 2 MINGGU');
+
+      // SHEET 7: REKAP UPAH 1 MINGGU (Minggu I)
+      const weekCols1 = HARI_KERJA_2_MINGGU.filter((c) => c.weekGroup === 1);
+      const totalUpah1Mgg = activeAbsen.pekerja.reduce(
+        (sum, p) => sum + calculateUpahJumlahForWeek(p, 1),
+        0
+      );
+
+      const sheet7Rows: (string | number)[][] = [
+        ['REKAPITULASI UPAH KERJA MINGGUAN'],
+        [],
+        ['PEKERJAAN', `:\t${pekerjaan}`],
+        ['NAMA SEKOLAH', `:\t${namaSekolah}`],
+        ['ALAMAT', `:\t${alamat}`],
+        ['PERIODE (MINGGU) KE', `:\t${mggStart}`],
+        ['PERTANGGAL', `:\t${pertanggal} (Minggu ke-${mggStart})`],
+        [],
+        [
+          'NO.',
+          'NAMA TUKANG',
+          'TENAGA KERJA',
+          'HARI KERJA (SENIN - MINGGU)',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          'JUMLAH',
+          '',
+          '',
+          'PARAF',
+        ],
+        [
+          '',
+          '',
+          '',
+          'I',
+          'II',
+          'III',
+          'IV',
+          'V',
+          'VI',
+          'VII',
+          'TENAGA',
+          'UPAH/HARI',
+          'UPAH 1 MGG',
+          '',
+        ],
+        [
+          '',
+          '',
+          '',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'O/H',
+          'Org/Mgg',
+          '(Rp.)',
+          '(Rp.)',
+          '',
+        ],
+        ...activeAbsen.pekerja.map((p, idx) => [
+          idx + 1,
+          p.nama,
+          p.tenagaKerja || p.kategori,
+          ...weekCols1.map((col) =>
+            formatDayCell(getDayValue(p.hariKerja, col.key))
+          ),
+          formatTotalHari(calculateTotalHariForWeek(p.hariKerja, 1)),
+          p.upahHarian,
+          calculateUpahJumlahForWeek(p, 1),
+          p.paraf || `${idx + 1}`,
+        ]),
+        [
+          'JUMLAH UPAH SATU MINGGU (Rp.)',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          totalUpah1Mgg,
+          '',
+        ],
+        [],
+        ['Mengetahui;', '', '', '', '', '', '', '', '', '', 'Lunas Bayar,'],
+        ['Kepala Sekolah,', '', '', '', '', '', '', '', '', '', 'Bendahara,'],
+        [],
+        [],
+        [],
+        [namaKepalaSekolah, '', '', '', '', '', '', '', '', '', namaBendahara],
+        [`NIP.${nipKepalaSekolah.replace(/\s+/g, '')}`, '', '', '', '', '', '', '', '', '', `NIP.${nipBendahara.replace(/\s+/g, '')}`],
+      ];
+
+      const ws7 = XLSX.utils.aoa_to_sheet(sheet7Rows);
+      ws7['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } },
+        { s: { r: 8, c: 0 }, e: { r: 10, c: 0 } },
+        { s: { r: 8, c: 1 }, e: { r: 10, c: 1 } },
+        { s: { r: 8, c: 2 }, e: { r: 10, c: 2 } },
+        { s: { r: 8, c: 3 }, e: { r: 8, c: 9 } },
+        { s: { r: 8, c: 10 }, e: { r: 8, c: 12 } },
+        { s: { r: 8, c: 13 }, e: { r: 10, c: 13 } },
+        {
+          s: { r: 11 + activeAbsen.pekerja.length, c: 0 },
+          e: { r: 11 + activeAbsen.pekerja.length, c: 11 },
+        },
+      ];
+      ws7['!cols'] = [
+        { wch: 6 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 6 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 18 },
+        { wch: 8 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws7, 'REKAP UPAH 1 MINGGU');
     }
 
     // Generate binary output

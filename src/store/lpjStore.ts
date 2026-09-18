@@ -57,6 +57,8 @@ interface LpjState {
   activeSubTabDaftarBarang: SubTabDaftarBarang;
   absenTukangList: AbsenMingguanTukang[];
   selectedAbsenWeekId: string;
+  formatRekapTukang: '1_minggu' | '2_minggu';
+  selectedSubWeek: 1 | 2;
   customBahanList: CustomBahanItem[];
 
   // Print & Toast States
@@ -97,6 +99,8 @@ interface LpjState {
   // Actions untuk Daftar Barang & Absen Tukang
   setActiveSubTabDaftarBarang: (subTab: SubTabDaftarBarang) => void;
   setSelectedAbsenWeekId: (id: string) => void;
+  setFormatRekapTukang: (fmt: '1_minggu' | '2_minggu') => void;
+  setSelectedSubWeek: (subWeek: 1 | 2) => void;
   toggleHariLibur: (absenId: string, day: keyof HariKerjaRecord) => void;
   setAllWorkersDayAttendance: (
     absenId: string,
@@ -150,6 +154,8 @@ export const useLpjStore = create<LpjState>()(
       activeSubTabDaftarBarang: 'bahan',
       absenTukangList: INITIAL_ABSEN_DATA,
       selectedAbsenWeekId: 'absen-minggu-4',
+      formatRekapTukang: '2_minggu',
+      selectedSubWeek: 1,
       customBahanList: [],
 
       isPrintModalOpen: false,
@@ -409,6 +415,12 @@ export const useLpjStore = create<LpjState>()(
       setSelectedAbsenWeekId: (id) =>
         set({ selectedAbsenWeekId: id }),
 
+      setFormatRekapTukang: (fmt) =>
+        set({ formatRekapTukang: fmt }),
+
+      setSelectedSubWeek: (subWeek) =>
+        set({ selectedSubWeek: subWeek }),
+
       toggleHariLibur: (absenId, day) =>
         set((state) => ({
           absenTukangList: state.absenTukangList.map((week) => {
@@ -484,7 +496,7 @@ export const useLpjStore = create<LpjState>()(
               senin: 1, selasa: 1, rabu: 1, kamis: 1, jumat: 1, sabtu: 1, minggu: 0,
             },
             upahHarian,
-            paraf: `${nextIndex}`,
+            paraf: '',
           };
           return {
             absenTukangList: state.absenTukangList.map((week) => {
@@ -547,7 +559,7 @@ export const useLpjStore = create<LpjState>()(
               m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
               senin: 1, selasa: 1, rabu: 1, kamis: 1, jumat: 1, sabtu: 1, minggu: 0,
             },
-            paraf: `${idx + 1}`,
+            paraf: '',
           }));
 
           const mggStart = (weekNum - 1) * 2 + 1;

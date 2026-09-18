@@ -123,7 +123,7 @@ export const DEFAULT_ABSEN_MINGGU_4: AbsenMingguanTukang = {
         m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
       },
       upahHarian: 150000,
-      paraf: '1',
+      paraf: '',
     },
     {
       id: 'tk-2',
@@ -135,7 +135,7 @@ export const DEFAULT_ABSEN_MINGGU_4: AbsenMingguanTukang = {
         m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
       },
       upahHarian: 140000,
-      paraf: '2',
+      paraf: '',
     },
     {
       id: 'tk-3',
@@ -147,7 +147,7 @@ export const DEFAULT_ABSEN_MINGGU_4: AbsenMingguanTukang = {
         m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
       },
       upahHarian: 100000,
-      paraf: '3',
+      paraf: '',
     },
     {
       id: 'tk-4',
@@ -159,7 +159,7 @@ export const DEFAULT_ABSEN_MINGGU_4: AbsenMingguanTukang = {
         m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
       },
       upahHarian: 100000,
-      paraf: '4',
+      paraf: '',
     },
   ],
 };
@@ -185,7 +185,7 @@ export const DEFAULT_ABSEN_MINGGU_2: AbsenMingguanTukang = {
         m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
       },
       upahHarian: 150000,
-      paraf: '1',
+      paraf: '',
     },
     {
       id: 'tk-2',
@@ -197,7 +197,7 @@ export const DEFAULT_ABSEN_MINGGU_2: AbsenMingguanTukang = {
         m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
       },
       upahHarian: 140000,
-      paraf: '2',
+      paraf: '',
     },
     {
       id: 'tk-3',
@@ -209,7 +209,7 @@ export const DEFAULT_ABSEN_MINGGU_2: AbsenMingguanTukang = {
         m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
       },
       upahHarian: 100000,
-      paraf: '3',
+      paraf: '',
     },
     {
       id: 'tk-4',
@@ -221,7 +221,7 @@ export const DEFAULT_ABSEN_MINGGU_2: AbsenMingguanTukang = {
         m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
       },
       upahHarian: 100000,
-      paraf: '4',
+      paraf: '',
     },
   ],
 };
@@ -296,11 +296,41 @@ export function formatTotalHari(total: number): string {
 }
 
 /**
- * Menghitung upah jumlah per pekerja
+ * Menghitung upah jumlah per pekerja (2 minggu)
  */
 export function calculateUpahJumlah(pekerja: PekerjaTukang): number {
   const totalHari = calculateTotalHari(pekerja.hariKerja);
   return Math.round(totalHari * pekerja.upahHarian);
+}
+
+/**
+ * Menghitung upah jumlah per pekerja untuk Minggu I (1 minggu)
+ */
+export function calculateUpahJumlahM1(pekerja: PekerjaTukang): number {
+  const totalHari = calculateTotalHariM1(pekerja.hariKerja);
+  return Math.round(totalHari * pekerja.upahHarian);
+}
+
+/**
+ * Menghitung upah jumlah per pekerja untuk Minggu II (1 minggu)
+ */
+export function calculateUpahJumlahM2(pekerja: PekerjaTukang): number {
+  const totalHari = calculateTotalHariM2(pekerja.hariKerja);
+  return Math.round(totalHari * pekerja.upahHarian);
+}
+
+/**
+ * Menghitung upah jumlah per pekerja berdasarkan sub-minggu (1 atau 2)
+ */
+export function calculateUpahJumlahForWeek(pekerja: PekerjaTukang, weekSub: 1 | 2): number {
+  return weekSub === 1 ? calculateUpahJumlahM1(pekerja) : calculateUpahJumlahM2(pekerja);
+}
+
+/**
+ * Menghitung total hari berdasarkan sub-minggu (1 atau 2)
+ */
+export function calculateTotalHariForWeek(h: HariKerjaRecord | undefined, weekSub: 1 | 2): number {
+  return weekSub === 1 ? calculateTotalHariM1(h) : calculateTotalHariM2(h);
 }
 
 /**
