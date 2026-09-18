@@ -1269,13 +1269,13 @@ export const DaftarTukangTab: React.FC = () => {
       {/* Printable Sheet: 1-Week or 2-Week Format */}
       <div className="sheet-paper bg-white text-black font-sans rounded-xl shadow-2xl p-6 sm:p-8 border border-slate-300 print:shadow-none print:border-none print:m-0 print:p-0">
         {/* Document Title */}
-        <div className="text-center mb-6">
-          <h2 className="text-sm sm:text-base md:text-lg font-bold uppercase tracking-wider text-black border-b-2 border-black pb-1 inline-block">
+        <div className="text-center mb-3 print:mb-1.5">
+          <h2 className="text-sm sm:text-base md:text-lg print:text-sm font-bold uppercase tracking-wider text-black border-b-2 border-black pb-0.5 inline-block">
             {is1Week
               ? 'REKAPITULASI UPAH KERJA MINGGUAN'
               : 'REKAPITULASI UPAH KERJA DUA MINGGUAN'}
           </h2>
-          <p className="text-xs text-slate-700 mt-1 font-semibold">
+          <p className="text-xs print:text-[11px] text-slate-700 mt-0.5 font-semibold">
             {is1Week
               ? `(PERIODE: MINGGU KE-${activeWeekNum})`
               : `(PERIODE DUA MINGGU: MINGGU KE-${mggStart} S.D. KE-${mggEnd})`}
@@ -1283,38 +1283,38 @@ export const DaftarTukangTab: React.FC = () => {
         </div>
 
         {/* Project Metadata Section (Top-Left Aligned with Colon Alignment like Excel Sheet) */}
-        <div className="text-xs sm:text-[13px] leading-relaxed mb-4 font-sans text-black">
+        <div className="text-xs sm:text-[13px] print:text-[11px] leading-snug print:leading-tight mb-3 print:mb-1.5 font-sans text-black">
           <table className="border-none text-left">
             <tbody>
               <tr>
-                <td className="font-semibold pr-3 py-0.5 whitespace-nowrap text-black">
+                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
                   PEKERJAAN
                 </td>
-                <td className="pr-2 py-0.5 text-black">:</td>
-                <td className="py-0.5 text-black font-normal">{pekerjaan}</td>
+                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                <td className="py-0.5 print:py-0 text-black font-normal">{pekerjaan}</td>
               </tr>
               <tr>
-                <td className="font-semibold pr-3 py-0.5 whitespace-nowrap text-black">
+                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
                   NAMA SEKOLAH
                 </td>
-                <td className="pr-2 py-0.5 text-black">:</td>
-                <td className="py-0.5 text-black font-bold uppercase">
+                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                <td className="py-0.5 print:py-0 text-black font-bold uppercase">
                   {namaSekolah}
                 </td>
               </tr>
               <tr>
-                <td className="font-semibold pr-3 py-0.5 whitespace-nowrap text-black">
+                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
                   ALAMAT
                 </td>
-                <td className="pr-2 py-0.5 text-black">:</td>
-                <td className="py-0.5 text-black font-normal">{alamat}</td>
+                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                <td className="py-0.5 print:py-0 text-black font-normal">{alamat}</td>
               </tr>
               <tr>
-                <td className="font-semibold pr-3 py-0.5 whitespace-nowrap text-black">
+                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
                   {is1Week ? 'PERIODE (MINGGU) KE' : 'PERIODE (2 MINGGU) KE'}
                 </td>
-                <td className="pr-2 py-0.5 text-black">:</td>
-                <td className="py-0.5 text-black font-bold">
+                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                <td className="py-0.5 print:py-0 text-black font-bold">
                   {is1Week ? (
                     activeWeekNum
                   ) : (
@@ -1328,11 +1328,11 @@ export const DaftarTukangTab: React.FC = () => {
                 </td>
               </tr>
               <tr>
-                <td className="font-semibold pr-3 py-0.5 whitespace-nowrap text-black">
+                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
                   PERTANGGAL
                 </td>
-                <td className="pr-2 py-0.5 text-black">:</td>
-                <td className="py-0.5 text-black font-normal">
+                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                <td className="py-0.5 print:py-0 text-black font-normal">
                   {is1Week ? pertanggal1Week : pertanggal}
                 </td>
               </tr>
@@ -1341,26 +1341,26 @@ export const DaftarTukangTab: React.FC = () => {
         </div>
 
         {/* Table Structure: Supports 1-Week (7 Days) and 2-Week (14 Days) */}
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse border border-black text-xs sm:text-[13px] text-black font-sans">
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full border-collapse border border-black text-xs sm:text-[13px] print:text-[10px] text-black font-sans">
             <thead>
               {/* Header Tier 1 */}
               <tr className="border-b border-black font-bold bg-white text-black text-center">
                 <th
                   rowSpan={3}
-                  className="border border-black px-1.5 py-1 text-center w-7 align-middle"
+                  className="border border-black px-1.5 py-1 print:py-0.5 text-center w-7 align-middle"
                 >
                   NO.
                 </th>
                 <th
                   rowSpan={3}
-                  className="border border-black px-2 py-1 text-center min-w-[130px] align-middle"
+                  className="border border-black px-2 py-1 print:py-0.5 text-center min-w-[130px] align-middle"
                 >
                   NAMA TUKANG
                 </th>
                 <th
                   rowSpan={3}
-                  className="border border-black px-1.5 py-1 text-center min-w-[95px] align-middle"
+                  className="border border-black px-1.5 py-1 print:py-0.5 text-center min-w-[95px] align-middle"
                 >
                   TENAGA KERJA
                 </th>
@@ -1368,7 +1368,7 @@ export const DaftarTukangTab: React.FC = () => {
                 {is1Week ? (
                   <th
                     colSpan={7}
-                    className="border border-black py-1 px-1 text-center font-bold tracking-wide bg-slate-100/80"
+                    className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-100/80"
                   >
                     HARI KERJA (SENIN - MINGGU)
                   </th>
@@ -1376,13 +1376,13 @@ export const DaftarTukangTab: React.FC = () => {
                   <>
                     <th
                       colSpan={7}
-                      className="border border-black py-1 px-1 text-center font-bold tracking-wide bg-slate-100/80"
+                      className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-100/80"
                     >
                       MINGGU I (HARI 1 - 7)
                     </th>
                     <th
                       colSpan={7}
-                      className="border border-black py-1 px-1 text-center font-bold tracking-wide bg-slate-200/70"
+                      className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-200/70"
                     >
                       MINGGU II (HARI 8 - 14)
                     </th>
@@ -1391,13 +1391,13 @@ export const DaftarTukangTab: React.FC = () => {
 
                 <th
                   colSpan={3}
-                  className="border border-black py-1 px-1 text-center font-bold tracking-wide bg-slate-100/80"
+                  className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-100/80"
                 >
                   JUMLAH
                 </th>
                 <th
                   rowSpan={3}
-                  className="border border-black px-2 py-1 text-center min-w-[75px] sm:min-w-[90px] w-20 sm:w-24 align-middle font-bold tracking-wide"
+                  className="border border-black px-1.5 py-1 print:py-0.5 text-center min-w-[65px] sm:min-w-[80px] w-16 sm:w-20 print:w-16 align-middle font-bold tracking-wide"
                 >
                   PARAF
                 </th>
@@ -1419,7 +1419,7 @@ export const DaftarTukangTab: React.FC = () => {
                       <th
                         key={h.key}
                         onClick={() => toggleHariLibur(currentAbsen.id, h.key)}
-                        className={`border border-black py-1 px-0.5 w-7 text-center cursor-pointer transition select-none ${
+                        className={`border border-black py-1 print:py-0.5 px-0.5 w-7 text-center cursor-pointer transition select-none ${
                           isLibur
                             ? 'bg-red-50 text-red-700'
                             : 'hover:bg-slate-100 bg-slate-100/50'
@@ -1439,7 +1439,7 @@ export const DaftarTukangTab: React.FC = () => {
                         <th
                           key={h.key}
                           onClick={() => toggleHariLibur(currentAbsen.id, h.key)}
-                          className={`border border-black py-1 px-0.5 w-7 text-center cursor-pointer transition select-none ${
+                          className={`border border-black py-1 print:py-0.5 px-0.5 w-7 text-center cursor-pointer transition select-none ${
                             isLibur
                               ? 'bg-red-50 text-red-700'
                               : 'hover:bg-slate-100 bg-slate-100/50'
@@ -1456,7 +1456,7 @@ export const DaftarTukangTab: React.FC = () => {
                         <th
                           key={h.key}
                           onClick={() => toggleHariLibur(currentAbsen.id, h.key)}
-                          className={`border border-black py-1 px-0.5 w-7 text-center cursor-pointer transition select-none ${
+                          className={`border border-black py-1 print:py-0.5 px-0.5 w-7 text-center cursor-pointer transition select-none ${
                             isLibur
                               ? 'bg-red-50 text-red-700'
                               : 'hover:bg-slate-100 bg-slate-200/50'
@@ -1471,24 +1471,24 @@ export const DaftarTukangTab: React.FC = () => {
                 )}
 
                 {/* Jumlah sub headers */}
-                <th className="border border-black py-1 px-1 text-center min-w-[65px]">
+                <th className="border border-black py-1 print:py-0.5 px-1 text-center min-w-[65px]">
                   TENAGA
                 </th>
-                <th className="border border-black py-1 px-1.5 text-center min-w-[90px]">
+                <th className="border border-black py-1 print:py-0.5 px-1.5 text-center min-w-[90px]">
                   UPAH/HARI
                 </th>
-                <th className="border border-black py-1 px-1.5 text-center min-w-[105px]">
+                <th className="border border-black py-1 print:py-0.5 px-1.5 text-center min-w-[105px]">
                   {is1Week ? 'UPAH 1 MGG' : 'UPAH 2 MGG'}
                 </th>
               </tr>
 
               {/* Header Tier 3 (Units: O/H, Org/Mgg or Org/2Mgg, (Rp.)) */}
-              <tr className="border-b border-black font-semibold bg-white text-black text-center text-[10px]">
+              <tr className="border-b border-black font-semibold bg-white text-black text-center text-[10px] print:text-[8.5px]">
                 {is1Week
                   ? activeWeekCols.map((h) => (
                       <th
                         key={`unit-${h.key}`}
-                        className="border border-black py-0.5 px-0.5 text-center font-normal"
+                        className="border border-black py-0.5 print:py-0 px-0.5 text-center font-normal"
                       >
                         O/H
                       </th>
@@ -1496,18 +1496,18 @@ export const DaftarTukangTab: React.FC = () => {
                   : HARI_KERJA_2_MINGGU.map((h) => (
                       <th
                         key={`unit-${h.key}`}
-                        className="border border-black py-0.5 px-0.5 text-center font-normal"
+                        className="border border-black py-0.5 print:py-0 px-0.5 text-center font-normal"
                       >
                         O/H
                       </th>
                     ))}
-                <th className="border border-black py-0.5 px-1 text-center font-normal">
+                <th className="border border-black py-0.5 print:py-0 px-1 text-center font-normal">
                   {is1Week ? 'Org/Mgg' : 'Org/2Mgg'}
                 </th>
-                <th className="border border-black py-0.5 px-1 text-center font-normal">
+                <th className="border border-black py-0.5 print:py-0 px-1 text-center font-normal">
                   (Rp.)
                 </th>
-                <th className="border border-black py-0.5 px-1 text-center font-normal">
+                <th className="border border-black py-0.5 print:py-0 px-1 text-center font-normal">
                   (Rp.)
                 </th>
               </tr>
@@ -1539,17 +1539,17 @@ export const DaftarTukangTab: React.FC = () => {
                     className="border-b border-black hover:bg-amber-50/30 transition-colors"
                   >
                     {/* NO. */}
-                    <td className="border border-black py-1 px-1 text-center font-normal">
+                    <td className="border border-black py-1 print:py-0.5 px-1 text-center font-normal">
                       {rowNum}
                     </td>
 
                     {/* NAMA TUKANG */}
-                    <td className="border border-black py-1 px-2 text-left font-normal uppercase whitespace-nowrap">
+                    <td className="border border-black py-1 print:py-0.5 px-2 text-left font-normal uppercase whitespace-nowrap">
                       {worker.nama}
                     </td>
 
                     {/* TENAGA KERJA */}
-                    <td className="border border-black py-1 px-1.5 text-left whitespace-nowrap">
+                    <td className="border border-black py-1 print:py-0.5 px-1.5 text-left whitespace-nowrap">
                       {worker.tenagaKerja || worker.kategori}
                     </td>
 
@@ -1567,7 +1567,7 @@ export const DaftarTukangTab: React.FC = () => {
                               onClick={() =>
                                 handleToggleAttendance(worker.id, h.key, dayVal)
                               }
-                              className={`border border-black py-1 px-0.5 text-center font-normal cursor-pointer select-none transition ${
+                              className={`border border-black py-1 print:py-0.5 px-0.5 text-center font-normal cursor-pointer select-none transition ${
                                 isLibur
                                   ? 'bg-red-50/60 text-red-700 hover:bg-red-100'
                                   : 'hover:bg-amber-100/70'
@@ -1590,7 +1590,7 @@ export const DaftarTukangTab: React.FC = () => {
                               onClick={() =>
                                 handleToggleAttendance(worker.id, h.key, dayVal)
                               }
-                              className={`border border-black py-1 px-0.5 text-center font-normal cursor-pointer select-none transition ${
+                              className={`border border-black py-1 print:py-0.5 px-0.5 text-center font-normal cursor-pointer select-none transition ${
                                 isLibur
                                   ? 'bg-red-50/60 text-red-700 hover:bg-red-100'
                                   : h.weekGroup === 2
@@ -1605,22 +1605,22 @@ export const DaftarTukangTab: React.FC = () => {
                         })}
 
                     {/* TENAGA (Org/Mgg or Org/2Mgg) */}
-                    <td className="border border-black py-1 px-1 text-center font-normal">
+                    <td className="border border-black py-1 print:py-0.5 px-1 text-center font-normal">
                       {formatDecimal(activeTotalHari)}
                     </td>
 
                     {/* UPAH/HARI (Rp.) */}
-                    <td className="border border-black py-1 px-1.5 text-right font-normal tabular-nums whitespace-nowrap">
+                    <td className="border border-black py-1 print:py-0.5 px-1.5 text-right font-normal tabular-nums whitespace-nowrap">
                       {formatDecimal(worker.upahHarian)}
                     </td>
 
                     {/* UPAH JUMLAH (Rp.) */}
-                    <td className="border border-black py-1 px-2 text-right font-normal tabular-nums whitespace-nowrap">
+                    <td className="border border-black py-1 print:py-0.5 px-2 text-right font-normal tabular-nums whitespace-nowrap">
                       {formatDecimal(activeUpahPekerja)}
                     </td>
 
                     {/* PARAF: Ruang kosong untuk tanda tangan tukang (tanpa angka) */}
-                    <td className="border border-black py-2.5 sm:py-3 px-2 text-center font-normal min-w-[75px] sm:min-w-[90px] w-20 sm:w-24 h-11 print:h-12">
+                    <td className="border border-black py-1.5 sm:py-2 print:py-0.5 px-1.5 text-center font-normal min-w-[65px] sm:min-w-[80px] w-16 sm:w-20 print:w-16 h-8 sm:h-9 print:h-7">
                       {/* Sengaja dikosongkan untuk tanda tangan / paraf fisik tukang */}
                       {worker.paraf && !/^\d+$/.test(worker.paraf.trim()) ? worker.paraf : ''}
                     </td>
@@ -1670,24 +1670,24 @@ export const DaftarTukangTab: React.FC = () => {
               <tr className="border-t-2 border-black font-bold bg-white text-black">
                 <td
                   colSpan={is1Week ? 12 : 19}
-                  className="border border-black py-2 px-3 text-center uppercase tracking-wider font-bold"
+                  className="border border-black py-1.5 print:py-0.5 px-3 text-center uppercase tracking-wider font-bold"
                 >
                   {is1Week
                     ? 'JUMLAH UPAH SATU MINGGU (Rp.)'
                     : 'JUMLAH UPAH DUA MINGGU (Rp.)'}
                 </td>
-                <td className="border border-black py-2 px-2 text-right font-bold tabular-nums whitespace-nowrap">
+                <td className="border border-black py-1.5 print:py-0.5 px-2 text-right font-bold tabular-nums whitespace-nowrap">
                   {formatDecimal(activeGrandTotal)}
                 </td>
-                <td className="border border-black py-2 px-1 text-center"></td>
-                <td className="border border-black py-2 px-1 print:hidden bg-slate-50"></td>
+                <td className="border border-black py-1.5 print:py-0.5 px-1 text-center"></td>
+                <td className="border border-black py-1.5 print:py-0.5 px-1 print:hidden bg-slate-50"></td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* Terbilang Box below table */}
-        <div className="mt-3 p-2.5 border border-black/40 bg-slate-50 text-xs sm:text-[13px] text-black">
+        <div className="mt-2.5 print:mt-1.5 p-2 print:py-1 print:px-2 border border-black/50 bg-slate-50 print:bg-white text-xs sm:text-[13px] print:text-[10px] text-black">
           <span className="font-bold">Terbilang: </span>
           <span className="italic font-medium">
             {terbilangRupiah(activeGrandTotal)}
@@ -1695,23 +1695,23 @@ export const DaftarTukangTab: React.FC = () => {
         </div>
 
         {/* Signatures Section: 2 Columns */}
-        <div className="mt-8 grid grid-cols-2 gap-8 text-xs sm:text-[13px] text-black font-sans break-inside-avoid">
+        <div className="mt-5 print:mt-3 grid grid-cols-2 gap-6 print:gap-4 text-xs sm:text-[13px] print:text-[11px] text-black font-sans break-inside-avoid page-break-inside-avoid">
           {/* Left Column: Mengetahui; Kepala Sekolah */}
           <div className="text-left pl-2">
-            <p>Mengetahui;</p>
-            <p>Kepala Sekolah,</p>
-            <div className="h-16 sm:h-20" />
-            <p className="font-bold underline uppercase">{namaKepalaSekolah}</p>
-            <p className="tabular-nums">NIP.{nipKepalaSekolah.replace(/\s+/g, '')}</p>
+            <p className="leading-tight">Mengetahui;</p>
+            <p className="leading-tight">Kepala Sekolah,</p>
+            <div className="h-12 sm:h-14 print:h-10" />
+            <p className="font-bold underline uppercase leading-tight">{namaKepalaSekolah}</p>
+            <p className="tabular-nums leading-tight">NIP.{nipKepalaSekolah.replace(/\s+/g, '')}</p>
           </div>
 
           {/* Right Column: Lunas Bayar, Bendahara */}
-          <div className="text-left pl-8 sm:pl-16">
-            <p>Lunas Bayar,</p>
-            <p>Bendahara,</p>
-            <div className="h-16 sm:h-20" />
-            <p className="font-bold underline uppercase">{namaBendahara}</p>
-            <p className="tabular-nums">NIP.{nipBendahara.replace(/\s+/g, '')}</p>
+          <div className="text-left pl-8 sm:pl-16 print:pl-8">
+            <p className="leading-tight">Lunas Bayar,</p>
+            <p className="leading-tight">Bendahara,</p>
+            <div className="h-12 sm:h-14 print:h-10" />
+            <p className="font-bold underline uppercase leading-tight">{namaBendahara}</p>
+            <p className="tabular-nums leading-tight">NIP.{nipBendahara.replace(/\s+/g, '')}</p>
           </div>
         </div>
       </div>

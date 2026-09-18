@@ -76,7 +76,7 @@ td {
 
 @media print {
   @page {
-    margin: 0.8cm 1cm;
+    margin: 0.5cm 0.8cm;
     size: auto;
   }
 
