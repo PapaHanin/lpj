@@ -5,6 +5,7 @@ import {
   indonesianDateToIso,
   getClosingDateForMonth,
 } from './dateUtils';
+import { parseBkuNumber } from './bkuParser';
 export { formatRupiah, formatRupiahBulat } from './terbilang';
 
 export interface BkuRow {
@@ -516,15 +517,70 @@ export function calculateSummary(transactions: Transaction[]): SummaryStats {
   };
 }
 
-export function sortTransactionsChronologically(transactions: Transaction[]): Transaction[] {
-  return [...transactions].sort((a, b) => {
+/**
+ * Compares two transactions such that:
+ * 1. Transactions with valid BKU numbers are sorted strictly by BKU number.
+ * 2. Non-BKU transactions (such as initial funding, Tarik Tunai) are ordered by their date/month
+ *    and placed logically before expenditure receipts.
+ * 3. Any change in BKU number immediately reorders the transaction to its exact numerical place.
+ */
+export function compareTransactionsByBkuAndDate(a: Transaction, b: Transaction): number {
+  const parsedA = parseBkuNumber(a.nomorBukti || '');
+  const parsedB = parseBkuNumber(b.nomorBukti || '');
+
+  // 1. Both transactions have BKU numbers: ALWAYS sort by BKU number!
+  if (parsedA && parsedB) {
+    if (parsedA.num !== parsedB.num) {
+      return parsedA.num - parsedB.num;
+    }
+    // If exact same BKU number, fallback to date
     const isoA = indonesianDateToIso(a.tanggal) || '9999-99-99';
     const isoB = indonesianDateToIso(b.tanggal) || '9999-99-99';
     if (isoA !== isoB) {
       return isoA.localeCompare(isoB);
     }
-    return (a.nomorBukti || '').localeCompare(b.nomorBukti || '', undefined, { numeric: true });
-  });
+    return (a.id || '').localeCompare(b.id || '');
+  }
+
+  const isoA = indonesianDateToIso(a.tanggal) || '9999-99-99';
+  const isoB = indonesianDateToIso(b.tanggal) || '9999-99-99';
+  const monthKeyA = isoA.substring(0, 7);
+  const monthKeyB = isoB.substring(0, 7);
+
+  // If different months, sort by month first
+  if (monthKeyA !== monthKeyB) {
+    return monthKeyA.localeCompare(monthKeyB);
+  }
+
+  // Same month, but only one has BKU:
+  if (!parsedA && parsedB) {
+    // Non-BKU transaction (e.g. Dana Masuk or Tarik Tunai) vs BKU expenditure
+    if (a.jenis === 'PENERIMAAN' || a.metode === 'TARIK_TUNAI') {
+      // Inflow/withdrawal at start of month comes before expenditure receipts
+      if (isoA <= isoB) return -1;
+      return -1;
+    }
+    if (isoA <= isoB) return -1;
+    return 1;
+  }
+
+  if (parsedA && !parsedB) {
+    if (b.jenis === 'PENERIMAAN' || b.metode === 'TARIK_TUNAI') {
+      return 1;
+    }
+    if (isoB <= isoA) return 1;
+    return -1;
+  }
+
+  // Neither has BKU number: sort by date, then id
+  if (isoA !== isoB) {
+    return isoA.localeCompare(isoB);
+  }
+  return (a.id || '').localeCompare(b.id || '');
+}
+
+export function sortTransactionsChronologically(transactions: Transaction[]): Transaction[] {
+  return [...transactions].sort(compareTransactionsByBkuAndDate);
 }
 
 export function groupTransactionsByMonthlyBooks(

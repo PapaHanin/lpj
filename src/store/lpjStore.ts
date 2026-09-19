@@ -19,7 +19,8 @@ import {
   INITIAL_TRANSACTIONS,
   sortTransactionsChronologically,
 } from '../utils/calculations';
-import { getClosingDateForMonth, extractMonthAndYear, BULAN_LIST } from '../utils/dateUtils';
+import { getClosingDateForMonth, extractMonthAndYear, BULAN_LIST, indonesianDateToIso } from '../utils/dateUtils';
+import { parseBkuNumber, formatBkuNumber, getHarmonizedDateForBku } from '../utils/bkuUtils';
 import {
   INITIAL_ABSEN_DATA,
   DEFAULT_ABSEN_MINGGU_2,
@@ -58,6 +59,7 @@ interface LpjState {
   // Modal Tukar & Urutkan Ulang Nomor BKU
   isSwapRenumberModalOpen: boolean;
   swapRenumberInitialTxIds: [string, string] | null;
+  swapRenumberDefaultTab?: 'shift' | 'swap' | 'renumber' | null;
 
   // Bangunan Proyek & Daftar Barang/Belanja State
   bangunanList: BangunanProyek[];
@@ -78,8 +80,15 @@ interface LpjState {
   setProfile: (profile: Partial<ProjectProfile>) => void;
   setSelectedMonthFilter: (filter: string) => void;
   setReportingMonth: (bulan: string, tahun: string) => void;
-  addTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void;
-  updateTransaction: (id: string, tx: Partial<Transaction>) => void;
+  addTransaction: (
+    tx: Omit<Transaction, 'id' | 'createdAt'>,
+    options?: { shiftSubsequentBku?: boolean }
+  ) => void;
+  updateTransaction: (
+    id: string,
+    tx: Partial<Transaction>,
+    options?: { shiftSubsequentBku?: boolean }
+  ) => void;
   deleteTransaction: (id: string) => void;
   deleteMultipleTransactions: (ids: string[]) => void;
   moveTransaction: (id: string, direction: 'up' | 'down', swapNomorBukti?: boolean) => void;
@@ -88,6 +97,14 @@ interface LpjState {
     idB: string,
     options?: { swapDates?: boolean; swapPositions?: boolean }
   ) => void;
+  insertAndShiftBku: (params: {
+    targetTxId: string;
+    newNomorBukti: string;
+    shiftSubsequent?: boolean;
+    sortChronologically?: boolean;
+    autoHarmonizeDate?: boolean;
+  }) => void;
+  harmonizeAllBkuDates: () => void;
   renumberBku: (params?: {
     prefix?: string;
     startNumber?: number;
@@ -95,7 +112,11 @@ interface LpjState {
     monthKey?: string;
     onlyExpenses?: boolean;
   }) => void;
-  openSwapRenumberModal: (txIdA?: string, txIdB?: string) => void;
+  openSwapRenumberModal: (
+    txIdA?: string,
+    txIdB?: string,
+    defaultTab?: 'shift' | 'swap' | 'renumber'
+  ) => void;
   closeSwapRenumberModal: () => void;
   setActiveTab: (tab: ActiveTab) => void;
   setSelectedTransactionForKwitansi: (id: string) => void;
@@ -173,6 +194,7 @@ export const useLpjStore = create<LpjState>()(
       modalPreset: null,
       isSwapRenumberModalOpen: false,
       swapRenumberInitialTxIds: null,
+      swapRenumberDefaultTab: 'shift',
 
       // State Bangunan & Daftar Barang/Belanja
       bangunanList: INITIAL_BANGUNAN_LIST,
@@ -224,28 +246,90 @@ export const useLpjStore = create<LpjState>()(
           };
         }),
 
-      addTransaction: (newTxData) =>
+      addTransaction: (newTxData, options) =>
         set((state) => {
           const newTx: Transaction = {
             ...newTxData,
             id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             createdAt: new Date().toISOString(),
           };
+
+          let currentTxs = [...state.transactions];
+
+          if (options?.shiftSubsequentBku && newTx.nomorBukti) {
+            const parsed = parseBkuNumber(newTx.nomorBukti);
+            if (parsed) {
+              const targetNum = parsed.num;
+              const prefix = parsed.prefix || 'BKU ';
+              const padLength = Math.max(parsed.padLength, 2);
+
+              currentTxs = currentTxs.map((t) => {
+                const p = parseBkuNumber(t.nomorBukti || '');
+                if (p && p.num >= targetNum) {
+                  const nextNum = p.num + 1;
+                  const newNo = formatBkuNumber(
+                    nextNum,
+                    p.prefix || prefix,
+                    Math.max(p.padLength, padLength),
+                    p.suffix
+                  );
+                  return { ...t, nomorBukti: newNo };
+                }
+                return t;
+              });
+            }
+          }
+
+          const allTxs = sortTransactionsChronologically([...currentTxs, newTx]);
+
           return {
-            transactions: [...state.transactions, newTx],
+            transactions: allTxs,
             isTransactionModalOpen: false,
             transactionToEdit: null,
           };
         }),
 
-      updateTransaction: (id, updatedData) =>
-        set((state) => ({
-          transactions: state.transactions.map((tx) =>
+      updateTransaction: (id, updatedData, options) =>
+        set((state) => {
+          let currentTxs = [...state.transactions];
+
+          if (options?.shiftSubsequentBku && updatedData.nomorBukti) {
+            const parsed = parseBkuNumber(updatedData.nomorBukti);
+            if (parsed) {
+              const targetNum = parsed.num;
+              const prefix = parsed.prefix || 'BKU ';
+              const padLength = Math.max(parsed.padLength, 2);
+
+              currentTxs = currentTxs.map((t) => {
+                if (t.id === id) return t;
+                const p = parseBkuNumber(t.nomorBukti || '');
+                if (p && p.num >= targetNum) {
+                  const nextNum = p.num + 1;
+                  const newNo = formatBkuNumber(
+                    nextNum,
+                    p.prefix || prefix,
+                    Math.max(p.padLength, padLength),
+                    p.suffix
+                  );
+                  return { ...t, nomorBukti: newNo };
+                }
+                return t;
+              });
+            }
+          }
+
+          const updatedList = currentTxs.map((tx) =>
             tx.id === id ? { ...tx, ...updatedData } : tx
-          ),
-          isTransactionModalOpen: false,
-          transactionToEdit: null,
-        })),
+          );
+
+          const allTxs = sortTransactionsChronologically(updatedList);
+
+          return {
+            transactions: allTxs,
+            isTransactionModalOpen: false,
+            transactionToEdit: null,
+          };
+        }),
 
       deleteTransaction: (id) =>
         set((state) => ({
@@ -344,6 +428,106 @@ export const useLpjStore = create<LpjState>()(
           return { transactions: newTransactions };
         }),
 
+      insertAndShiftBku: ({
+        targetTxId,
+        newNomorBukti,
+        shiftSubsequent = true,
+        sortChronologically = true,
+        autoHarmonizeDate = false,
+      }) =>
+        set((state) => {
+          const targetTx = state.transactions.find((t) => t.id === targetTxId);
+          if (!targetTx) return state;
+
+          const parsed = parseBkuNumber(newNomorBukti);
+          if (!parsed) {
+            const updated = state.transactions.map((t) =>
+              t.id === targetTxId ? { ...t, nomorBukti: newNomorBukti } : t
+            );
+            return {
+              transactions: sortChronologically
+                ? sortTransactionsChronologically(updated)
+                : updated,
+            };
+          }
+
+          const targetNum = parsed.num;
+          const prefix = parsed.prefix || 'BKU ';
+          const padLength = Math.max(parsed.padLength, 2);
+          const suffix = parsed.suffix || '';
+          const formattedTargetNo = formatBkuNumber(targetNum, prefix, padLength, suffix);
+
+          let updatedList = state.transactions.map((t) => {
+            if (t.id === targetTxId) {
+              return { ...t, nomorBukti: formattedTargetNo };
+            }
+            if (shiftSubsequent) {
+              const p = parseBkuNumber(t.nomorBukti || '');
+              if (p && p.num >= targetNum) {
+                const nextNum = p.num + 1;
+                const nextNo = formatBkuNumber(
+                  nextNum,
+                  p.prefix || prefix,
+                  Math.max(p.padLength, padLength),
+                  p.suffix
+                );
+                return { ...t, nomorBukti: nextNo };
+              }
+            }
+            return t;
+          });
+
+          if (autoHarmonizeDate) {
+            const harmonizedDate = getHarmonizedDateForBku(
+              state.transactions.filter((t) => t.id !== targetTxId),
+              targetNum,
+              targetTx.tanggal
+            );
+            updatedList = updatedList.map((t) =>
+              t.id === targetTxId ? { ...t, tanggal: harmonizedDate } : t
+            );
+          }
+
+          if (sortChronologically) {
+            updatedList = sortTransactionsChronologically(updatedList);
+          }
+
+          return { transactions: updatedList };
+        }),
+
+      harmonizeAllBkuDates: () =>
+        set((state) => {
+          // Sort by BKU sequence
+          const sorted = sortTransactionsChronologically(state.transactions);
+          let lastIso = '0000-00-00';
+          let lastDateStr = '';
+
+          const harmonized = sorted.map((tx) => {
+            const parsed = parseBkuNumber(tx.nomorBukti || '');
+            if (!parsed) {
+              const currentIso = indonesianDateToIso(tx.tanggal) || '9999-99-99';
+              if (currentIso > lastIso) {
+                lastIso = currentIso;
+                lastDateStr = tx.tanggal;
+              }
+              return tx;
+            }
+
+            const currentIso = indonesianDateToIso(tx.tanggal) || '9999-99-99';
+            // If current date is backwards compared to preceding BKU in the sequence,
+            // harmonize forward so dates never regress!
+            if (currentIso < lastIso && lastDateStr) {
+              return { ...tx, tanggal: lastDateStr };
+            }
+
+            lastIso = currentIso;
+            lastDateStr = tx.tanggal;
+            return tx;
+          });
+
+          return { transactions: sortTransactionsChronologically(harmonized) };
+        }),
+
       renumberBku: (params) =>
         set((state) => {
           const prefix = params?.prefix !== undefined ? params.prefix : 'BKU ';
@@ -378,21 +562,24 @@ export const useLpjStore = create<LpjState>()(
             }
           });
 
-          const newTransactions = state.transactions.map((tx) => {
-            if (updatedMap.has(tx.id)) {
-              return { ...tx, nomorBukti: updatedMap.get(tx.id)! };
-            }
-            return tx;
-          });
+          const newTransactions = sortTransactionsChronologically(
+            state.transactions.map((tx) => {
+              if (updatedMap.has(tx.id)) {
+                return { ...tx, nomorBukti: updatedMap.get(tx.id)! };
+              }
+              return tx;
+            })
+          );
 
           return { transactions: newTransactions };
         }),
 
-      openSwapRenumberModal: (txIdA, txIdB) =>
+      openSwapRenumberModal: (txIdA, txIdB, defaultTab) =>
         set({
           isSwapRenumberModalOpen: true,
           swapRenumberInitialTxIds:
             txIdA && txIdB ? [txIdA, txIdB] : txIdA ? [txIdA, ''] : null,
+          swapRenumberDefaultTab: defaultTab || (txIdA && !txIdB ? 'shift' : txIdA && txIdB ? 'swap' : 'shift'),
         }),
 
       closeSwapRenumberModal: () =>

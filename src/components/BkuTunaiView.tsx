@@ -12,6 +12,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowLeftRight,
+  Hash,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { groupTransactionsByMonthlyBooks } from '../utils/calculations';
@@ -113,12 +114,12 @@ export const BkuTunaiView: React.FC = () => {
             <span>Pengaturan Profil</span>
           </button>
           <button
-            onClick={() => openSwapRenumberModal()}
+            onClick={() => openSwapRenumberModal(undefined, undefined, 'shift')}
             className="flex items-center space-x-1.5 bg-amber-400 hover:bg-amber-300 text-purple-950 text-xs font-black px-3.5 py-2 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
-            title="Tukar nomor BKU atau urutkan ulang nomor BKU otomatis"
+            title="Ganti nomor BKU, sisipkan kuitansi terlewat, atau tukar nomor BKU otomatis"
           >
-            <ArrowLeftRight className="w-4 h-4 text-purple-900" />
-            <span>Urutkan & Tukar BKU</span>
+            <Hash className="w-4 h-4 text-purple-900" />
+            <span>Ganti & Urutkan BKU</span>
           </button>
           <button
             onClick={() =>
@@ -482,10 +483,20 @@ export const BkuTunaiView: React.FC = () => {
                                   <ArrowDown className="w-3.5 h-3.5" />
                                 </button>
 
+                                {/* Ganti / Sisipkan Nomor BKU (Auto-Geser) */}
+                                <button
+                                  type="button"
+                                  onClick={() => openSwapRenumberModal(row.transaction.id, undefined, 'shift')}
+                                  className="p-1 text-purple-800 hover:text-purple-950 hover:bg-purple-100 rounded transition cursor-pointer"
+                                  title="Ganti nomor BKU baris ini & otomatis geser nomor setelahnya"
+                                >
+                                  <Hash className="w-3.5 h-3.5 text-purple-700" />
+                                </button>
+
                                 {/* Tukar Nomor BKU */}
                                 <button
                                   type="button"
-                                  onClick={() => openSwapRenumberModal(row.transaction.id)}
+                                  onClick={() => openSwapRenumberModal(row.transaction.id, undefined, 'swap')}
                                   className="p-1 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded transition cursor-pointer"
                                   title="Tukar Nomor BKU dengan transaksi lain"
                                 >

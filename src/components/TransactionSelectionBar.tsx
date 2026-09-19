@@ -8,6 +8,7 @@ import {
   Sparkles,
   X,
   CheckSquare,
+  Hash,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { Transaction } from '../types';
@@ -107,11 +108,11 @@ export const TransactionSelectionBar: React.FC<TransactionSelectionBarProps> = (
 
   const handleSwapTwo = () => {
     if (selectedIds.length === 2) {
-      openSwapRenumberModal(selectedIds[0], selectedIds[1]);
+      openSwapRenumberModal(selectedIds[0], selectedIds[1], 'swap');
     } else if (singleTx) {
-      openSwapRenumberModal(singleTx.id);
+      openSwapRenumberModal(singleTx.id, undefined, 'swap');
     } else {
-      openSwapRenumberModal();
+      openSwapRenumberModal(undefined, undefined, 'swap');
     }
   };
 
@@ -142,6 +143,19 @@ export const TransactionSelectionBar: React.FC<TransactionSelectionBarProps> = (
           >
             <Edit3 className="w-3.5 h-3.5" />
             <span>Edit</span>
+          </button>
+        )}
+
+        {/* Ganti / Sisip BKU (Active when 1 is selected) */}
+        {singleTx && (
+          <button
+            type="button"
+            onClick={() => openSwapRenumberModal(singleTx.id, undefined, 'shift')}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-purple-800 to-indigo-800 hover:from-purple-700 hover:to-indigo-700 text-amber-300 font-bold px-3 py-1.5 rounded-lg border border-amber-400/40 shadow-xs transition active:scale-95 cursor-pointer"
+            title="Ganti nomor BKU transaksi ini & otomatis geser transaksi berikutnya (+1)"
+          >
+            <Hash className="w-3.5 h-3.5 text-amber-400" />
+            <span>Ganti/Sisip BKU</span>
           </button>
         )}
 
@@ -195,7 +209,7 @@ export const TransactionSelectionBar: React.FC<TransactionSelectionBarProps> = (
         {/* Renumber BKU Automatically */}
         <button
           type="button"
-          onClick={() => openSwapRenumberModal()}
+          onClick={() => openSwapRenumberModal(undefined, undefined, 'renumber')}
           className="flex items-center gap-1 bg-purple-700 hover:bg-purple-600 text-amber-300 font-bold px-3 py-1.5 rounded-lg border border-amber-400/40 transition active:scale-95 cursor-pointer"
           title="Urutkan ulang nomor BKU secara otomatis tanpa merubah manual satu per satu"
         >

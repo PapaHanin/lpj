@@ -21,6 +21,7 @@ import {
   BULAN_LIST,
 } from '../utils/dateUtils';
 import { extractTransactionHistory } from '../utils/transactionHistory';
+import { suggestBkuForDate, getHarmonizedDateForBku, parseBkuNumber } from '../utils/bkuUtils';
 
 export const TransactionModal: React.FC = () => {
   const {
@@ -46,6 +47,42 @@ export const TransactionModal: React.FC = () => {
   const [hasSubItems, setHasSubItems] = useState(false);
   const [subItems, setSubItems] = useState<SubItem[]>([]);
   const [autoFillNotice, setAutoFillNotice] = useState<string | null>(null);
+  const [shiftSubsequentBku, setShiftSubsequentBku] = useState(false);
+  const [bkuSuggestionNotice, setBkuSuggestionNotice] = useState<string | null>(null);
+
+  // Recommend BKU number based on transaction date (great for missed August transactions!)
+  const handleRecommendBkuFromDate = () => {
+    if (!tanggal) return;
+    const sugg = suggestBkuForDate(transactions, tanggal, transactionToEdit?.id);
+    setNomorBukti(sugg.suggestedNo);
+    if (sugg.conflictsWithExisting) {
+      setShiftSubsequentBku(true);
+    }
+    setBkuSuggestionNotice(sugg.explanation);
+  };
+
+  // Harmonize transaction date to match BKU sequence
+  const handleRecommendDateFromBku = () => {
+    if (!nomorBukti.trim()) {
+      setBkuSuggestionNotice('Ketikkan nomor BKU terlebih dahulu (contoh: BKU 06).');
+      return;
+    }
+    const parsed = parseBkuNumber(nomorBukti);
+    if (!parsed) {
+      setBkuSuggestionNotice(`Format ${nomorBukti} tidak valid. Gunakan format seperti BKU 06.`);
+      return;
+    }
+    const harmonizedDate = getHarmonizedDateForBku(
+      transactions.filter((t) => t.id !== transactionToEdit?.id),
+      parsed.num,
+      tanggal
+    );
+    setTanggal(harmonizedDate);
+    setIsoDate(indonesianDateToIso(harmonizedDate));
+    setBkuSuggestionNotice(
+      `Tanggal transaksi berhasil diselaraskan menjadi ${harmonizedDate} mengikuti urutan ${nomorBukti}.`
+    );
+  };
 
   // Extract history of transactions previously created by the user
   const history = useMemo(
@@ -98,6 +135,8 @@ export const TransactionModal: React.FC = () => {
           ? transactionToEdit.penerimaan
           : transactionToEdit.pengeluaran;
       setManualNominal(nominalVal);
+      setShiftSubsequentBku(false);
+      setBkuSuggestionNotice(null);
     } else {
       // Default new transaction based on active reporting month and optional modalPreset
       const info = activeMonthInfo();
@@ -112,6 +151,8 @@ export const TransactionModal: React.FC = () => {
       setPenerima('');
       setKeterangan('');
       setAutoFillNotice(null);
+      setShiftSubsequentBku(false);
+      setBkuSuggestionNotice(null);
 
       const wantsSub = Boolean(modalPreset?.withSubItems);
       setHasSubItems(wantsSub);
@@ -325,9 +366,9 @@ export const TransactionModal: React.FC = () => {
     };
 
     if (transactionToEdit) {
-      updateTransaction(transactionToEdit.id, payload);
+      updateTransaction(transactionToEdit.id, payload, { shiftSubsequentBku });
     } else {
-      addTransaction(payload);
+      addTransaction(payload, { shiftSubsequentBku });
     }
   };
 
@@ -544,14 +585,40 @@ export const TransactionModal: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-1.5">
-                Nomor Bukti BKU
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-black text-purple-950 uppercase tracking-wide">
+                  Nomor Bukti BKU
+                </label>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleRecommendBkuFromDate}
+                    className="text-[11px] font-bold text-purple-800 hover:text-purple-950 hover:underline flex items-center gap-1 cursor-pointer"
+                    title="Hitung nomor BKU berdasarkan urutan tanggal nota"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>BKU dr Tanggal</span>
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    onClick={handleRecommendDateFromBku}
+                    className="text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-1 cursor-pointer"
+                    title="Sesuaikan tanggal nota mengikuti posisi nomor BKU"
+                  >
+                    <Calendar className="w-3 h-3 text-amber-600" />
+                    <span>Tanggal dr BKU</span>
+                  </button>
+                </div>
+              </div>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={nomorBukti}
-                  onChange={(e) => setNomorBukti(e.target.value)}
+                  onChange={(e) => {
+                    setNomorBukti(e.target.value);
+                    setBkuSuggestionNotice(null);
+                  }}
                   placeholder="Contoh: BKU 05"
                   className="w-full text-sm font-black text-slate-950 bg-white border-2 border-purple-900/40 rounded-xl px-3.5 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden font-mono placeholder:text-slate-400"
                 />
@@ -559,15 +626,39 @@ export const TransactionModal: React.FC = () => {
                   type="button"
                   onClick={() => setNomorBukti(getNextBkuSuggestion())}
                   className="shrink-0 text-xs font-black text-purple-950 bg-amber-400 hover:bg-amber-300 border border-amber-500 px-3.5 py-2.5 rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1"
-                  title="Gunakan nomor urut BKU berikutnya"
+                  title="Gunakan nomor urut BKU terakhir + 1"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Auto BKU</span>
                 </button>
               </div>
-              <p className="text-[11px] font-medium text-slate-500 mt-1">
-                Kosongkan jika penerimaan DAK Bank atau Tarik Tunai.
-              </p>
+
+              {/* Helper Notice from Date Suggestion */}
+              {bkuSuggestionNotice && (
+                <div className="mt-1.5 p-1.5 bg-purple-50 border border-purple-200 rounded-lg text-[11px] text-purple-900">
+                  {bkuSuggestionNotice}
+                </div>
+              )}
+
+              {/* Missed / Backdated Transaction Helper */}
+              <div className="mt-2 p-2 bg-amber-50/90 border border-amber-300 rounded-xl">
+                <label className="flex items-start gap-2 cursor-pointer select-none text-xs">
+                  <input
+                    type="checkbox"
+                    checked={shiftSubsequentBku}
+                    onChange={(e) => setShiftSubsequentBku(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 text-purple-900 border-slate-400 rounded focus:ring-amber-500"
+                  />
+                  <div>
+                    <span className="font-bold text-purple-950">
+                      Sisipkan BKU ini & otomatis geser nomor setelahnya (+1)
+                    </span>
+                    <p className="text-[11px] text-slate-600 leading-tight mt-0.5">
+                      Sangat berguna jika ada nota bulan lalu (seperti Agustus) yang terlewat setelah Anda menginput September. Nomor transaksi berikutnya akan otomatis dimajukan +1 secara rapi.
+                    </p>
+                  </div>
+                </label>
+              </div>
             </div>
           </div>
 
