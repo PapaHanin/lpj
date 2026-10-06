@@ -26,6 +26,11 @@ import {
   DEFAULT_ABSEN_MINGGU_2,
   DEFAULT_ABSEN_MINGGU_4,
   INITIAL_BANGUNAN_LIST,
+  createDefaultWeeksForBangunan,
+  DAK_FISIK_PERIODS_2026,
+  DEFAULT_WORKERS_BANGUNAN_1,
+  DEFAULT_WORKERS_BANGUNAN_2,
+  DEFAULT_WORKERS_BANGUNAN_3,
 } from '../utils/bahanTukangUtils';
 
 export interface ModalPreset {
@@ -75,6 +80,12 @@ interface LpjState {
   isPrintModalOpen: boolean;
   printModalDocTitle: string;
   toast: ToastNotification | null;
+
+  // Backup & Storage Modal State
+  isBackupModalOpen: boolean;
+  openBackupModal: () => void;
+  closeBackupModal: () => void;
+  restoreBackupData: (payload: any) => boolean;
 
   // Actions
   setProfile: (profile: Partial<ProjectProfile>) => void;
@@ -176,6 +187,7 @@ interface LpjState {
   ) => void;
   deletePekerjaFromAbsen: (absenId: string, pekerjaId: string) => void;
   addNewAbsenWeek: (weekNum: number, tanggal?: string, targetBangunanId?: string) => void;
+  syncDakFisikSchedule: () => void;
   addCustomBahan: (item: Omit<CustomBahanItem, 'id'>) => void;
   deleteCustomBahan: (id: string) => void;
 }
@@ -202,13 +214,45 @@ export const useLpjStore = create<LpjState>()(
       activeSubTabDaftarBarang: 'bahan',
       absenTukangList: INITIAL_ABSEN_DATA,
       selectedAbsenWeekId: 'absen-minggu-4',
-      formatRekapTukang: '2_minggu',
+      formatRekapTukang: '1_minggu',
       selectedSubWeek: 1,
       customBahanList: [],
 
       isPrintModalOpen: false,
       printModalDocTitle: 'Buku Kas Umum (BKU)',
       toast: null,
+
+      // Backup & Storage Modal State
+      isBackupModalOpen: false,
+      openBackupModal: () => set({ isBackupModalOpen: true }),
+      closeBackupModal: () => set({ isBackupModalOpen: false }),
+      restoreBackupData: (payload: any) => {
+        try {
+          const data = payload?.data || payload;
+          if (!data || !data.profile || !Array.isArray(data.transactions)) {
+            return false;
+          }
+          set({
+            profile: { ...INITIAL_PROFILE, ...data.profile },
+            transactions: data.transactions,
+            bangunanList:
+              Array.isArray(data.bangunanList) && data.bangunanList.length > 0
+                ? data.bangunanList
+                : INITIAL_BANGUNAN_LIST,
+            selectedBangunanId: data.bangunanList?.[0]?.id || 'bangunan-1',
+            absenTukangList:
+              Array.isArray(data.absenTukangList) && data.absenTukangList.length > 0
+                ? data.absenTukangList
+                : INITIAL_ABSEN_DATA,
+            selectedAbsenWeekId: data.absenTukangList?.[0]?.id || 'absen-minggu-4',
+            customBahanList: Array.isArray(data.customBahanList) ? data.customBahanList : [],
+            isBackupModalOpen: false,
+          });
+          return true;
+        } catch {
+          return false;
+        }
+      },
 
       setProfile: (updatedProfile) =>
         set((state) => {
@@ -653,12 +697,31 @@ export const useLpjStore = create<LpjState>()(
       // Reducer Bangunan Proyek
       setSelectedBangunanId: (id) =>
         set((state) => {
-          const weeksForBangunan = state.absenTukangList.filter(
+          let updatedAbsenList = [...state.absenTukangList];
+          let weeksForBangunan = updatedAbsenList.filter(
             (w) => (w.bangunanId || 'bangunan-1') === id
           );
+          if (weeksForBangunan.length === 0) {
+            const b = state.bangunanList.find((item) => item.id === id);
+            let defaultWorkers = DEFAULT_WORKERS_BANGUNAN_1;
+            if (id === 'bangunan-2') defaultWorkers = DEFAULT_WORKERS_BANGUNAN_2;
+            else if (id === 'bangunan-3') defaultWorkers = DEFAULT_WORKERS_BANGUNAN_3;
+            const generated = createDefaultWeeksForBangunan(id, b?.nama || 'Pekerjaan Bangunan', defaultWorkers);
+            updatedAbsenList = [...updatedAbsenList, ...generated];
+            weeksForBangunan = generated;
+          }
+
+          // Pertahankan nomor periode yang sedang dibuka saat berpindah bangunan
+          const currentWeek = state.absenTukangList.find((w) => w.id === state.selectedAbsenWeekId);
+          const currentPeriodNum = currentWeek?.periodeKe || currentWeek?.mingguKe || 1;
+          const matchingPeriodWeek = weeksForBangunan.find(
+            (w) => (w.periodeKe || w.mingguKe || 1) === currentPeriodNum
+          );
+
           return {
             selectedBangunanId: id,
-            selectedAbsenWeekId: weeksForBangunan[0]?.id || state.selectedAbsenWeekId,
+            absenTukangList: updatedAbsenList,
+            selectedAbsenWeekId: matchingPeriodWeek?.id || weeksForBangunan[0]?.id || state.selectedAbsenWeekId,
           };
         }),
 
@@ -689,40 +752,26 @@ export const useLpjStore = create<LpjState>()(
             }
           }
           if (donorWorkers.length === 0) {
-            donorWorkers = DEFAULT_ABSEN_MINGGU_4.pekerja;
+            donorWorkers = DEFAULT_WORKERS_BANGUNAN_2;
           }
 
           const clonedPekerja: PekerjaTukang[] = donorWorkers.map((p, idx) => ({
             ...p,
             id: `pkr-${newId}-${idx + 1}-${Date.now()}`,
-            hariKerja: { minggu: 1, senin: 1, selasa: 1, rabu: 1, kamis: 1, jumat: 1, sabtu: 1 },
+            hariKerja: {
+              m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+              m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+            },
             paraf: `${idx + 1}`,
           }));
 
-          const firstWeekId = `absen-${newId}-m1-${Date.now()}`;
-          const firstWeek: AbsenMingguanTukang = {
-            id: firstWeekId,
-            bangunanId: newId,
-            proyek: newBangunan.nama,
-            namaSekolah: state.profile.namaSekolah,
-            lokasi:
-              newBangunan.lokasi ||
-              `${state.profile.alamat}, ${state.profile.kabupaten}`,
-            mingguKe: 1,
-            hariTanggal: `Minggu ke-1 (${state.profile.bulanLaporan || '2023'})`,
-            pekerja: clonedPekerja,
-            namaKepalaSekolah: state.profile.namaKepalaSekolah,
-            nipKepalaSekolah: state.profile.nipKepalaSekolah,
-            namaBendahara: state.profile.namaBendahara,
-            nipBendahara: state.profile.nipBendahara,
-            hariLibur: [],
-          };
+          const allWeeks = createDefaultWeeksForBangunan(newId, newBangunan.nama, clonedPekerja);
 
           return {
             bangunanList: [...state.bangunanList, newBangunan],
             selectedBangunanId: newId,
-            absenTukangList: [...state.absenTukangList, firstWeek],
-            selectedAbsenWeekId: firstWeekId,
+            absenTukangList: [...state.absenTukangList, ...allWeeks],
+            selectedAbsenWeekId: allWeeks[0]?.id || `absen-${newId}-p1`,
           };
         });
         return newId;
@@ -842,23 +891,35 @@ export const useLpjStore = create<LpjState>()(
       addPekerjaToAbsen: (absenId, kategori, nama, upahHarian, tenagaKerja) =>
         set((state) => {
           const currentWeek = state.absenTukangList.find((w) => w.id === absenId);
+          const targetBangunanId = currentWeek?.bangunanId || state.selectedBangunanId || 'bangunan-1';
           const nextIndex = (currentWeek?.pekerja.length || 0) + 1;
-          const newPekerja: PekerjaTukang = {
-            id: `pkr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            kategori,
-            tenagaKerja: tenagaKerja || kategori,
-            nama: (nama.trim() || `Pekerja ${nextIndex}`).toUpperCase(),
-            hariKerja: {
-              m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-              m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-              senin: 1, selasa: 1, rabu: 1, kamis: 1, jumat: 1, sabtu: 1, minggu: 0,
-            },
-            upahHarian,
-            paraf: '',
-          };
+          const cleanName = (nama.trim() || `Pekerja ${nextIndex}`).toUpperCase();
+          const baseId = `pkr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+          // Tambahkan ke SEMUA periode pada bangunan yang sama agar seragam
           return {
             absenTukangList: state.absenTukangList.map((week) => {
-              if (week.id !== absenId) return week;
+              if ((week.bangunanId || 'bangunan-1') !== targetBangunanId) return week;
+
+              const existingWorker = week.pekerja.find(
+                (p) => p.nama.toUpperCase() === cleanName
+              );
+              if (existingWorker) return week;
+
+              const newPekerja: PekerjaTukang = {
+                id: `${baseId}-p${week.periodeKe || week.mingguKe || 1}`,
+                kategori,
+                tenagaKerja: tenagaKerja || kategori,
+                nama: cleanName,
+                hariKerja: {
+                  m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+                  m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+                  senin: 1, selasa: 1, rabu: 1, kamis: 1, jumat: 1, sabtu: 1, minggu: 0,
+                },
+                upahHarian,
+                paraf: '',
+              };
+
               return {
                 ...week,
                 pekerja: [...week.pekerja, newPekerja],
@@ -868,28 +929,100 @@ export const useLpjStore = create<LpjState>()(
         }),
 
       updatePekerjaInfo: (absenId, pekerjaId, updated) =>
-        set((state) => ({
-          absenTukangList: state.absenTukangList.map((week) => {
-            if (week.id !== absenId) return week;
-            return {
-              ...week,
-              pekerja: week.pekerja.map((p) =>
-                p.id === pekerjaId ? { ...p, ...updated } : p
-              ),
-            };
-          }),
-        })),
+        set((state) => {
+          const currentWeek = state.absenTukangList.find((w) => w.id === absenId);
+          const targetBangunanId = currentWeek?.bangunanId || state.selectedBangunanId || 'bangunan-1';
+          const targetWorker = currentWeek?.pekerja.find((p) => p.id === pekerjaId);
+          const oldName = targetWorker?.nama.toUpperCase();
+
+          return {
+            absenTukangList: state.absenTukangList.map((week) => {
+              if ((week.bangunanId || 'bangunan-1') !== targetBangunanId) return week;
+              return {
+                ...week,
+                pekerja: week.pekerja.map((p) => {
+                  if (p.id === pekerjaId || (oldName && p.nama.toUpperCase() === oldName)) {
+                    return { ...p, ...updated };
+                  }
+                  return p;
+                }),
+              };
+            }),
+          };
+        }),
 
       deletePekerjaFromAbsen: (absenId, pekerjaId) =>
-        set((state) => ({
-          absenTukangList: state.absenTukangList.map((week) => {
-            if (week.id !== absenId) return week;
-            return {
-              ...week,
-              pekerja: week.pekerja.filter((p) => p.id !== pekerjaId),
-            };
-          }),
-        })),
+        set((state) => {
+          const currentWeek = state.absenTukangList.find((w) => w.id === absenId);
+          const targetBangunanId = currentWeek?.bangunanId || state.selectedBangunanId || 'bangunan-1';
+          const targetWorker = currentWeek?.pekerja.find((p) => p.id === pekerjaId);
+          const oldName = targetWorker?.nama.toUpperCase();
+
+          return {
+            absenTukangList: state.absenTukangList.map((week) => {
+              if ((week.bangunanId || 'bangunan-1') !== targetBangunanId) return week;
+              return {
+                ...week,
+                pekerja: week.pekerja.filter(
+                  (p) => p.id !== pekerjaId && (!oldName || p.nama.toUpperCase() !== oldName)
+                ),
+              };
+            }),
+          };
+        }),
+
+      syncDakFisikSchedule: () =>
+        set((state) => {
+          let updatedList: AbsenMingguanTukang[] = [];
+
+          for (const b of state.bangunanList) {
+            const existingWeeks = state.absenTukangList.filter(
+              (w) => (w.bangunanId || 'bangunan-1') === b.id
+            );
+            // Ambil daftar pekerja terakhir dari bangunan ini jika ada
+            const latestWeek = existingWeeks[0];
+            const baseWorkers =
+              latestWeek?.pekerja && latestWeek.pekerja.length > 0
+                ? latestWeek.pekerja
+                : b.id === 'bangunan-2'
+                ? DEFAULT_WORKERS_BANGUNAN_2
+                : b.id === 'bangunan-3'
+                ? DEFAULT_WORKERS_BANGUNAN_3
+                : DEFAULT_WORKERS_BANGUNAN_1;
+
+            const all10 = createDefaultWeeksForBangunan(b.id, b.nama, baseWorkers);
+
+            // Pertahankan absensi/kehadiran yang mungkin sudah diisi oleh pengguna
+            const merged = all10.map((schedWeek) => {
+              const matched = existingWeeks.find(
+                (w) => (w.periodeKe || w.mingguKe || 1) === (schedWeek.periodeKe || 1)
+              );
+              if (matched) {
+                return {
+                  ...matched,
+                  bangunanId: b.id,
+                  proyek: b.nama,
+                  periodeKe: schedWeek.periodeKe,
+                  mingguKe: schedWeek.periodeKe,
+                  hariTanggal: schedWeek.hariTanggal, // Update ke tanggal 2026 yang benar!
+                  pekerja: baseWorkers.map((bw) => {
+                    const foundInMatched = matched.pekerja.find(
+                      (p) => p.nama.toUpperCase() === bw.nama.toUpperCase()
+                    );
+                    return foundInMatched || bw;
+                  }),
+                };
+              }
+              return schedWeek;
+            });
+
+            updatedList.push(...merged);
+          }
+
+          return {
+            absenTukangList: updatedList,
+          };
+        }),
 
       addNewAbsenWeek: (weekNum, tanggal, targetBangunanId) =>
         set((state) => {
@@ -1033,10 +1166,37 @@ export const useLpjStore = create<LpjState>()(
                     week.bangunanId = 'bangunan-1';
                     hasDuplicates = true;
                   }
-                  deduplicated.push(week);
+                  // Harmonize tanggal jika masih 2023
+                  let harmonizedTanggal = week.hariTanggal;
+                  if (harmonizedTanggal && harmonizedTanggal.includes('2023')) {
+                    const pNum = week.periodeKe || week.mingguKe || 1;
+                    const sched = DAK_FISIK_PERIODS_2026.find((s) => s.periodeKe === pNum);
+                    if (sched) {
+                      harmonizedTanggal = sched.hariTanggal;
+                      hasDuplicates = true;
+                    }
+                  }
+                  deduplicated.push({
+                    ...week,
+                    hariTanggal: harmonizedTanggal,
+                  });
                 }
               }
             }
+
+            // Pastikan setiap bangunan di bangunanList memiliki periode lengkap (1 s.d 10)
+            for (const b of state.bangunanList) {
+              const bWeeks = deduplicated.filter((w) => (w.bangunanId || 'bangunan-1') === b.id);
+              if (bWeeks.length === 0) {
+                let defaultWorkers = DEFAULT_WORKERS_BANGUNAN_1;
+                if (b.id === 'bangunan-2') defaultWorkers = DEFAULT_WORKERS_BANGUNAN_2;
+                else if (b.id === 'bangunan-3') defaultWorkers = DEFAULT_WORKERS_BANGUNAN_3;
+                const generated = createDefaultWeeksForBangunan(b.id, b.nama, defaultWorkers);
+                deduplicated.push(...generated);
+                hasDuplicates = true;
+              }
+            }
+
             if (!seen.has('absen-minggu-4')) {
               deduplicated.unshift(DEFAULT_ABSEN_MINGGU_4);
               hasDuplicates = true;

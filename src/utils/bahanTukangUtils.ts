@@ -96,6 +96,430 @@ export function getDayValue(h: HariKerjaRecord | undefined, colKey: keyof HariKe
 }
 
 /**
+ * Jadwal Periode Rekapitulasi Upah Tukang DAK Fisik 2026
+ * Mulai dari 19 Agustus 2026 (Minggu 1) berurutan sampai 31 Desember 2026
+ */
+export interface DakPeriodSchedule {
+  periodeKe: number;
+  mingguStart: number;
+  mingguEnd: number;
+  hariTanggal: string;
+  tanggalTutup: string;
+  subWeek1: {
+    mingguKe: number;
+    hariTanggal: string;
+    tanggalTutup: string;
+  };
+  subWeek2: {
+    mingguKe: number;
+    hariTanggal: string;
+    tanggalTutup: string;
+  };
+}
+
+export const DAK_FISIK_PERIODS_2026: DakPeriodSchedule[] = [
+  {
+    periodeKe: 1,
+    mingguStart: 1,
+    mingguEnd: 2,
+    hariTanggal: '19 Agustus s.d 2 September 2026',
+    tanggalTutup: '2 September 2026',
+    subWeek1: {
+      mingguKe: 1,
+      hariTanggal: '19 Agustus s.d 26 Agustus 2026',
+      tanggalTutup: '26 Agustus 2026',
+    },
+    subWeek2: {
+      mingguKe: 2,
+      hariTanggal: '27 Agustus s.d 2 September 2026',
+      tanggalTutup: '2 September 2026',
+    },
+  },
+  {
+    periodeKe: 2,
+    mingguStart: 3,
+    mingguEnd: 4,
+    hariTanggal: '3 September s.d 16 September 2026',
+    tanggalTutup: '16 September 2026',
+    subWeek1: {
+      mingguKe: 3,
+      hariTanggal: '3 September s.d 9 September 2026',
+      tanggalTutup: '9 September 2026',
+    },
+    subWeek2: {
+      mingguKe: 4,
+      hariTanggal: '10 September s.d 16 September 2026',
+      tanggalTutup: '16 September 2026',
+    },
+  },
+  {
+    periodeKe: 3,
+    mingguStart: 5,
+    mingguEnd: 6,
+    hariTanggal: '17 September s.d 30 September 2026',
+    tanggalTutup: '30 September 2026',
+    subWeek1: {
+      mingguKe: 5,
+      hariTanggal: '17 September s.d 23 September 2026',
+      tanggalTutup: '23 September 2026',
+    },
+    subWeek2: {
+      mingguKe: 6,
+      hariTanggal: '24 September s.d 30 September 2026',
+      tanggalTutup: '30 September 2026',
+    },
+  },
+  {
+    periodeKe: 4,
+    mingguStart: 7,
+    mingguEnd: 8,
+    hariTanggal: '1 Oktober s.d 14 Oktober 2026',
+    tanggalTutup: '14 Oktober 2026',
+    subWeek1: {
+      mingguKe: 7,
+      hariTanggal: '1 Oktober s.d 7 Oktober 2026',
+      tanggalTutup: '7 Oktober 2026',
+    },
+    subWeek2: {
+      mingguKe: 8,
+      hariTanggal: '8 Oktober s.d 14 Oktober 2026',
+      tanggalTutup: '14 Oktober 2026',
+    },
+  },
+  {
+    periodeKe: 5,
+    mingguStart: 9,
+    mingguEnd: 10,
+    hariTanggal: '15 Oktober s.d 28 Oktober 2026',
+    tanggalTutup: '28 Oktober 2026',
+    subWeek1: {
+      mingguKe: 9,
+      hariTanggal: '15 Oktober s.d 21 Oktober 2026',
+      tanggalTutup: '21 Oktober 2026',
+    },
+    subWeek2: {
+      mingguKe: 10,
+      hariTanggal: '22 Oktober s.d 28 Oktober 2026',
+      tanggalTutup: '28 Oktober 2026',
+    },
+  },
+  {
+    periodeKe: 6,
+    mingguStart: 11,
+    mingguEnd: 12,
+    hariTanggal: '29 Oktober s.d 11 November 2026',
+    tanggalTutup: '11 November 2026',
+    subWeek1: {
+      mingguKe: 11,
+      hariTanggal: '29 Oktober s.d 4 November 2026',
+      tanggalTutup: '4 November 2026',
+    },
+    subWeek2: {
+      mingguKe: 12,
+      hariTanggal: '5 November s.d 11 November 2026',
+      tanggalTutup: '11 November 2026',
+    },
+  },
+  {
+    periodeKe: 7,
+    mingguStart: 13,
+    mingguEnd: 14,
+    hariTanggal: '12 November s.d 25 November 2026',
+    tanggalTutup: '25 November 2026',
+    subWeek1: {
+      mingguKe: 13,
+      hariTanggal: '12 November s.d 18 November 2026',
+      tanggalTutup: '18 November 2026',
+    },
+    subWeek2: {
+      mingguKe: 14,
+      hariTanggal: '19 November s.d 25 November 2026',
+      tanggalTutup: '25 November 2026',
+    },
+  },
+  {
+    periodeKe: 8,
+    mingguStart: 15,
+    mingguEnd: 16,
+    hariTanggal: '26 November s.d 9 Desember 2026',
+    tanggalTutup: '9 Desember 2026',
+    subWeek1: {
+      mingguKe: 15,
+      hariTanggal: '26 November s.d 2 Desember 2026',
+      tanggalTutup: '2 Desember 2026',
+    },
+    subWeek2: {
+      mingguKe: 16,
+      hariTanggal: '3 Desember s.d 9 Desember 2026',
+      tanggalTutup: '9 Desember 2026',
+    },
+  },
+  {
+    periodeKe: 9,
+    mingguStart: 17,
+    mingguEnd: 18,
+    hariTanggal: '10 Desember s.d 23 Desember 2026',
+    tanggalTutup: '23 Desember 2026',
+    subWeek1: {
+      mingguKe: 17,
+      hariTanggal: '10 Desember s.d 16 Desember 2026',
+      tanggalTutup: '16 Desember 2026',
+    },
+    subWeek2: {
+      mingguKe: 18,
+      hariTanggal: '17 Desember s.d 23 Desember 2026',
+      tanggalTutup: '23 Desember 2026',
+    },
+  },
+  {
+    periodeKe: 10,
+    mingguStart: 19,
+    mingguEnd: 20,
+    hariTanggal: '24 Desember s.d 31 Desember 2026',
+    tanggalTutup: '31 Desember 2026',
+    subWeek1: {
+      mingguKe: 19,
+      hariTanggal: '24 Desember s.d 30 Desember 2026',
+      tanggalTutup: '30 Desember 2026',
+    },
+    subWeek2: {
+      mingguKe: 20,
+      hariTanggal: '31 Desember 2026',
+      tanggalTutup: '31 Desember 2026',
+    },
+  },
+];
+
+export interface IndividualWeekSchedule {
+  weekNum: number;
+  periodeKe: number;
+  subWeek: 1 | 2;
+  label: string;
+  hariTanggal: string;
+  tanggalTutup: string;
+}
+
+export const ALL_WEEKS_2026: IndividualWeekSchedule[] = DAK_FISIK_PERIODS_2026.flatMap((sched) => [
+  {
+    weekNum: sched.subWeek1.mingguKe,
+    periodeKe: sched.periodeKe,
+    subWeek: 1 as const,
+    label: `Minggu ke-${sched.subWeek1.mingguKe} (${sched.subWeek1.hariTanggal})`,
+    hariTanggal: sched.subWeek1.hariTanggal,
+    tanggalTutup: sched.subWeek1.tanggalTutup,
+  },
+  {
+    weekNum: sched.subWeek2.mingguKe,
+    periodeKe: sched.periodeKe,
+    subWeek: 2 as const,
+    label: `Minggu ke-${sched.subWeek2.mingguKe} (${sched.subWeek2.hariTanggal})`,
+    hariTanggal: sched.subWeek2.hariTanggal,
+    tanggalTutup: sched.subWeek2.tanggalTutup,
+  },
+]);
+
+export function getScheduleForWeekNum(weekNum: number): IndividualWeekSchedule | undefined {
+  return ALL_WEEKS_2026.find((w) => w.weekNum === weekNum);
+}
+
+/**
+ * Daftar Pekerja Bawaan Masing-Masing Bangunan
+ */
+export const DEFAULT_WORKERS_BANGUNAN_1: PekerjaTukang[] = [
+  {
+    id: 'tk-b1-1',
+    kategori: 'Kepala Tukang',
+    tenagaKerja: 'Kepala Tukang',
+    nama: 'JONI',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 150000,
+    paraf: '',
+  },
+  {
+    id: 'tk-b1-2',
+    kategori: 'Tukang',
+    tenagaKerja: 'Tukang',
+    nama: 'RISKIATUL',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 140000,
+    paraf: '',
+  },
+  {
+    id: 'tk-b1-3',
+    kategori: 'Pekerja',
+    tenagaKerja: 'Pekerja',
+    nama: 'ARTON K.',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 100000,
+    paraf: '',
+  },
+  {
+    id: 'tk-b1-4',
+    kategori: 'Pekerja',
+    tenagaKerja: 'Pekerja',
+    nama: 'SUBHAN',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 100000,
+    paraf: '',
+  },
+];
+
+export const DEFAULT_WORKERS_BANGUNAN_2: PekerjaTukang[] = [
+  {
+    id: 'tk-b2-1',
+    kategori: 'Kepala Tukang',
+    tenagaKerja: 'Kepala Tukang',
+    nama: 'BAHARUDDIN',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 150000,
+    paraf: '',
+  },
+  {
+    id: 'tk-b2-2',
+    kategori: 'Tukang',
+    tenagaKerja: 'Tukang',
+    nama: 'MANSYUR',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 140000,
+    paraf: '',
+  },
+  {
+    id: 'tk-b2-3',
+    kategori: 'Pekerja',
+    tenagaKerja: 'Pekerja',
+    nama: 'IMRAN',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 100000,
+    paraf: '',
+  },
+  {
+    id: 'tk-b2-4',
+    kategori: 'Pekerja',
+    tenagaKerja: 'Pekerja',
+    nama: 'ANTO',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 100000,
+    paraf: '',
+  },
+];
+
+export const DEFAULT_WORKERS_BANGUNAN_3: PekerjaTukang[] = [
+  {
+    id: 'tk-b3-1',
+    kategori: 'Kepala Tukang',
+    tenagaKerja: 'Kepala Tukang',
+    nama: 'WAHYUDI',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 150000,
+    paraf: '',
+  },
+  {
+    id: 'tk-b3-2',
+    kategori: 'Tukang',
+    tenagaKerja: 'Tukang',
+    nama: 'SUDIRMAN',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 140000,
+    paraf: '',
+  },
+  {
+    id: 'tk-b3-3',
+    kategori: 'Pekerja',
+    tenagaKerja: 'Pekerja',
+    nama: 'HASAN',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 100000,
+    paraf: '',
+  },
+  {
+    id: 'tk-b3-4',
+    kategori: 'Pekerja',
+    tenagaKerja: 'Pekerja',
+    nama: 'NURDIN',
+    hariKerja: {
+      m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+      m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+    },
+    upahHarian: 100000,
+    paraf: '',
+  },
+];
+
+export function createDefaultWeeksForBangunan(
+  bangunanId: string,
+  bangunanNama: string,
+  initialWorkers?: PekerjaTukang[]
+): AbsenMingguanTukang[] {
+  const baseWorkers =
+    initialWorkers && initialWorkers.length > 0
+      ? initialWorkers
+      : bangunanId === 'bangunan-2'
+      ? DEFAULT_WORKERS_BANGUNAN_2
+      : bangunanId === 'bangunan-3'
+      ? DEFAULT_WORKERS_BANGUNAN_3
+      : DEFAULT_WORKERS_BANGUNAN_1;
+
+  return DAK_FISIK_PERIODS_2026.map((sched) => {
+    let id = `absen-${bangunanId}-p${sched.periodeKe}`;
+    if (bangunanId === 'bangunan-1' && sched.periodeKe === 1) {
+      id = 'absen-minggu-4';
+    } else if (bangunanId === 'bangunan-1' && sched.periodeKe === 2) {
+      id = 'absen-minggu-2';
+    }
+
+    return {
+      id,
+      bangunanId,
+      proyek: bangunanNama,
+      namaSekolah: '',
+      lokasi: '',
+      periodeKe: sched.periodeKe,
+      mingguKe: sched.periodeKe,
+      hariTanggal: sched.hariTanggal,
+      hariLibur: ['m1_7', 'm2_7'],
+      pekerja: baseWorkers.map((p, idx) => ({
+        ...p,
+        id: `${p.id}-p${sched.periodeKe}`,
+        hariKerja: { ...p.hariKerja },
+      })),
+    };
+  });
+}
+
+/**
  * Default Absen Periode 1 (2 Minggu Pertama: Minggu 1 & 2)
  */
 export const DEFAULT_ABSEN_MINGGU_4: AbsenMingguanTukang = {
@@ -106,62 +530,13 @@ export const DEFAULT_ABSEN_MINGGU_4: AbsenMingguanTukang = {
   lokasi: '',
   periodeKe: 1,
   mingguKe: 1,
-  hariTanggal: '14 s.d 27 Agustus 2023',
+  hariTanggal: '19 Agustus s.d 2 September 2026',
   namaKepalaSekolah: '',
   nipKepalaSekolah: '',
   namaBendahara: '',
   nipBendahara: '',
   hariLibur: ['m1_7', 'm2_7'],
-  pekerja: [
-    {
-      id: 'tk-1',
-      kategori: 'Kepala Tukang',
-      tenagaKerja: 'Kepala Tukang',
-      nama: 'JONI',
-      hariKerja: {
-        m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-        m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-      },
-      upahHarian: 150000,
-      paraf: '',
-    },
-    {
-      id: 'tk-2',
-      kategori: 'Tukang',
-      tenagaKerja: 'Tukang',
-      nama: 'RISKIATUL',
-      hariKerja: {
-        m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-        m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-      },
-      upahHarian: 140000,
-      paraf: '',
-    },
-    {
-      id: 'tk-3',
-      kategori: 'Pekerja',
-      tenagaKerja: 'Pekerja',
-      nama: 'ARTON K.',
-      hariKerja: {
-        m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-        m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-      },
-      upahHarian: 100000,
-      paraf: '',
-    },
-    {
-      id: 'tk-4',
-      kategori: 'Pekerja',
-      tenagaKerja: 'Pekerja',
-      nama: 'SUBHAN',
-      hariKerja: {
-        m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-        m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-      },
-      upahHarian: 100000,
-      paraf: '',
-    },
-  ],
+  pekerja: DEFAULT_WORKERS_BANGUNAN_1,
 };
 
 export const DEFAULT_ABSEN_MINGGU_2: AbsenMingguanTukang = {
@@ -172,63 +547,19 @@ export const DEFAULT_ABSEN_MINGGU_2: AbsenMingguanTukang = {
   lokasi: '',
   periodeKe: 2,
   mingguKe: 2,
-  hariTanggal: '28 Agustus s.d 10 September 2023',
+  hariTanggal: '3 September s.d 16 September 2026',
   hariLibur: ['m1_7', 'm2_7'],
-  pekerja: [
-    {
-      id: 'tk-1',
-      kategori: 'Kepala Tukang',
-      tenagaKerja: 'Kepala Tukang',
-      nama: 'JONI',
-      hariKerja: {
-        m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-        m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-      },
-      upahHarian: 150000,
-      paraf: '',
-    },
-    {
-      id: 'tk-2',
-      kategori: 'Tukang',
-      tenagaKerja: 'Tukang',
-      nama: 'RISKIATUL',
-      hariKerja: {
-        m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-        m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-      },
-      upahHarian: 140000,
-      paraf: '',
-    },
-    {
-      id: 'tk-3',
-      kategori: 'Pekerja',
-      tenagaKerja: 'Pekerja',
-      nama: 'ARTON K.',
-      hariKerja: {
-        m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-        m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-      },
-      upahHarian: 100000,
-      paraf: '',
-    },
-    {
-      id: 'tk-4',
-      kategori: 'Pekerja',
-      tenagaKerja: 'Pekerja',
-      nama: 'SUBHAN',
-      hariKerja: {
-        m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-        m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-      },
-      upahHarian: 100000,
-      paraf: '',
-    },
-  ],
+  pekerja: DEFAULT_WORKERS_BANGUNAN_1.map((p) => ({
+    ...p,
+    id: `${p.id}-p2`,
+    hariKerja: { ...p.hariKerja },
+  })),
 };
 
 export const INITIAL_ABSEN_DATA: AbsenMingguanTukang[] = [
-  DEFAULT_ABSEN_MINGGU_4,
-  DEFAULT_ABSEN_MINGGU_2,
+  ...createDefaultWeeksForBangunan('bangunan-1', 'Pembangunan Laboratorium Komputer dan UKS', DEFAULT_WORKERS_BANGUNAN_1),
+  ...createDefaultWeeksForBangunan('bangunan-2', 'Pembangunan Ruang Perpustakaan', DEFAULT_WORKERS_BANGUNAN_2),
+  ...createDefaultWeeksForBangunan('bangunan-3', 'Rehabilitasi Ruang Kelas', DEFAULT_WORKERS_BANGUNAN_3),
 ];
 
 /**

@@ -15,6 +15,7 @@ import {
   Sparkles,
   Building,
   PackageCheck,
+  HardDrive,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { ActiveTab } from '../types';
@@ -30,6 +31,7 @@ export const SidebarNav: React.FC = () => {
     setActiveTab,
     openTransactionModal,
     openProfileModal,
+    openBackupModal,
     resetToInitialData,
   } = useLpjStore();
 
@@ -229,6 +231,18 @@ export const SidebarNav: React.FC = () => {
             >
               <Printer className="w-4 h-4 text-sky-400 shrink-0" />
               <span>Cetak / PDF</span>
+            </button>
+
+            <button
+              onClick={() => {
+                openBackupModal();
+                setMobileMenuOpen(false);
+              }}
+              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-300 hover:bg-amber-400/20 hover:text-amber-200 transition text-left cursor-pointer border border-amber-400/30 bg-purple-950/60"
+              title="Cadangkan / Pulihkan Data Sebelum Clear Cache"
+            >
+              <HardDrive className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Cadangkan & Pulihkan</span>
             </button>
 
             <button

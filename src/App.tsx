@@ -11,6 +11,7 @@ import { TransactionModal } from './components/TransactionModal';
 import { ProfileModal } from './components/ProfileModal';
 import { PrintAssistantModal } from './components/PrintAssistantModal';
 import { SwapAndRenumberModal } from './components/SwapAndRenumberModal';
+import { BackupRestoreModal } from './components/BackupRestoreModal';
 import { ToastNotification } from './components/ToastNotification';
 
 export default function App() {
@@ -61,6 +62,7 @@ export default function App() {
       <ProfileModal />
       <PrintAssistantModal />
       <SwapAndRenumberModal />
+      <BackupRestoreModal />
       <ToastNotification />
     </div>
   );

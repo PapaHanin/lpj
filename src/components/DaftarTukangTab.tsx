@@ -10,6 +10,9 @@ import {
   HARI_KERJA_2_MINGGU,
   getDayValue,
   DEFAULT_ABSEN_MINGGU_4,
+  DAK_FISIK_PERIODS_2026,
+  ALL_WEEKS_2026,
+  createDefaultWeeksForBangunan,
 } from '../utils/bahanTukangUtils';
 import { terbilangRupiah } from '../utils/terbilang';
 import { triggerPrint } from '../utils/printHelper';
@@ -19,6 +22,7 @@ import {
   Printer,
   Calendar,
   CalendarDays,
+  CalendarCheck,
   Trash2,
   Edit2,
   FileSpreadsheet,
@@ -62,6 +66,7 @@ export const DaftarTukangTab: React.FC = () => {
     updatePekerjaInfo,
     deletePekerjaFromAbsen,
     addNewAbsenWeek,
+    syncDakFisikSchedule,
     showToast,
   } = useLpjStore();
 
@@ -97,8 +102,11 @@ export const DaftarTukangTab: React.FC = () => {
     const list = uniqueAbsenTukangList.filter(
       (w) => (w.bangunanId || 'bangunan-1') === currentBangunan.id
     );
-    return list.length > 0 ? list : uniqueAbsenTukangList;
-  }, [uniqueAbsenTukangList, currentBangunan.id]);
+    if (list.length > 0) {
+      return list.slice().sort((a, b) => (a.periodeKe || a.mingguKe || 0) - (b.periodeKe || b.mingguKe || 0));
+    }
+    return createDefaultWeeksForBangunan(currentBangunan.id, currentBangunan.nama);
+  }, [uniqueAbsenTukangList, currentBangunan.id, currentBangunan.nama]);
 
   // Auto-sync selected week to be one belonging to this building
   useEffect(() => {
@@ -196,12 +204,10 @@ export const DaftarTukangTab: React.FC = () => {
 
   // Currently selected week data
   const currentAbsen = useMemo(() => {
-    const found = uniqueAbsenTukangList.find((w) => w.id === selectedAbsenWeekId);
+    const found = weeksForCurrentBangunan.find((w) => w.id === selectedAbsenWeekId);
     if (found) return found;
-    const week4 = uniqueAbsenTukangList.find((w) => w.id === 'absen-minggu-4');
-    if (week4) return week4;
-    return uniqueAbsenTukangList[0] || DEFAULT_ABSEN_MINGGU_4;
-  }, [uniqueAbsenTukangList, selectedAbsenWeekId]);
+    return weeksForCurrentBangunan[0] || DEFAULT_ABSEN_MINGGU_4;
+  }, [weeksForCurrentBangunan, selectedAbsenWeekId]);
 
   // Derived metadata for 2-week period - STRICTLY prioritize data entered in Pengaturan (profile)
   const pekerjaan = currentBangunan.nama || profile.judulPekerjaan || currentAbsen.proyek || 'Pekerjaan Bangunan';
@@ -212,7 +218,21 @@ export const DaftarTukangTab: React.FC = () => {
   const periodeKe = currentAbsen.periodeKe || currentAbsen.mingguKe || 1;
   const mggStart = (periodeKe - 1) * 2 + 1;
   const mggEnd = periodeKe * 2;
-  const pertanggal = currentAbsen.hariTanggal || `Periode ${periodeKe} (Minggu ${mggStart} s.d ${mggEnd})`;
+
+  // Jadwal otomatis DAK Fisik 2026 (19 Agustus - 31 Desember 2026)
+  const currentSchedule = useMemo(() => {
+    return (
+      DAK_FISIK_PERIODS_2026.find((s) => s.periodeKe === periodeKe) ||
+      DAK_FISIK_PERIODS_2026[0]
+    );
+  }, [periodeKe]);
+
+  const pertanggal = useMemo(() => {
+    if (currentAbsen.hariTanggal && !currentAbsen.hariTanggal.includes('2023')) {
+      return currentAbsen.hariTanggal;
+    }
+    return currentSchedule ? currentSchedule.hariTanggal : `Periode ${periodeKe} (Minggu ${mggStart} s.d ${mggEnd})`;
+  }, [currentAbsen.hariTanggal, currentSchedule, periodeKe, mggStart, mggEnd]);
 
   const namaKepalaSekolah = profile.namaKepalaSekolah || currentAbsen.namaKepalaSekolah || 'Nama Kepala Sekolah';
   const nipKepalaSekolah = profile.nipKepalaSekolah || currentAbsen.nipKepalaSekolah || '-';
@@ -246,11 +266,16 @@ export const DaftarTukangTab: React.FC = () => {
   const activeGrandTotal = is1Week ? grandTotalUpah1Minggu : grandTotalUpah;
 
   const pertanggal1Week = useMemo(() => {
+    if (currentSchedule) {
+      return currentSubWeek === 1
+        ? currentSchedule.subWeek1.hariTanggal
+        : currentSchedule.subWeek2.hariTanggal;
+    }
     if (currentAbsen.hariTanggal) {
       return `${currentAbsen.hariTanggal} (Minggu ke-${activeWeekNum})`;
     }
     return `Minggu ke-${activeWeekNum}`;
-  }, [currentAbsen.hariTanggal, activeWeekNum]);
+  }, [currentSchedule, currentSubWeek, currentAbsen.hariTanggal, activeWeekNum]);
 
   // Cycle Attendance: 1,00 -> 0,50 -> 0 (-) -> 1,00
   const handleToggleAttendance = (
@@ -476,24 +501,17 @@ export const DaftarTukangTab: React.FC = () => {
   const handleResetToScreenshotDefault = () => {
     if (
       !confirm(
-        'Kembalikan format Rekapitulasi Upah Kerja ke susunan standar (Periode 1 - 4 Tukang)? Nama sekolah dan pejabat akan tetap menggunakan data Pengaturan Profil Anda.'
+        'Sinkronkan jadwal periode DAK Fisik 2026 (19 Agustus s.d 31 Desember 2026) untuk semua bangunan proyek? Nama pekerja yang sudah Anda input per-bangunan akan tetap dipertahankan.'
       )
     )
       return;
-    useLpjStore.setState((state) => ({
-      absenTukangList: [
-        {
-          ...DEFAULT_ABSEN_MINGGU_4,
-          namaSekolah: state.profile.namaSekolah,
-          namaKepalaSekolah: state.profile.namaKepalaSekolah,
-          nipKepalaSekolah: state.profile.nipKepalaSekolah,
-          namaBendahara: state.profile.namaBendahara,
-          nipBendahara: state.profile.nipBendahara,
-        },
-        ...state.absenTukangList.filter((w) => w.id !== 'absen-minggu-4'),
-      ],
-      selectedAbsenWeekId: 'absen-minggu-4',
-    }));
+    syncDakFisikSchedule();
+    showToast({
+      type: 'success',
+      title: 'Jadwal 2026 Disinkronkan',
+      message:
+        'Semua 10 periode (19 Agustus s.d 31 Desember 2026) telah terisi otomatis dan siap dipilih untuk setiap bangunan.',
+    });
   };
 
   // Export to Excel: Supports 1-Week or 2-Week formats based on user preference
@@ -939,26 +957,112 @@ export const DaftarTukangTab: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-xs text-purple-300 font-bold flex items-center space-x-1.5">
             <Calendar className="w-4 h-4 text-amber-400" />
-            <span>Pilih Periode (2 Minggu):</span>
+            <span>{is1Week ? 'Pilih Minggu:' : 'Pilih Periode (2 Minggu):'}</span>
           </label>
 
           <div className="relative">
-            <select
-              value={selectedAbsenWeekId}
-              onChange={(e) => setSelectedAbsenWeekId(e.target.value)}
-              className="appearance-none bg-[#160424] border border-purple-700/80 rounded-lg px-3 py-1.5 pr-8 text-xs font-semibold text-white focus:outline-none focus:border-amber-400"
-            >
-              {weeksForCurrentBangunan.map((week, idx) => {
-                const pNum = week.periodeKe || week.mingguKe || idx + 1;
-                const mStart = (pNum - 1) * 2 + 1;
-                const mEnd = pNum * 2;
-                return (
-                  <option key={`${week.id}-${idx}`} value={week.id}>
-                    Periode {pNum} (Minggu {mStart} & {mEnd}) - {week.hariTanggal || '2 Minggu'}
+            {!is1Week ? (
+              <select
+                value={periodeKe}
+                onChange={(e) => {
+                  const targetPNum = Number(e.target.value);
+                  const matchedWeek = weeksForCurrentBangunan.find(
+                    (w) => (w.periodeKe || w.mingguKe || 1) === targetPNum
+                  );
+                  if (matchedWeek) {
+                    setSelectedAbsenWeekId(matchedWeek.id);
+                  } else {
+                    const sched = DAK_FISIK_PERIODS_2026.find((s) => s.periodeKe === targetPNum);
+                    if (sched) {
+                      const newId = `absen-${currentBangunan.id}-p${sched.periodeKe}`;
+                      const baseWorkers = (weeksForCurrentBangunan[0]?.pekerja || currentAbsen.pekerja || []).map((p) => ({
+                        ...p,
+                        id: `${p.id}-p${sched.periodeKe}`,
+                        hariKerja: { ...p.hariKerja },
+                      }));
+                      useLpjStore.setState((state) => ({
+                        absenTukangList: [
+                          ...state.absenTukangList,
+                          {
+                            id: newId,
+                            bangunanId: currentBangunan.id,
+                            proyek: currentBangunan.nama,
+                            lokasi: currentBangunan.lokasi || '',
+                            periodeKe: sched.periodeKe,
+                            mingguKe: sched.periodeKe,
+                            hariTanggal: sched.hariTanggal,
+                            pekerja: baseWorkers,
+                            hariLibur: ['m1_7', 'm2_7'],
+                          },
+                        ],
+                        selectedAbsenWeekId: newId,
+                      }));
+                    }
+                  }
+                }}
+                className="appearance-none bg-[#160424] border border-purple-700/80 rounded-lg px-3 py-1.5 pr-8 text-xs font-semibold text-white focus:outline-none focus:border-amber-400 shadow-sm"
+              >
+                {DAK_FISIK_PERIODS_2026.map((sched) => (
+                  <option key={`p-${sched.periodeKe}`} value={sched.periodeKe}>
+                    Periode {sched.periodeKe} (Minggu {sched.mingguStart} & {sched.mingguEnd}) - {sched.hariTanggal}
                   </option>
-                );
-              })}
-            </select>
+                ))}
+              </select>
+            ) : (
+              <select
+                value={activeWeekNum}
+                onChange={(e) => {
+                  const targetWeekNum = Number(e.target.value);
+                  const sched = ALL_WEEKS_2026.find((s) => s.weekNum === targetWeekNum);
+                  if (sched) {
+                    setFormatRekapTukang('1_minggu');
+                    setSelectedSubWeek(sched.subWeek);
+                    const matchedWeek = weeksForCurrentBangunan.find(
+                      (w) => (w.periodeKe || w.mingguKe || 1) === sched.periodeKe
+                    );
+                    if (matchedWeek) {
+                      setSelectedAbsenWeekId(matchedWeek.id);
+                    } else {
+                      const newId = `absen-${currentBangunan.id}-p${sched.periodeKe}`;
+                      const baseWorkers = (weeksForCurrentBangunan[0]?.pekerja || currentAbsen.pekerja || []).map((p) => ({
+                        ...p,
+                        id: `${p.id}-p${sched.periodeKe}`,
+                        hariKerja: { ...p.hariKerja },
+                      }));
+                      useLpjStore.setState((state) => ({
+                        absenTukangList: [
+                          ...state.absenTukangList,
+                          {
+                            id: newId,
+                            bangunanId: currentBangunan.id,
+                            proyek: currentBangunan.nama,
+                            lokasi: currentBangunan.lokasi || '',
+                            periodeKe: sched.periodeKe,
+                            mingguKe: sched.periodeKe,
+                            hariTanggal: sched.hariTanggal,
+                            pekerja: baseWorkers,
+                            hariLibur: ['m1_7', 'm2_7'],
+                          },
+                        ],
+                        selectedAbsenWeekId: newId,
+                      }));
+                    }
+                    showToast({
+                      type: 'info',
+                      title: `Minggu Ke-${sched.weekNum}`,
+                      message: `Menampilkan rekapitulasi upah Minggu Ke-${sched.weekNum} (${sched.hariTanggal})`,
+                    });
+                  }
+                }}
+                className="appearance-none bg-[#160424] border border-cyan-500/80 rounded-lg px-3 py-1.5 pr-8 text-xs font-semibold text-white focus:outline-none focus:border-amber-400 shadow-sm"
+              >
+                {ALL_WEEKS_2026.map((item) => (
+                  <option key={`mgg-${item.weekNum}`} value={item.weekNum}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            )}
             <ChevronDown className="w-3.5 h-3.5 text-purple-300 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
@@ -990,11 +1094,11 @@ export const DaftarTukangTab: React.FC = () => {
 
           <button
             onClick={handleResetToScreenshotDefault}
-            className="flex items-center space-x-1 px-2.5 py-1.5 text-xs bg-purple-900/40 hover:bg-purple-800 text-purple-300 rounded-lg transition border border-purple-700/40 cursor-pointer"
-            title="Kembalikan data ke contoh standar"
+            className="flex items-center space-x-1 px-2.5 py-1.5 text-xs bg-purple-900/60 hover:bg-purple-800 text-amber-300 rounded-lg transition border border-amber-400/40 cursor-pointer font-semibold"
+            title="Sinkronkan seluruh 10 periode DAK Fisik (19 Agustus - 31 Desember 2026) untuk semua bangunan"
           >
-            <RotateCcw className="w-3 h-3 text-cyan-400" />
-            <span>Format Standar</span>
+            <RotateCcw className="w-3 h-3 text-amber-400" />
+            <span>Sinkron Jadwal 2026</span>
           </button>
         </div>
 
@@ -1099,34 +1203,21 @@ export const DaftarTukangTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Sub-week switcher when 1 Mingguan is active */}
+        {/* Tampilkan Minggu: Mengikuti persis minggu yang dipilih di menu Pilih Minggu */}
         {is1Week ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-amber-200 font-semibold">Tampilkan Minggu:</span>
-            <div className="inline-flex rounded-lg p-0.5 bg-purple-950/90 border border-cyan-400/60 shadow-inner">
-              <button
-                type="button"
-                onClick={() => setSelectedSubWeek(1)}
-                className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
-                  currentSubWeek === 1
-                    ? 'bg-cyan-400 text-purple-950 shadow-sm font-extrabold'
-                    : 'text-purple-300 hover:text-white'
-                }`}
-              >
-                Minggu Ke-{mggStart} (Minggu I)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedSubWeek(2)}
-                className={`px-3 py-1 rounded text-xs font-bold transition cursor-pointer ${
-                  currentSubWeek === 2
-                    ? 'bg-cyan-400 text-purple-950 shadow-sm font-extrabold'
-                    : 'text-purple-300 hover:text-white'
-                }`}
-              >
-                Minggu Ke-{mggEnd} (Minggu II)
-              </button>
+            <span className="text-xs text-amber-200 font-bold uppercase tracking-wide flex items-center gap-1.5">
+              <CalendarCheck className="w-3.5 h-3.5 text-cyan-300" />
+              <span>Tampilkan Minggu:</span>
+            </span>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-400 text-purple-950 font-black text-xs shadow-md border border-cyan-200">
+              <span className="w-2 h-2 rounded-full bg-purple-950 animate-pulse"></span>
+              <span>Minggu Ke-{activeWeekNum} Saja</span>
+              <span className="text-[11px] font-semibold opacity-90 font-mono">({pertanggal1Week})</span>
             </div>
+            <span className="text-[11px] text-cyan-200/80 italic hidden xl:inline">
+              (Hanya Minggu Ke-{activeWeekNum} yang tampil di rekap upah tukang)
+            </span>
           </div>
         ) : (
           <div className="text-xs text-purple-300 hidden lg:flex items-center space-x-1.5">

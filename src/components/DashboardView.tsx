@@ -14,6 +14,7 @@ import {
   PlusCircle,
   FileText,
   Printer,
+  HardDrive,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { calculateSummary } from '../utils/calculations';
@@ -29,6 +30,7 @@ export const DashboardView: React.FC = () => {
     openTransactionModal,
     setSelectedTransactionForKwitansi,
     openProfileModal,
+    openBackupModal,
   } = useLpjStore();
 
   const summary = calculateSummary(transactions);
@@ -74,7 +76,15 @@ export const DashboardView: React.FC = () => {
               <PlusCircle className="w-4 h-4 text-purple-950" />
               <span>Input Transaksi Baru</span>
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => openBackupModal()}
+                className="flex items-center space-x-2 bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl border border-amber-400/60 transition active:scale-95 cursor-pointer shadow-xs"
+                title="Cadangkan / Pulihkan Data Sebelum Clear Cache"
+              >
+                <HardDrive className="w-4 h-4 text-amber-300" />
+                <span>Cadangan Data</span>
+              </button>
               <button
                 onClick={() => exportLpjToExcel(profile, transactions)}
                 className="flex items-center space-x-2 bg-purple-900/80 hover:bg-purple-800 text-amber-300 font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl border border-amber-400/40 transition active:scale-95 cursor-pointer"
