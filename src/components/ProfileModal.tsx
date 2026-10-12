@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, Building2, UserCheck, Calendar, RotateCcw } from 'lucide-react';
+import { X, Check, Building2, UserCheck, Calendar, RotateCcw, ArrowLeftRight, Info } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { ProjectProfile } from '../types';
 import { INITIAL_PROFILE } from '../utils/calculations';
@@ -357,6 +357,144 @@ export const ProfileModal: React.FC = () => {
                 placeholder="Palasa"
                 className="w-full text-sm font-bold text-slate-950 bg-white border-2 border-purple-900/30 rounded-xl px-3.5 py-2 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
               />
+            </div>
+          </div>
+
+          {/* Bagian 4: Pengaturan Tampilan Transaksi BKU Umum (Tarik Tunai) */}
+          <div className="space-y-3 bg-gradient-to-br from-amber-500/10 via-purple-950/10 to-amber-500/5 p-4 rounded-2xl border-2 border-amber-400/50 shadow-sm">
+            <div className="flex items-center justify-between border-b border-amber-300 pb-2">
+              <h3 className="text-xs font-black text-purple-950 uppercase tracking-wider flex items-center gap-1.5">
+                <ArrowLeftRight className="w-4 h-4 text-amber-500" />
+                4. Pengaturan Tampilan Transaksi BKU Umum
+              </h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-900 text-amber-300">
+                Pilihan Format BKU
+              </span>
+            </div>
+
+            {/* Toggle Switch Aktif / Non-Aktif Tarik Tunai */}
+            <div className="bg-white p-3.5 rounded-xl border border-purple-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-purple-950">
+                      Tampilkan Transaksi Tarik Tunai di BKU Umum
+                    </span>
+                    {form.tampilkanTarikTunaiDiBku ? (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                        AKTIF
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300">
+                        NON-AKTIF (STANDAR)
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Aktifkan jika pemeriksa / dinas / fasilitator meminta transaksi Tarik Tunai Bank dicatat di Buku Kas Umum (BKU).
+                  </p>
+                </div>
+
+                {/* Tombol Toggle Interaktif */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      tampilkanTarikTunaiDiBku: !prev.tampilkanTarikTunaiDiBku,
+                    }))
+                  }
+                  className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-black text-xs transition cursor-pointer shrink-0 shadow-sm border ${
+                    form.tampilkanTarikTunaiDiBku
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 shadow-emerald-500/20'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`w-3.5 h-3.5 rounded-full border-2 transition ${
+                      form.tampilkanTarikTunaiDiBku
+                        ? 'bg-white border-emerald-800'
+                        : 'bg-slate-400 border-slate-600'
+                    }`}
+                  />
+                  <span>
+                    {form.tampilkanTarikTunaiDiBku ? '✓ Mode: AKTIF' : '✕ Mode: NON-AKTIF'}
+                  </span>
+                </button>
+              </div>
+
+              {/* Pilihan Posisi Kolom jika Aktif */}
+              {form.tampilkanTarikTunaiDiBku && (
+                <div className="pt-2.5 border-t border-purple-100 space-y-2 bg-amber-50/50 p-2.5 rounded-lg">
+                  <label className="block text-[11px] font-black text-purple-950 uppercase tracking-wide">
+                    Pilih Penempatan Kolom di BKU Umum:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({ ...prev, posisiTarikTunaiDiBku: 'penerimaan' }))
+                      }
+                      className={`px-2.5 py-2 rounded-lg text-xs font-bold text-left transition border cursor-pointer ${
+                        (form.posisiTarikTunaiDiBku || 'penerimaan') === 'penerimaan'
+                          ? 'bg-purple-950 text-amber-300 border-amber-400 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="font-extrabold flex items-center gap-1">
+                        <span>1. Sisi Penerimaan</span>
+                      </div>
+                      <div className="text-[10px] opacity-80 mt-0.5">Uang masuk ke Kas Tunai (Rekomendasi)</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({ ...prev, posisiTarikTunaiDiBku: 'pengeluaran' }))
+                      }
+                      className={`px-2.5 py-2 rounded-lg text-xs font-bold text-left transition border cursor-pointer ${
+                        form.posisiTarikTunaiDiBku === 'pengeluaran'
+                          ? 'bg-purple-950 text-amber-300 border-amber-400 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="font-extrabold flex items-center gap-1">
+                        <span>2. Sisi Pengeluaran</span>
+                      </div>
+                      <div className="text-[10px] opacity-80 mt-0.5">Uang ditarik keluar dari Bank</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({ ...prev, posisiTarikTunaiDiBku: 'kedua_sisi' }))
+                      }
+                      className={`px-2.5 py-2 rounded-lg text-xs font-bold text-left transition border cursor-pointer ${
+                        form.posisiTarikTunaiDiBku === 'kedua_sisi'
+                          ? 'bg-purple-950 text-amber-300 border-amber-400 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="font-extrabold flex items-center gap-1">
+                        <span>3. Kedua Sisi</span>
+                      </div>
+                      <div className="text-[10px] opacity-80 mt-0.5">Mutasi seimbang (Penerimaan & Pengeluaran)</div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Box Penjelasan Akuntansi */}
+              <div className="bg-purple-50/80 border border-purple-200 rounded-lg p-2.5 text-[11px] text-purple-950 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-purple-900">
+                  <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Penjelasan Standar Akuntansi Pembukuan:</span>
+                </div>
+                <p className="text-slate-700 leading-relaxed pl-5">
+                  Secara resmi, <strong>Tarik Tunai</strong> adalah <em>mutasi kas internal</em> (perpindahan uang sekolah dari rekening bank ke kas fisik tunai), sehingga standarnya otomatis tercatat di <strong>BK Bank</strong> (Kredit) dan <strong>BKU Tunai</strong> (Penerimaan). Jika pemeriksa menghendaki transaksi Tarik Tunai juga dicantumkan di BKU Umum, cukup aktifkan tombol ini.
+                </p>
+              </div>
             </div>
           </div>
 

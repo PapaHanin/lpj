@@ -139,6 +139,7 @@ interface LpjState {
   closePrintModal: () => void;
   showToast: (toast: Omit<ToastNotification, 'id'>) => void;
   clearToast: () => void;
+  toggleTampilkanTarikTunaiDiBku: () => void;
   resetToInitialData: () => void;
 
   // Actions untuk Bangunan Proyek
@@ -681,6 +682,25 @@ export const useLpjStore = create<LpjState>()(
         }),
 
       clearToast: () => set({ toast: null }),
+
+      toggleTampilkanTarikTunaiDiBku: () =>
+        set((state) => {
+          const nextVal = !state.profile.tampilkanTarikTunaiDiBku;
+          return {
+            profile: {
+              ...state.profile,
+              tampilkanTarikTunaiDiBku: nextVal,
+            },
+            toast: {
+              id: `toast-${Date.now()}`,
+              type: 'info',
+              title: nextVal ? 'Tarik Tunai Ditampilkan di BKU' : 'Tarik Tunai Disembunyikan',
+              message: nextVal
+                ? 'Transaksi Tarik Tunai kini DITAMPILKAN di Buku Kas Umum (BKU).'
+                : 'Transaksi Tarik Tunai dinonaktifkan dari BKU Umum (Standar Resmi LPJ).',
+            },
+          };
+        }),
 
       resetToInitialData: () =>
         set({

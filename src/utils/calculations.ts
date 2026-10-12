@@ -163,6 +163,8 @@ export const INITIAL_PROFILE: ProjectProfile = {
   namaPanitia: 'PANITIA PEMBANGUNAN SEKOLAH',
   namaKetuaP2S: 'I MADE SUWITA, S.Pd',
   tempatPelunasan: 'Palasa',
+  tampilkanTarikTunaiDiBku: false,
+  posisiTarikTunaiDiBku: 'penerimaan',
 };
 
 export const INITIAL_TRANSACTIONS: Transaction[] = [
@@ -718,17 +720,30 @@ export function groupTransactionsByMonthlyBooks(
 
     let monthPenerimaanBku = 0;
     let monthPengeluaranBku = 0;
+    const showTarikTunaiInBku = Boolean(profile?.tampilkanTarikTunaiDiBku);
+    const posisiTarikTunai = profile?.posisiTarikTunaiDiBku || 'penerimaan';
 
     list.forEach((t) => {
-      runningSaldoBku += t.penerimaan - t.pengeluaran;
-
       const isPenarikanBankKeTunai = t.metode === 'TARIK_TUNAI';
       if (!isPenarikanBankKeTunai) {
+        runningSaldoBku += t.penerimaan - t.pengeluaran;
         if (t.jenis === 'PENERIMAAN' || t.penerimaan > 0) {
           monthPenerimaanBku += t.penerimaan;
         }
         if (t.jenis === 'PENGELUARAN' || t.pengeluaran > 0) {
           monthPengeluaranBku += t.pengeluaran;
+        }
+      } else if (showTarikTunaiInBku) {
+        const nominal = t.penerimaan || t.pengeluaran;
+        if (posisiTarikTunai === 'penerimaan') {
+          monthPenerimaanBku += nominal;
+          runningSaldoBku += nominal;
+        } else if (posisiTarikTunai === 'pengeluaran') {
+          monthPengeluaranBku += nominal;
+          runningSaldoBku -= nominal;
+        } else if (posisiTarikTunai === 'kedua_sisi') {
+          monthPenerimaanBku += nominal;
+          monthPengeluaranBku += nominal;
         }
       }
 
@@ -737,9 +752,13 @@ export function groupTransactionsByMonthlyBooks(
         tanggal: t.tanggal,
         uraian: t.uraian,
         nomorBukti: t.nomorBukti,
-        jenisBiaya: getJenisBiaya(t),
-        penerimaan: t.penerimaan,
-        pengeluaran: t.pengeluaran,
+        jenisBiaya: isPenarikanBankKeTunai ? (t.jenisBiaya || 'Tarik Tunai') : getJenisBiaya(t),
+        penerimaan: isPenarikanBankKeTunai
+          ? (showTarikTunaiInBku && (posisiTarikTunai === 'penerimaan' || posisiTarikTunai === 'kedua_sisi') ? (t.penerimaan || t.pengeluaran) : 0)
+          : t.penerimaan,
+        pengeluaran: isPenarikanBankKeTunai
+          ? (showTarikTunaiInBku && (posisiTarikTunai === 'pengeluaran' || posisiTarikTunai === 'kedua_sisi') ? (t.pengeluaran || t.penerimaan) : 0)
+          : t.pengeluaran,
         saldo: runningSaldoBku,
         transaction: t,
       });

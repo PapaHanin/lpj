@@ -250,11 +250,18 @@ export const SidebarNav: React.FC = () => {
                 openProfileModal();
                 setMobileMenuOpen(false);
               }}
-              className="w-full flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-xs font-medium text-purple-200 hover:bg-purple-900/60 hover:text-amber-300 transition text-left cursor-pointer"
-              title="Edit Kop Sekolah & Penandatangan"
+              className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium text-purple-200 hover:bg-purple-900/60 hover:text-amber-300 transition text-left cursor-pointer"
+              title="Edit Kop Sekolah, Pejabat Penandatangan, dan Opsi Tampilan BKU"
             >
-              <Settings className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Pengaturan Kop</span>
+              <div className="flex items-center space-x-2.5">
+                <Settings className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Pengaturan Kop</span>
+              </div>
+              {profile.tampilkanTarikTunaiDiBku && (
+                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  Tarik Tunai
+                </span>
+              )}
             </button>
           </div>
         </nav>

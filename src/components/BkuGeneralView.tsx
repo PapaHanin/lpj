@@ -34,6 +34,7 @@ export const BkuGeneralView: React.FC = () => {
     openSwapRenumberModal,
     swapTransactionNomorBukti,
     showToast,
+    toggleTampilkanTarikTunaiDiBku,
   } = useLpjStore();
 
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
@@ -101,10 +102,30 @@ export const BkuGeneralView: React.FC = () => {
           <button
             onClick={openProfileModal}
             className="flex items-center space-x-1 bg-purple-900/80 hover:bg-purple-800 text-amber-300 border border-amber-400/30 text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 cursor-pointer"
-            title="Ganti Profil & Pejabat Penandatangan"
+            title="Ganti Profil & Pejabat Penandatangan / Pengaturan Kop"
           >
             <Calendar className="w-4 h-4 text-amber-400" />
-            <span>Pengaturan Profil</span>
+            <span>Pengaturan Kop</span>
+          </button>
+          <button
+            onClick={toggleTampilkanTarikTunaiDiBku}
+            className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 cursor-pointer border ${
+              profile.tampilkanTarikTunaiDiBku
+                ? 'bg-emerald-600/90 hover:bg-emerald-600 text-white border-emerald-400 shadow-md'
+                : 'bg-purple-900/70 hover:bg-purple-800 text-purple-200 border-purple-700/60'
+            }`}
+            title="Klik untuk Mengaktifkan / Menonaktifkan Transaksi Tarik Tunai di BKU Umum"
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                profile.tampilkanTarikTunaiDiBku
+                  ? 'bg-amber-300 animate-pulse'
+                  : 'bg-purple-400'
+              }`}
+            />
+            <span>
+              Tarik Tunai: {profile.tampilkanTarikTunaiDiBku ? 'AKTIF' : 'NON-AKTIF'}
+            </span>
           </button>
           <button
             onClick={() => openSwapRenumberModal(undefined, undefined, 'shift')}
@@ -138,8 +159,37 @@ export const BkuGeneralView: React.FC = () => {
         </div>
       </div>
 
+      {/* Banner Notifikasi Status Tarik Tunai (Hidden saat Print) */}
+      {profile.tampilkanTarikTunaiDiBku && (
+        <div className="bg-amber-400/15 border border-amber-400/40 rounded-xl px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-amber-200 print:hidden shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+            <span>
+              <strong className="text-white">Mode Tarik Tunai Aktif:</strong> Transaksi Penarikan Dana Bank ke Tunai ditampilkan di{' '}
+              <span className="text-amber-300 font-bold uppercase underline">
+                {profile.posisiTarikTunaiDiBku === 'pengeluaran'
+                  ? 'Sisi Pengeluaran'
+                  : profile.posisiTarikTunaiDiBku === 'kedua_sisi'
+                  ? 'Kedua Sisi (Penerimaan & Pengeluaran)'
+                  : 'Sisi Penerimaan'}
+              </span>{' '}
+              pada Buku Kas Umum (BKU).
+            </span>
+          </div>
+          <button
+            onClick={openProfileModal}
+            className="text-[11px] underline text-amber-300 hover:text-white font-bold cursor-pointer shrink-0"
+          >
+            Ubah Posisi di Pengaturan Kop
+          </button>
+        </div>
+      )}
+
       {/* Render Each Month Sheet */}
       {groupsToRender.map((group, gIdx) => {
+        const showTarikTunai = Boolean(profile.tampilkanTarikTunaiDiBku);
+        const posisiTarikTunai = profile.posisiTarikTunaiDiBku || 'penerimaan';
+
         // Build 2-sided items (Penerimaan on left, Pengeluaran on right)
         interface PenerimaanItem {
           id: string;
@@ -148,6 +198,7 @@ export const BkuGeneralView: React.FC = () => {
           nomorBukti: string;
           jumlah: number;
           isInitial?: boolean;
+          isTarikTunai?: boolean;
           transaction?: Transaction;
         }
 
@@ -158,6 +209,7 @@ export const BkuGeneralView: React.FC = () => {
           nomorBukti: string;
           jenisBiaya: string;
           jumlah: number;
+          isTarikTunai?: boolean;
           transaction: Transaction;
         }
 
@@ -176,7 +228,7 @@ export const BkuGeneralView: React.FC = () => {
           });
         }
 
-        // Transaksi Penerimaan dalam bulan ini (tidak termasuk transfer internal tarik tunai)
+        // Transaksi Penerimaan dalam bulan ini
         group.transactions.forEach((t) => {
           if (t.jenis === 'PENERIMAAN' && t.metode !== 'TARIK_TUNAI') {
             penerimaanItems.push({
@@ -185,6 +237,20 @@ export const BkuGeneralView: React.FC = () => {
               uraian: t.uraian,
               nomorBukti: t.nomorBukti || '-',
               jumlah: t.penerimaan,
+              transaction: t,
+            });
+          } else if (
+            t.metode === 'TARIK_TUNAI' &&
+            showTarikTunai &&
+            (posisiTarikTunai === 'penerimaan' || posisiTarikTunai === 'kedua_sisi')
+          ) {
+            penerimaanItems.push({
+              id: `${t.id}-in`,
+              tanggal: t.tanggal,
+              uraian: t.uraian,
+              nomorBukti: t.nomorBukti || '-',
+              jumlah: t.penerimaan || t.pengeluaran,
+              isTarikTunai: true,
               transaction: t,
             });
           }
@@ -201,6 +267,21 @@ export const BkuGeneralView: React.FC = () => {
               nomorBukti: t.nomorBukti || '',
               jenisBiaya: t.jenisBiaya || getJenisBiaya(t),
               jumlah: t.pengeluaran,
+              transaction: t,
+            });
+          } else if (
+            t.metode === 'TARIK_TUNAI' &&
+            showTarikTunai &&
+            (posisiTarikTunai === 'pengeluaran' || posisiTarikTunai === 'kedua_sisi')
+          ) {
+            pengeluaranItems.push({
+              id: `${t.id}-out`,
+              tanggal: t.tanggal,
+              uraian: t.uraian,
+              nomorBukti: t.nomorBukti || '',
+              jenisBiaya: t.jenisBiaya || 'Tarik Tunai',
+              jumlah: t.pengeluaran || t.penerimaan,
+              isTarikTunai: true,
               transaction: t,
             });
           }
@@ -320,9 +401,16 @@ export const BkuGeneralView: React.FC = () => {
                         {/* Kolom 2: Uraian Penerimaan */}
                         <td className="border border-black py-1.5 px-2 text-left">
                           {p ? (
-                            <span className={p.isInitial ? 'font-bold italic text-purple-950' : 'font-medium'}>
-                              {p.uraian}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={p.isInitial ? 'font-bold italic text-purple-950' : 'font-medium'}>
+                                {p.uraian}
+                              </span>
+                              {p.isTarikTunai && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:border-black print:text-black">
+                                  Tarik Tunai
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             ''
                           )}
@@ -347,7 +435,14 @@ export const BkuGeneralView: React.FC = () => {
                         <td className="border border-black py-1.5 px-2 text-left">
                           {q ? (
                             <div className="flex items-center justify-between gap-1">
-                              <span className="font-medium">{q.uraian}</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-medium">{q.uraian}</span>
+                                {q.isTarikTunai && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:border-black print:text-black">
+                                    Tarik Tunai
+                                  </span>
+                                )}
+                              </div>
                               {!q.transaction.subItems?.length && null}
                               {q.transaction.subItems && q.transaction.subItems.length > 0 && (
                                 <button

@@ -86,6 +86,9 @@ export function exportLpjToExcel(
           jumlah: group.bku.initialRow.saldo,
         });
       }
+      const showTarikTunai = Boolean(profile.tampilkanTarikTunaiDiBku);
+      const posisiTarikTunai = profile.posisiTarikTunaiDiBku || 'penerimaan';
+
       group.transactions.forEach((t) => {
         if (t.jenis === 'PENERIMAAN' && t.metode !== 'TARIK_TUNAI') {
           penerimaanList.push({
@@ -93,6 +96,17 @@ export function exportLpjToExcel(
             uraian: t.uraian,
             noBukti: t.nomorBukti || '-',
             jumlah: t.penerimaan,
+          });
+        } else if (
+          t.metode === 'TARIK_TUNAI' &&
+          showTarikTunai &&
+          (posisiTarikTunai === 'penerimaan' || posisiTarikTunai === 'kedua_sisi')
+        ) {
+          penerimaanList.push({
+            tanggal: t.tanggal,
+            uraian: `${t.uraian} [Tarik Tunai]`,
+            noBukti: t.nomorBukti || '-',
+            jumlah: t.penerimaan || t.pengeluaran,
           });
         }
       });
@@ -106,6 +120,18 @@ export function exportLpjToExcel(
             noBukti: t.nomorBukti || '',
             jenisBiaya: t.jenisBiaya || '',
             jumlah: t.pengeluaran,
+          });
+        } else if (
+          t.metode === 'TARIK_TUNAI' &&
+          showTarikTunai &&
+          (posisiTarikTunai === 'pengeluaran' || posisiTarikTunai === 'kedua_sisi')
+        ) {
+          pengeluaranList.push({
+            tanggal: t.tanggal,
+            uraian: `${t.uraian} [Tarik Tunai]`,
+            noBukti: t.nomorBukti || '',
+            jenisBiaya: t.jenisBiaya || 'Tarik Tunai',
+            jumlah: t.pengeluaran || t.penerimaan,
           });
         }
       });

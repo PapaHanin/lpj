@@ -26,6 +26,8 @@ export interface Transaction {
   createdAt?: string;
 }
 
+export type PosisiTarikTunaiBku = 'penerimaan' | 'pengeluaran' | 'kedua_sisi';
+
 export interface ProjectProfile {
   namaSekolah: string;
   alamat: string;
@@ -43,6 +45,8 @@ export interface ProjectProfile {
   namaPanitia: string;
   namaKetuaP2S?: string;
   tempatPelunasan: string;
+  tampilkanTarikTunaiDiBku?: boolean;
+  posisiTarikTunaiDiBku?: PosisiTarikTunaiBku;
 }
 
 export type ActiveTab =
