@@ -32,7 +32,7 @@ export function exportLpjToExcel(
     const monthlyGroups = groupTransactionsByMonthlyBooks(transactions, profile);
 
     // ==========================================
-    // SHEET 1: BK UMUM (Per Bulan Tutup Buku)
+    // SHEET 1: BK UMUM (Format Resmi 2 Sisi Sesuai Gambar: Penerimaan 1-4 & Pengeluaran 5-9)
     // ==========================================
     const sheet1Rows: (string | number)[][] = [];
 
@@ -53,64 +53,131 @@ export function exportLpjToExcel(
       sheet1Rows.push(['KECAMATAN', `: ${profile.kecamatan}`]);
       sheet1Rows.push(['KABUPATEN', `: ${profile.kabupaten}`]);
       sheet1Rows.push(['']);
-      sheet1Rows.push([
-        'NO.',
-        'TANGGAL',
-        'URAIAN TRANSAKSI',
-        'No. Bukti',
-        'PENERIMAAN (Rp)',
-        'PENGELUARAN (Rp)',
-        'SALDO (Rp)',
-      ]);
-      sheet1Rows.push(['1', '2', '3', '4', '5', '6', '7']);
 
-      group.bku.rows.forEach((r) => {
-        sheet1Rows.push([
-          r.no,
-          r.tanggal,
-          r.uraian,
-          r.nomorBukti || '',
-          r.penerimaan > 0 ? r.penerimaan : '',
-          r.pengeluaran > 0 ? r.pengeluaran : '',
-          r.saldo,
-        ]);
+      // Tier 1 Header: Penerimaan vs Pengeluaran
+      sheet1Rows.push([
+        'PENERIMAAN', '', '', '',
+        'PENGELUARAN', '', '', '', ''
+      ]);
+
+      // Tier 2 Header: 9 Kolom Resmi
+      sheet1Rows.push([
+        'Tanggal',
+        'Uraian',
+        'No. Bukti',
+        'Jumlah (Rp.)',
+        'Tanggal',
+        'Uraian',
+        'No. Bukti',
+        'Jenis Biaya',
+        'Jumlah (Rp.)',
+      ]);
+
+      // Tier 3 Header: Nomor Kolom 1 s/d 9
+      sheet1Rows.push(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+
+      // Siapkan item penerimaan & pengeluaran per baris sejajar
+      const penerimaanList: { tanggal: string; uraian: string; noBukti: string; jumlah: number }[] = [];
+      if (!group.isFirstMonth && group.bku.initialRow) {
+        penerimaanList.push({
+          tanggal: group.bku.initialRow.tanggal,
+          uraian: group.bku.initialRow.uraian,
+          noBukti: '-',
+          jumlah: group.bku.initialRow.saldo,
+        });
+      }
+      group.transactions.forEach((t) => {
+        if (t.jenis === 'PENERIMAAN' && t.metode !== 'TARIK_TUNAI') {
+          penerimaanList.push({
+            tanggal: t.tanggal,
+            uraian: t.uraian,
+            noBukti: t.nomorBukti || '-',
+            jumlah: t.penerimaan,
+          });
+        }
       });
 
+      const pengeluaranList: { tanggal: string; uraian: string; noBukti: string; jenisBiaya: string; jumlah: number }[] = [];
+      group.transactions.forEach((t) => {
+        if (t.jenis === 'PENGELUARAN' || (t.metode !== 'TARIK_TUNAI' && t.pengeluaran > 0)) {
+          pengeluaranList.push({
+            tanggal: t.tanggal,
+            uraian: t.uraian,
+            noBukti: t.nomorBukti || '',
+            jenisBiaya: t.jenisBiaya || '',
+            jumlah: t.pengeluaran,
+          });
+        }
+      });
+
+      const maxR = Math.max(penerimaanList.length, pengeluaranList.length, 6);
+      const totalPenerimaan = penerimaanList.reduce((sum, p) => sum + p.jumlah, 0);
+      const totalPengeluaran = pengeluaranList.reduce((sum, q) => sum + q.jumlah, 0);
+      const saldoKasUmum = totalPenerimaan - totalPengeluaran;
+
+      for (let i = 0; i < maxR; i++) {
+        const p = penerimaanList[i];
+        const q = pengeluaranList[i];
+        sheet1Rows.push([
+          p ? p.tanggal : '',
+          p ? p.uraian : '',
+          p ? p.noBukti : '',
+          p ? p.jumlah : '',
+          q ? q.tanggal : '',
+          q ? q.uraian : '',
+          q ? q.noBukti : '',
+          q ? q.jenisBiaya : '',
+          q ? q.jumlah : '',
+        ]);
+      }
+
+      // Baris Bawah: Total Pengeluaran (III)
+      sheet1Rows.push(['', '', '', '', 'Total Pengeluaran (III)', '', '', '', totalPengeluaran]);
+      // Baris Bawah: Saldo Kas Umum (IV = I - III)
+      sheet1Rows.push(['', '', '', '', 'Saldo Kas Umum (IV = I - III)', '', '', '', saldoKasUmum]);
+      // Baris Bawah: Total Penerimaan Penyeimbang (I & II)
       sheet1Rows.push([
-        '',
-        '',
-        'JUMLAH',
-        '',
-        group.bku.totalPenerimaan,
-        group.bku.totalPengeluaran,
-        group.bku.saldoAkhir,
+        'Total Penerimaan (I)', '', '', totalPenerimaan,
+        'Total Penerimaan (II = III + IV)', '', '', '', totalPengeluaran + saldoKasUmum
       ]);
+
       sheet1Rows.push(['']);
-      sheet1Rows.push([`Pada hari ini : ${group.tanggalTutupBuku}`]);
+      sheet1Rows.push([`Pada hari ini : ${group.tanggalTutupBuku} Buku Kas Umum ditutup dengan keadaan/posisi Buku sebagai berikut :`]);
+      sheet1Rows.push(['Saldo Buku Kas Umum', '', '', group.summary.saldoKumulatif]);
+      sheet1Rows.push(['Terdiri dari :']);
+      sheet1Rows.push(['1. Saldo Bank', '', '', group.summary.saldoBank]);
+      sheet1Rows.push(['2. Saldo Kas Tunai', '', '', group.summary.saldoTunai]);
+      sheet1Rows.push(['Jumlah (Bank + Tunai)', '', '', group.summary.saldoBank + group.summary.saldoTunai]);
+      sheet1Rows.push(['Perbedaan', '', '', 0]);
+      sheet1Rows.push(['']);
+
+      // 3 Tanda Tangan: Kepala Sekolah, Ketua P2S, Bendahara
+      sheet1Rows.push(['Mengetahui,', '', '', 'Ketua P2S', '', '', `${profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, ${group.tanggalTutupBuku}`, '', '']);
+      sheet1Rows.push([`Kepala ${profile.namaSekolah || 'Sekolah'}`, '', '', '', '', '', 'Bendahara', '', '']);
+      sheet1Rows.push(['', '', '', '', '', '', '', '', '']);
+      sheet1Rows.push(['', '', '', '', '', '', '', '', '']);
       sheet1Rows.push([
-        'Buku Kas Umum ditutup dengan keadaan/posisi Buku sebagai berikut :',
+        profile.namaKepalaSekolah, '', '',
+        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2S', '', '',
+        profile.namaBendahara, '', ''
       ]);
-      sheet1Rows.push(['Sisa Saldo Bank', `: Rp ${group.summary.saldoBank.toLocaleString('id-ID')}`]);
-      sheet1Rows.push(['Sisa Saldo Kas Tunai', `: Rp ${group.summary.saldoTunai.toLocaleString('id-ID')}`]);
-      sheet1Rows.push(['Jumlah', `: Rp ${group.summary.saldoKumulatif.toLocaleString('id-ID')}`]);
-      sheet1Rows.push(['']);
-      sheet1Rows.push(['', '', profile.namaPanitia]);
-      sheet1Rows.push(['', '', '']);
-      sheet1Rows.push(['Kepala Sekolah', '', '', '', 'Dibuat Oleh Bendahara']);
-      sheet1Rows.push(['', '', '', '', '']);
-      sheet1Rows.push(['', '', '', '', '']);
-      sheet1Rows.push([profile.namaKepalaSekolah, '', '', '', profile.namaBendahara]);
-      sheet1Rows.push([`NIP. ${profile.nipKepalaSekolah}`, '', '', '', `NIP. ${profile.nipBendahara}`]);
+      sheet1Rows.push([
+        `NIP. ${profile.nipKepalaSekolah}`, '', '',
+        '-', '', '',
+        `NIP. ${profile.nipBendahara}`, '', ''
+      ]);
     });
 
     const ws1 = XLSX.utils.aoa_to_sheet(sheet1Rows);
     ws1['!cols'] = [
-      { wch: 6 },
-      { wch: 18 },
-      { wch: 45 },
+      { wch: 14 },
+      { wch: 38 },
       { wch: 14 },
       { wch: 18 },
-      { wch: 18 },
+      { wch: 14 },
+      { wch: 38 },
+      { wch: 14 },
+      { wch: 16 },
       { wch: 18 },
     ];
     XLSX.utils.book_append_sheet(wb, ws1, 'BK UMUM');
@@ -140,16 +207,13 @@ export function exportLpjToExcel(
       sheet2Rows.push([
         'NO.',
         'TANGGAL',
-        'NAMA BARANG / URAIAN',
-        'VOL',
-        'SATUAN',
-        'HARGA SATUAN (Rp)',
+        'URAIAN',
         'NO. BUKTI',
         'PENERIMAAN (Rp)',
         'PENGELUARAN (Rp)',
         'SALDO (Rp)',
       ]);
-      sheet2Rows.push(['1', '2', '3a', '3b', '3c', '3d', '4', '5', '6', '7']);
+      sheet2Rows.push(['1', '2', '3', '4', '5', '6', '7']);
 
       group.bkuTunai.rows.forEach((r) => {
         if (r.isInitialRow) {
@@ -157,10 +221,7 @@ export function exportLpjToExcel(
             r.no,
             r.tanggal,
             r.uraian,
-            '',
-            '',
-            '',
-            '',
+            '-',
             r.penerimaan > 0 ? r.penerimaan : '',
             '',
             r.saldo,
@@ -168,57 +229,19 @@ export function exportLpjToExcel(
           return;
         }
 
-        const hasSub = Boolean(r.transaction.subItems && r.transaction.subItems.length > 0);
-
         sheet2Rows.push([
           r.nomorBukti ? r.no : '',
           r.tanggal,
           r.uraian,
-          '',
-          '',
-          '',
           r.nomorBukti || '',
           r.penerimaan > 0 ? r.penerimaan : '',
-          hasSub ? '' : r.pengeluaran > 0 ? r.pengeluaran : '',
+          r.pengeluaran > 0 ? r.pengeluaran : '',
           r.saldo,
         ]);
-
-        if (hasSub && r.transaction.subItems) {
-          r.transaction.subItems.forEach((item) => {
-            sheet2Rows.push([
-              '',
-              '',
-              item.nama,
-              item.volume,
-              item.satuan,
-              item.hargaSatuan,
-              '',
-              '',
-              item.subtotal,
-              '',
-            ]);
-          });
-
-          sheet2Rows.push([
-            '',
-            '',
-            'Jumlah Nota',
-            '',
-            '',
-            '',
-            '',
-            '',
-            r.pengeluaran,
-            '',
-          ]);
-        }
       });
 
       sheet2Rows.push([
-        '',
-        '',
         'JUMLAH',
-        '',
         '',
         '',
         '',
@@ -234,22 +257,28 @@ export function exportLpjToExcel(
       sheet2Rows.push(['Sisa Saldo Kas Tunai', `: Rp ${group.summary.saldoTunai.toLocaleString('id-ID')}`]);
       sheet2Rows.push(['Terbilang', `: ${terbilangRupiah(group.summary.saldoTunai)}`]);
       sheet2Rows.push(['']);
-      sheet2Rows.push(['', '', profile.namaPanitia]);
-      sheet2Rows.push(['Kepala Sekolah', '', '', '', '', '', '', '', 'Bendahara']);
-      sheet2Rows.push(['', '', '', '', '', '', '', '', '']);
-      sheet2Rows.push(['', '', '', '', '', '', '', '', '']);
-      sheet2Rows.push([profile.namaKepalaSekolah, '', '', '', '', '', '', '', profile.namaBendahara]);
-      sheet2Rows.push([`NIP. ${profile.nipKepalaSekolah}`, '', '', '', '', '', '', '', `NIP. ${profile.nipBendahara}`]);
+      // 3 Tanda Tangan: Kepala Sekolah, Ketua P2S, Bendahara
+      sheet2Rows.push(['Mengetahui,', '', 'Ketua P2S', '', `${profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, ${group.tanggalTutupBuku}`, '', '']);
+      sheet2Rows.push([`Kepala ${profile.namaSekolah || 'Sekolah'}`, '', '', '', 'Bendahara', '', '']);
+      sheet2Rows.push(['', '', '', '', '', '', '']);
+      sheet2Rows.push(['', '', '', '', '', '', '']);
+      sheet2Rows.push([
+        profile.namaKepalaSekolah, '',
+        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2S', '',
+        profile.namaBendahara, '', ''
+      ]);
+      sheet2Rows.push([
+        `NIP. ${profile.nipKepalaSekolah}`, '',
+        '-', '',
+        `NIP. ${profile.nipBendahara}`, '', ''
+      ]);
     });
 
     const ws2 = XLSX.utils.aoa_to_sheet(sheet2Rows);
     ws2['!cols'] = [
       { wch: 6 },
       { wch: 18 },
-      { wch: 35 },
-      { wch: 10 },
-      { wch: 12 },
-      { wch: 18 },
+      { wch: 42 },
       { wch: 14 },
       { wch: 18 },
       { wch: 18 },

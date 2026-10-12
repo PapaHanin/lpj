@@ -13,6 +13,7 @@ export interface BkuRow {
   tanggal: string;
   uraian: string;
   nomorBukti: string;
+  jenisBiaya?: string;
   penerimaan: number;
   pengeluaran: number;
   saldo: number;
@@ -105,6 +106,45 @@ export interface SummaryStats {
   persentaseRealisasi: number;
 }
 
+export function getJenisBiaya(tx: Transaction): string {
+  if (tx.jenisBiaya && tx.jenisBiaya.trim()) return tx.jenisBiaya.trim();
+  const u = (tx.uraian || '').toLowerCase();
+  if (
+    u.includes('upah') ||
+    u.includes('tukang') ||
+    u.includes('pekerja') ||
+    u.includes('ongkos kerja') ||
+    u.includes('tenaga')
+  ) {
+    return 'Upah';
+  }
+  if (
+    u.includes('alat') ||
+    u.includes('peralatan') ||
+    u.includes('sewa molen') ||
+    u.includes('sewa')
+  ) {
+    return 'Alat';
+  }
+  if (
+    u.includes('operasional') ||
+    u.includes('atk') ||
+    u.includes('materai') ||
+    u.includes('konsumsi') ||
+    u.includes('transport') ||
+    u.includes('laporan') ||
+    u.includes('foto') ||
+    u.includes('spanduk') ||
+    u.includes('prasasti')
+  ) {
+    return 'Operasional';
+  }
+  if (tx.keterangan && tx.keterangan.trim()) {
+    return tx.keterangan.trim();
+  }
+  return 'Bahan';
+}
+
 export const INITIAL_PROFILE: ProjectProfile = {
   namaSekolah: 'SD INPRES 2 PALASA',
   alamat: 'Jl. Trans Sulawesi Desa Palasa Lambori',
@@ -121,6 +161,7 @@ export const INITIAL_PROFILE: ProjectProfile = {
   namaBendahara: 'MOH. RIZAL DAUDO',
   nipBendahara: '-',
   namaPanitia: 'PANITIA PEMBANGUNAN SEKOLAH',
+  namaKetuaP2S: 'I MADE SUWITA, S.Pd',
   tempatPelunasan: 'Palasa',
 };
 
@@ -696,6 +737,7 @@ export function groupTransactionsByMonthlyBooks(
         tanggal: t.tanggal,
         uraian: t.uraian,
         nomorBukti: t.nomorBukti,
+        jenisBiaya: getJenisBiaya(t),
         penerimaan: t.penerimaan,
         pengeluaran: t.pengeluaran,
         saldo: runningSaldoBku,

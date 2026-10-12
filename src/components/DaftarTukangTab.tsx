@@ -292,6 +292,50 @@ export const DaftarTukangTab: React.FC = () => {
     updatePekerjaAttendance(currentAbsen.id, pekerjaId, day, nextVal);
   };
 
+  // Pilih Minggu spesifik (1 s.d 20) secara tersinkronisasi
+  const handleSelectWeekNumber = (targetWeekNum: number) => {
+    const sched = ALL_WEEKS_2026.find((s) => s.weekNum === targetWeekNum);
+    if (sched) {
+      setFormatRekapTukang('1_minggu');
+      setSelectedSubWeek(sched.subWeek);
+      const matchedWeek = weeksForCurrentBangunan.find(
+        (w) => (w.periodeKe || w.mingguKe || 1) === sched.periodeKe
+      );
+      if (matchedWeek) {
+        setSelectedAbsenWeekId(matchedWeek.id);
+      } else {
+        const newId = `absen-${currentBangunan.id}-p${sched.periodeKe}`;
+        const baseWorkers = (weeksForCurrentBangunan[0]?.pekerja || currentAbsen.pekerja || []).map((p) => ({
+          ...p,
+          id: `${p.id}-p${sched.periodeKe}`,
+          hariKerja: { ...p.hariKerja },
+        }));
+        useLpjStore.setState((state) => ({
+          absenTukangList: [
+            ...state.absenTukangList,
+            {
+              id: newId,
+              bangunanId: currentBangunan.id,
+              proyek: currentBangunan.nama,
+              lokasi: currentBangunan.lokasi || '',
+              periodeKe: sched.periodeKe,
+              mingguKe: sched.periodeKe,
+              hariTanggal: sched.hariTanggal,
+              pekerja: baseWorkers,
+              hariLibur: ['m1_7', 'm2_7'],
+            },
+          ],
+          selectedAbsenWeekId: newId,
+        }));
+      }
+      showToast({
+        type: 'info',
+        title: `Minggu Ke-${sched.weekNum}`,
+        message: `Menampilkan rekapitulasi upah Minggu Ke-${sched.weekNum} (${sched.hariTanggal})`,
+      });
+    }
+  };
+
   const handleAddWorkerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentAbsen || !newWorkerNama.trim()) return;
@@ -957,7 +1001,7 @@ export const DaftarTukangTab: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-xs text-purple-300 font-bold flex items-center space-x-1.5">
             <Calendar className="w-4 h-4 text-amber-400" />
-            <span>{is1Week ? 'Pilih Minggu:' : 'Pilih Periode (2 Minggu):'}</span>
+            <span>{is1Week ? 'Menu Pilih Minggu:' : 'Pilih Periode (2 Minggu):'}</span>
           </label>
 
           <div className="relative">
@@ -1000,7 +1044,7 @@ export const DaftarTukangTab: React.FC = () => {
                     }
                   }
                 }}
-                className="appearance-none bg-[#160424] border border-purple-700/80 rounded-lg px-3 py-1.5 pr-8 text-xs font-semibold text-white focus:outline-none focus:border-amber-400 shadow-sm"
+                className="appearance-none bg-[#160424] border border-purple-700/80 rounded-lg px-3 py-1.5 pr-8 text-xs font-semibold text-white focus:outline-none focus:border-amber-400 shadow-sm cursor-pointer"
               >
                 {DAK_FISIK_PERIODS_2026.map((sched) => (
                   <option key={`p-${sched.periodeKe}`} value={sched.periodeKe}>
@@ -1011,50 +1055,8 @@ export const DaftarTukangTab: React.FC = () => {
             ) : (
               <select
                 value={activeWeekNum}
-                onChange={(e) => {
-                  const targetWeekNum = Number(e.target.value);
-                  const sched = ALL_WEEKS_2026.find((s) => s.weekNum === targetWeekNum);
-                  if (sched) {
-                    setFormatRekapTukang('1_minggu');
-                    setSelectedSubWeek(sched.subWeek);
-                    const matchedWeek = weeksForCurrentBangunan.find(
-                      (w) => (w.periodeKe || w.mingguKe || 1) === sched.periodeKe
-                    );
-                    if (matchedWeek) {
-                      setSelectedAbsenWeekId(matchedWeek.id);
-                    } else {
-                      const newId = `absen-${currentBangunan.id}-p${sched.periodeKe}`;
-                      const baseWorkers = (weeksForCurrentBangunan[0]?.pekerja || currentAbsen.pekerja || []).map((p) => ({
-                        ...p,
-                        id: `${p.id}-p${sched.periodeKe}`,
-                        hariKerja: { ...p.hariKerja },
-                      }));
-                      useLpjStore.setState((state) => ({
-                        absenTukangList: [
-                          ...state.absenTukangList,
-                          {
-                            id: newId,
-                            bangunanId: currentBangunan.id,
-                            proyek: currentBangunan.nama,
-                            lokasi: currentBangunan.lokasi || '',
-                            periodeKe: sched.periodeKe,
-                            mingguKe: sched.periodeKe,
-                            hariTanggal: sched.hariTanggal,
-                            pekerja: baseWorkers,
-                            hariLibur: ['m1_7', 'm2_7'],
-                          },
-                        ],
-                        selectedAbsenWeekId: newId,
-                      }));
-                    }
-                    showToast({
-                      type: 'info',
-                      title: `Minggu Ke-${sched.weekNum}`,
-                      message: `Menampilkan rekapitulasi upah Minggu Ke-${sched.weekNum} (${sched.hariTanggal})`,
-                    });
-                  }
-                }}
-                className="appearance-none bg-[#160424] border border-cyan-500/80 rounded-lg px-3 py-1.5 pr-8 text-xs font-semibold text-white focus:outline-none focus:border-amber-400 shadow-sm"
+                onChange={(e) => handleSelectWeekNumber(Number(e.target.value))}
+                className="appearance-none bg-[#160424] border border-cyan-500/80 rounded-lg px-3 py-1.5 pr-8 text-xs font-semibold text-white focus:outline-none focus:border-amber-400 shadow-sm cursor-pointer"
               >
                 {ALL_WEEKS_2026.map((item) => (
                   <option key={`mgg-${item.weekNum}`} value={item.weekNum}>
@@ -1203,27 +1205,55 @@ export const DaftarTukangTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Tampilkan Minggu: Mengikuti persis minggu yang dipilih di menu Pilih Minggu */}
+        {/* Menu Tampilkan Minggu: Mengikuti persis minggu yang dipilih di menu Pilih Minggu */}
         {is1Week ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-amber-200 font-bold uppercase tracking-wide flex items-center gap-1.5">
-              <CalendarCheck className="w-3.5 h-3.5 text-cyan-300" />
-              <span>Tampilkan Minggu:</span>
-            </span>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-400 text-purple-950 font-black text-xs shadow-md border border-cyan-200">
-              <span className="w-2 h-2 rounded-full bg-purple-950 animate-pulse"></span>
-              <span>Minggu Ke-{activeWeekNum} Saja</span>
-              <span className="text-[11px] font-semibold opacity-90 font-mono">({pertanggal1Week})</span>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <label className="text-xs text-amber-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <CalendarCheck className="w-4 h-4 text-cyan-300" />
+              <span>Menu Tampilkan Minggu:</span>
+            </label>
+            <div className="relative">
+              <select
+                value={activeWeekNum}
+                onChange={(e) => handleSelectWeekNumber(Number(e.target.value))}
+                className="appearance-none bg-cyan-950/90 border border-cyan-400 text-cyan-200 font-bold text-xs rounded-lg px-3 py-1.5 pr-8 shadow-sm focus:outline-none focus:ring-1 focus:ring-cyan-300 cursor-pointer"
+              >
+                <option value={activeWeekNum}>
+                  Minggu Ke-{activeWeekNum} Saja ({pertanggal1Week})
+                </option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-cyan-300 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
-            <span className="text-[11px] text-cyan-200/80 italic hidden xl:inline">
-              (Hanya Minggu Ke-{activeWeekNum} yang tampil di rekap upah tukang)
+            <span className="text-[11px] text-cyan-300 font-medium bg-cyan-950/60 border border-cyan-800/60 px-2.5 py-1 rounded-md shadow-inner">
+              ✓ Hanya Minggu Ke-{activeWeekNum} yang tampil di Rekap Upah Tukang
             </span>
           </div>
         ) : (
-          <div className="text-xs text-purple-300 hidden lg:flex items-center space-x-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span>
-              Format Aktif: <strong className="text-amber-300">14 Hari Kerja</strong> (Minggu {mggStart} & {mggEnd})
+          <div className="flex flex-wrap items-center gap-2.5">
+            <label className="text-xs text-amber-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <CalendarCheck className="w-4 h-4 text-cyan-300" />
+              <span>Menu Tampilkan Minggu:</span>
+            </label>
+            <div className="relative">
+              <select
+                value={activeWeekNum}
+                onChange={(e) => handleSelectWeekNumber(Number(e.target.value))}
+                className="appearance-none bg-[#160424] border border-purple-700/80 rounded-lg px-3 py-1.5 pr-8 text-xs font-semibold text-white focus:outline-none focus:border-amber-400 shadow-sm cursor-pointer"
+              >
+                <option value={mggStart}>
+                  Minggu Ke-{mggStart} Saja
+                </option>
+                <option value={mggEnd}>
+                  Minggu Ke-{mggEnd} Saja
+                </option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-purple-300 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+            <span className="text-xs text-purple-300 flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span>
+                Format Aktif: <strong className="text-amber-300">14 Hari Kerja</strong> (Minggu {mggStart} & {mggEnd})
+              </span>
             </span>
           </div>
         )}

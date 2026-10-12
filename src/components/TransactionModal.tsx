@@ -14,6 +14,7 @@ import {
 import { useLpjStore } from '../store/lpjStore';
 import { SubItem, TransactionJenis, TransactionMetode } from '../types';
 import { formatRupiah, terbilangRupiah } from '../utils/terbilang';
+import { getJenisBiaya } from '../utils/calculations';
 import {
   formatToIndonesianDate,
   indonesianDateToIso,
@@ -41,6 +42,7 @@ export const TransactionModal: React.FC = () => {
   const [nomorBukti, setNomorBukti] = useState('');
   const [metode, setMetode] = useState<TransactionMetode>('TUNAI');
   const [jenis, setJenis] = useState<TransactionJenis>('PENGELUARAN');
+  const [jenisBiaya, setJenisBiaya] = useState<string>('Bahan');
   const [manualNominal, setManualNominal] = useState<number>(0);
   const [penerima, setPenerima] = useState('');
   const [keterangan, setKeterangan] = useState('');
@@ -123,6 +125,7 @@ export const TransactionModal: React.FC = () => {
       setNomorBukti(transactionToEdit.nomorBukti || '');
       setMetode(transactionToEdit.metode);
       setJenis(transactionToEdit.jenis);
+      setJenisBiaya(transactionToEdit.jenisBiaya || getJenisBiaya(transactionToEdit));
       setPenerima(transactionToEdit.penerima || '');
       setKeterangan(transactionToEdit.keterangan || '');
 
@@ -147,6 +150,7 @@ export const TransactionModal: React.FC = () => {
       setNomorBukti(getNextBkuSuggestion());
       setMetode(modalPreset?.metode || 'TUNAI');
       setJenis(modalPreset?.jenis || 'PENGELUARAN');
+      setJenisBiaya('Bahan');
       setManualNominal(0);
       setPenerima('');
       setKeterangan('');
@@ -358,6 +362,7 @@ export const TransactionModal: React.FC = () => {
       nomorBukti,
       metode,
       jenis,
+      jenisBiaya: jenis === 'PENGELUARAN' ? (jenisBiaya || 'Bahan') : undefined,
       penerimaan,
       pengeluaran,
       penerima,
@@ -684,6 +689,39 @@ export const TransactionModal: React.FC = () => {
               className="w-full text-sm font-bold text-slate-950 bg-white border-2 border-purple-900/40 rounded-xl px-3.5 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden placeholder:text-slate-400"
               required
             />
+
+            {/* Pilihan Jenis Biaya untuk Kolom 8 BKU */}
+            {jenis === 'PENGELUARAN' && (
+              <div className="mt-3 bg-purple-50/60 p-3 rounded-2xl border border-purple-200">
+                <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-1.5 flex items-center justify-between">
+                  <span>Jenis Biaya (Kolom 8 Buku Kas Umum)</span>
+                  <span className="text-[11px] font-bold text-purple-700">Format Resmi BKU</span>
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {['Bahan', 'Upah', 'Alat', 'Operasional'].map((kat) => (
+                    <button
+                      key={kat}
+                      type="button"
+                      onClick={() => setJenisBiaya(kat)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                        jenisBiaya === kat
+                          ? 'bg-amber-400 text-purple-950 border-amber-500 shadow-xs font-black ring-1 ring-amber-400'
+                          : 'bg-white text-purple-900 border-purple-200 hover:bg-purple-100'
+                      }`}
+                    >
+                      {kat}
+                    </button>
+                  ))}
+                  <input
+                    type="text"
+                    value={jenisBiaya}
+                    onChange={(e) => setJenisBiaya(e.target.value)}
+                    placeholder="Atau ketik jenis biaya..."
+                    className="flex-1 min-w-[140px] text-xs font-bold text-slate-950 bg-white border border-purple-300 rounded-xl px-3 py-1.5 focus:border-amber-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Banner saat terdeteksi dan terisi otomatis dari riwayat transaksi */}
             {autoFillNotice && (

@@ -38,6 +38,8 @@ export const BkuTunaiView: React.FC = () => {
 
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
+  const [showSubDetails, setShowSubDetails] = useState<boolean>(false);
+  const [signatureFormat, setSignatureFormat] = useState<'3_pihak' | '2_pihak'>('3_pihak');
 
   const monthlyGroups = useMemo(
     () => groupTransactionsByMonthlyBooks(transactions, profile),
@@ -64,15 +66,14 @@ export const BkuTunaiView: React.FC = () => {
           <div className="flex items-center space-x-2">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-              Buku Kas Pembantu Tunai (BKU Tunai) - Tutup Buku Bulanan
+              Buku Pembantu Kas Tunai (BPKT)
             </h2>
             <span className="bg-amber-400 text-purple-950 text-[11px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
-              <Layers className="w-3 h-3" />
-              Rincian Barang & Nota
+              Format Gambar Resmi (7 Kolom & 3 Tanda Tangan)
             </span>
           </div>
           <p className="text-xs text-purple-200/90 mt-0.5">
-            Format resmi penutupan kas tunai per bulan lengkap dengan rincian material/upah dan tanda tangan Kepala Sekolah & Bendahara.
+            Sesuai format gambar: No, Tanggal, Uraian, No. Bukti, Penerimaan, Pengeluaran, Saldo (Kolom 1 s/d 7), baris JUMLAH, dan 3 tanda tangan lengkap (Kepala Sekolah, Ketua P2S, Bendahara).
           </p>
         </div>
 
@@ -106,6 +107,15 @@ export const BkuTunaiView: React.FC = () => {
           )}
 
           <button
+            onClick={() => setSignatureFormat((prev) => (prev === '3_pihak' ? '2_pihak' : '3_pihak'))}
+            className="flex items-center space-x-1.5 bg-purple-900/80 hover:bg-purple-800 text-amber-300 border border-amber-400/30 text-xs font-bold px-3 py-2 rounded-xl transition cursor-pointer"
+            title="Ganti format tanda tangan: 3 Tanda Tangan (Sesuai Gambar) atau 2 Tanda Tangan"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>{signatureFormat === '3_pihak' ? '3 Tanda Tangan (Resmi Gambar)' : '2 Tanda Tangan'}</span>
+          </button>
+
+          <button
             onClick={openProfileModal}
             className="flex items-center space-x-1 bg-purple-900/80 hover:bg-purple-800 text-amber-300 border border-amber-400/30 text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 cursor-pointer"
             title="Ganti Profil & Bulan Laporan"
@@ -133,7 +143,19 @@ export const BkuTunaiView: React.FC = () => {
             title="Input Belanja Baru & Rincian Barang di Kas Tunai (Otomatis Masuk ke Kas Umum)"
           >
             <PlusCircle className="w-4 h-4 text-purple-950" />
-            <span>+ Input Belanja & Rincian</span>
+            <span>+ Input Belanja</span>
+          </button>
+          <button
+            onClick={() => setShowSubDetails((prev) => !prev)}
+            className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl transition cursor-pointer border ${
+              showSubDetails
+                ? 'bg-amber-400 text-purple-950 border-amber-300 shadow-sm'
+                : 'bg-purple-900/80 hover:bg-purple-800 text-purple-200 border-purple-700'
+            }`}
+            title="Tampilkan atau sembunyikan sub-rincian nota belanja di bawah uraian"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>{showSubDetails ? 'Sembunyikan Rincian Nota' : 'Lihat Rincian Nota'}</span>
           </button>
           <button
             onClick={() => exportLpjToExcel(profile, transactions)}
@@ -286,34 +308,25 @@ export const BkuTunaiView: React.FC = () => {
                           className="w-4 h-4 text-purple-900 rounded cursor-pointer align-middle accent-amber-400"
                         />
                       </th>
-                      <th className="border border-slate-900 py-2.5 px-1 w-10 text-black font-black">
+                      <th className="border border-slate-900 py-2.5 px-2 w-12 text-black font-black">
                         No
                       </th>
                       <th className="border border-slate-900 py-2.5 px-2 w-28 text-black font-black">
                         Tanggal
                       </th>
-                      <th className="border border-slate-900 py-2.5 px-3 text-left min-w-[200px] text-black font-black">
-                        Nama Barang / Uraian
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-2 w-16 text-center text-black font-black">
-                        Volume
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-2 w-16 text-center text-black font-black">
-                        Satuan
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-2.5 w-24 text-right text-black font-black">
-                        Harga Satuan (Rp)
+                      <th className="border border-slate-900 py-2.5 px-3 text-left min-w-[220px] text-black font-black">
+                        Uraian
                       </th>
                       <th className="border border-slate-900 py-2.5 px-2 w-24 text-center text-black font-black">
                         No Bukti
                       </th>
-                      <th className="border border-slate-900 py-2.5 px-2.5 w-28 text-right text-black font-black">
+                      <th className="border border-slate-900 py-2.5 px-2.5 w-32 text-right text-black font-black">
                         Penerimaan (Rp)
                       </th>
-                      <th className="border border-slate-900 py-2.5 px-2.5 w-28 text-right text-black font-black">
+                      <th className="border border-slate-900 py-2.5 px-2.5 w-32 text-right text-black font-black">
                         Pengeluaran (Rp)
                       </th>
-                      <th className="border border-slate-900 py-2.5 px-2.5 w-28 text-right text-black font-black">
+                      <th className="border border-slate-900 py-2.5 px-2.5 w-32 text-right text-black font-black">
                         Saldo (Rp)
                       </th>
                       <th className="border border-slate-900 py-2.5 px-1 w-28 text-center print:hidden">
@@ -329,9 +342,6 @@ export const BkuTunaiView: React.FC = () => {
                       <th className="border border-slate-900 py-1 text-black font-serif italic">5</th>
                       <th className="border border-slate-900 py-1 text-black font-serif italic">6</th>
                       <th className="border border-slate-900 py-1 text-black font-serif italic">7</th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">8</th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">9</th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">10</th>
                       <th className="border border-slate-900 py-1 print:hidden"></th>
                     </tr>
                   </thead>
@@ -347,10 +357,10 @@ export const BkuTunaiView: React.FC = () => {
                             <td className="border border-slate-900 py-2 px-1 text-center print:hidden bg-amber-100/50 text-slate-400 font-mono text-[10px]">
                               -
                             </td>
-                            <td className="border border-slate-900 py-2 px-1 text-center font-mono font-bold text-black">
+                            <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
                               {row.no}
                             </td>
-                            <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium">
+                            <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium text-center">
                               {row.tanggal}
                             </td>
                             <td className="border border-slate-900 py-2 px-3 font-black italic text-purple-950">
@@ -359,14 +369,11 @@ export const BkuTunaiView: React.FC = () => {
                                 Saldo Awal Kas Tunai
                               </span>
                             </td>
-                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">-</td>
-                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">-</td>
-                            <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400">-</td>
-                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">-</td>
+                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400 font-mono">-</td>
                             <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
                               {formatRupiah(row.penerimaan, false)}
                             </td>
-                            <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400">-</td>
+                            <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400 font-mono">-</td>
                             <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
                               {formatRupiah(row.saldo, false)}
                             </td>
@@ -410,30 +417,35 @@ export const BkuTunaiView: React.FC = () => {
                               />
                             </td>
 
-                            <td className="border border-slate-900 py-2 px-1 text-center font-mono font-bold text-black">
+                            <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
                               {row.no}
                             </td>
-                            <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium">
+                            <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium text-center">
                               {row.tanggal}
                             </td>
                             <td className="border border-slate-900 py-2 px-3 font-bold text-black">
-                              <div className="flex items-center justify-between gap-2">
+                              <div>
                                 <span>{row.uraian}</span>
                                 {hasSub && (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:hidden shrink-0">
-                                    {row.transaction.subItems?.length} item nota
-                                  </span>
+                                  <div className="mt-1 space-y-0.5">
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:hidden inline-block mr-2">
+                                      {row.transaction.subItems?.length} item nota
+                                    </span>
+                                    {showSubDetails && row.transaction.subItems && (
+                                      <div className="mt-1 text-[11px] font-normal text-slate-700 bg-slate-50 p-2 rounded border border-slate-200">
+                                        <p className="font-bold text-purple-950 mb-1">Rincian Nota Belanja:</p>
+                                        <ul className="list-disc pl-4 space-y-0.5">
+                                          {row.transaction.subItems.map((sub, sIdx) => (
+                                            <li key={sub.id || sIdx}>
+                                              <span className="font-semibold text-black">{sub.nama}</span>: {sub.volume} {sub.satuan} × {formatRupiah(sub.hargaSatuan)} = <span className="font-bold text-black">{formatRupiah(sub.subtotal)}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            </td>
-                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">
-                              {hasSub ? '-' : ''}
-                            </td>
-                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">
-                              {hasSub ? '-' : ''}
-                            </td>
-                            <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400">
-                              {hasSub ? '-' : ''}
                             </td>
                             <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
                               {row.nomorBukti || ''}
@@ -442,7 +454,7 @@ export const BkuTunaiView: React.FC = () => {
                               {row.penerimaan > 0 ? formatRupiah(row.penerimaan, false) : ''}
                             </td>
                             <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
-                              {hasSub ? '' : row.pengeluaran > 0 ? formatRupiah(row.pengeluaran, false) : ''}
+                              {row.pengeluaran > 0 ? formatRupiah(row.pengeluaran, false) : ''}
                             </td>
                             <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
                               {formatRupiah(row.saldo, false)}
@@ -536,61 +548,6 @@ export const BkuTunaiView: React.FC = () => {
                               </div>
                             </td>
                           </tr>
-
-                          {/* Sub-Rows Rincian Barang */}
-                          {hasSub &&
-                            row.transaction.subItems?.map((item) => (
-                              <tr key={item.id} className="bg-slate-50/60 hover:bg-amber-50/40 text-black transition">
-                                <td className="border border-slate-900 py-1.5 px-1 text-center text-slate-300 print:hidden font-mono">
-                                  ↳
-                                </td>
-                                <td className="border border-slate-900 py-1.5 px-1 text-black"></td>
-                                <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
-                                <td className="border border-slate-900 py-1.5 px-3 pl-6 font-bold text-black">
-                                  {item.nama}
-                                </td>
-                                <td className="border border-slate-900 py-1.5 px-2 text-center font-mono font-bold text-black">
-                                  {typeof item.volume === 'number'
-                                    ? item.volume.toLocaleString('id-ID', {
-                                        minimumFractionDigits: 1,
-                                        maximumFractionDigits: 2,
-                                      })
-                                    : item.volume}
-                                </td>
-                                <td className="border border-slate-900 py-1.5 px-2 text-center font-bold text-black">
-                                  {item.satuan}
-                                </td>
-                                <td className="border border-slate-900 py-1.5 px-2.5 text-right font-mono font-bold text-black">
-                                  {formatRupiah(item.hargaSatuan, false)}
-                                </td>
-                                <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
-                                <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
-                                <td className="border border-slate-900 py-1.5 px-2.5 text-right font-mono text-black font-bold">
-                                  {formatRupiah(item.subtotal, false)}
-                                </td>
-                                <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
-                                <td className="border border-slate-900 py-1.5 px-1 print:hidden"></td>
-                              </tr>
-                            ))}
-
-                          {/* Baris "Jumlah Nota" */}
-                          {hasSub && (
-                            <tr className="bg-slate-100/80 font-bold text-black">
-                              <td className="border border-slate-900 py-1.5 px-1 print:hidden bg-slate-100/80"></td>
-                              <td className="border border-slate-900 py-1.5 px-1 text-black"></td>
-                              <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
-                              <td colSpan={4} className="border border-slate-900 py-1.5 px-3 pl-6 italic font-bold text-black">
-                                Jumlah Nota
-                              </td>
-                              <td className="border border-slate-900 py-1.5 px-2 text-black"></td>
-                              <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
-                              <td className="border border-slate-900 py-1.5 px-2.5 text-right font-mono font-black text-black">
-                                {formatRupiah(row.pengeluaran, false)}
-                              </td>
-                              <td className="border border-slate-900 py-1.5 px-2.5 text-black"></td>
-                              <td className="border border-slate-900 py-1.5 px-1 print:hidden"></td>
-                            </tr>
-                          )}
                         </React.Fragment>
                       );
                     })}
@@ -598,21 +555,20 @@ export const BkuTunaiView: React.FC = () => {
                     {/* Baris Total / JUMLAH */}
                     <tr className="bg-slate-100 font-bold text-black text-xs">
                       <td className="border border-slate-900 py-2.5 px-1 print:hidden bg-slate-100"></td>
-                      <td className="border border-slate-900 py-2.5 px-3 text-center text-black font-black" colSpan={6}>
+                      <td className="border border-slate-900 py-2.5 px-3 text-center text-black font-black" colSpan={4}>
                         JUMLAH
                       </td>
-                  <td className="border border-slate-900 py-2.5 px-2 text-black"></td>
-                  <td className="border border-slate-900 py-2.5 px-2.5 text-right font-mono font-black text-black">
-                    {formatRupiah(group.bkuTunai.totalPenerimaan, false)}
-                  </td>
-                  <td className="border border-slate-900 py-2.5 px-2.5 text-right font-mono font-black text-rose-700">
-                    {formatRupiah(group.bkuTunai.totalPengeluaran, false)}
-                  </td>
-                  <td className="border border-slate-900 py-2.5 px-2.5 text-right font-mono font-black text-emerald-950">
-                    {formatRupiah(group.bkuTunai.saldoAkhir, false)}
-                  </td>
-                  <td className="border border-slate-900 py-2.5 px-1 print:hidden"></td>
-                </tr>
+                      <td className="border border-slate-900 py-2.5 px-2.5 text-right font-mono font-black text-black">
+                        {formatRupiah(group.bkuTunai.totalPenerimaan, false)}
+                      </td>
+                      <td className="border border-slate-900 py-2.5 px-2.5 text-right font-mono font-black text-rose-700">
+                        {formatRupiah(group.bkuTunai.totalPengeluaran, false)}
+                      </td>
+                      <td className="border border-slate-900 py-2.5 px-2.5 text-right font-mono font-black text-emerald-950">
+                        {formatRupiah(group.bkuTunai.saldoAkhir, false)}
+                      </td>
+                      <td className="border border-slate-900 py-2.5 px-1 print:hidden"></td>
+                    </tr>
               </tbody>
             </table>
               );
@@ -640,36 +596,96 @@ export const BkuTunaiView: React.FC = () => {
             </div>
           </div>
 
-          {/* Kolom Tanda Tangan */}
+          {/* Kolom Tanda Tangan Sesuai Format Gambar */}
           <div className="mt-10 text-xs text-black break-inside-avoid">
-            <p className="text-center font-bold uppercase tracking-wider mb-6 text-black">
-              {profile.namaPanitia}
-            </p>
-            <div className="grid grid-cols-2 gap-8 text-center">
-              <div className="space-y-20">
-                <p className="font-bold text-black">Kepala Sekolah</p>
-                <div>
-                  <p className="font-bold underline uppercase tracking-wide text-black">
-                    {profile.namaKepalaSekolah}
-                  </p>
-                  <p className="font-mono text-black font-bold">
-                    NIP. {profile.nipKepalaSekolah}
-                  </p>
+            {signatureFormat === '3_pihak' ? (
+              <div className="grid grid-cols-3 gap-4 text-center">
+                {/* Kiri: Mengetahui Kepala Sekolah */}
+                <div className="flex flex-col justify-between h-36">
+                  <div>
+                    <p className="font-normal text-black">Mengetahui,</p>
+                    <p className="font-bold text-black">Kepala {profile.namaSekolah || 'Sekolah'}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold underline uppercase text-black">
+                      {profile.namaKepalaSekolah}
+                    </p>
+                    <p className="font-mono text-black font-semibold">
+                      NIP. {profile.nipKepalaSekolah}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-20">
-                <p className="font-bold text-black">Bendahara</p>
-                <div>
-                  <p className="font-bold underline uppercase tracking-wide text-black">
-                    {profile.namaBendahara}
-                  </p>
-                  <p className="font-mono text-black font-bold">
-                    NIP. {profile.nipBendahara}
-                  </p>
+                {/* Tengah: Ketua P2S */}
+                <div className="flex flex-col justify-between h-36">
+                  <div>
+                    <p className="font-bold text-black">Ketua P2S</p>
+                    <p className="text-[11px] text-slate-600 font-normal">
+                      {profile.namaPanitia || 'Panitia Pembangunan Sekolah'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-bold underline uppercase text-black">
+                      {profile.namaKetuaP2S || profile.namaPanitia || 'Nama Ketua P2S'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Kanan: Tanggal & Bendahara */}
+                <div className="flex flex-col justify-between h-36">
+                  <div>
+                    <p className="font-normal text-black">
+                      {profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, {group.tanggalTutupBuku}
+                    </p>
+                    <p className="font-bold text-black">Bendahara</p>
+                  </div>
+                  <div>
+                    <p className="font-bold underline uppercase text-black">
+                      {profile.namaBendahara}
+                    </p>
+                    <p className="font-mono text-black font-semibold">
+                      NIP. {profile.nipBendahara}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-8 text-center">
+                {/* Kiri: Mengetahui Kepala Sekolah */}
+                <div className="flex flex-col justify-between h-36">
+                  <div>
+                    <p className="font-normal text-black">Mengetahui,</p>
+                    <p className="font-bold text-black">Kepala {profile.namaSekolah || 'Sekolah'}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold underline uppercase text-black">
+                      {profile.namaKepalaSekolah}
+                    </p>
+                    <p className="font-mono text-black font-semibold">
+                      NIP. {profile.nipKepalaSekolah}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Kanan: Tanggal & Bendahara */}
+                <div className="flex flex-col justify-between h-36">
+                  <div>
+                    <p className="font-normal text-black">
+                      {profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, {group.tanggalTutupBuku}
+                    </p>
+                    <p className="font-bold text-black">Bendahara</p>
+                  </div>
+                  <div>
+                    <p className="font-bold underline uppercase text-black">
+                      {profile.namaBendahara}
+                    </p>
+                    <p className="font-mono text-black font-semibold">
+                      NIP. {profile.nipBendahara}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ))}

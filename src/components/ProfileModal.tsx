@@ -322,6 +322,19 @@ export const ProfileModal: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-1">
+                  Nama Ketua P2S (Panitia Pembangunan Sekolah)
+                </label>
+                <input
+                  type="text"
+                  value={form.namaKetuaP2S || ''}
+                  onChange={(e) => handleChange('namaKetuaP2S', e.target.value)}
+                  placeholder="I MADE SUWITA, S.Pd"
+                  className="w-full text-sm font-bold text-slate-950 bg-white border-2 border-purple-900/30 rounded-xl px-3.5 py-2 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-1">
                   Nama Panitia Pembangunan / Tim Pelaksana
                 </label>
                 <input
@@ -331,19 +344,19 @@ export const ProfileModal: React.FC = () => {
                   className="w-full text-sm font-bold text-slate-950 bg-white border-2 border-purple-900/30 rounded-xl px-3.5 py-2 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
                 />
               </div>
+            </div>
 
-              <div>
-                <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-1">
-                  Kota / Tempat Penandatanganan
-                </label>
-                <input
-                  type="text"
-                  value={form.tempatPelunasan}
-                  onChange={(e) => handleChange('tempatPelunasan', e.target.value)}
-                  placeholder="Palasa"
-                  className="w-full text-sm font-bold text-slate-950 bg-white border-2 border-purple-900/30 rounded-xl px-3.5 py-2 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-1">
+                Kota / Tempat Penandatanganan
+              </label>
+              <input
+                type="text"
+                value={form.tempatPelunasan}
+                onChange={(e) => handleChange('tempatPelunasan', e.target.value)}
+                placeholder="Palasa"
+                className="w-full text-sm font-bold text-slate-950 bg-white border-2 border-purple-900/30 rounded-xl px-3.5 py-2 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden"
+              />
             </div>
           </div>
 

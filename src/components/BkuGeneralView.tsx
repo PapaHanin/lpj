@@ -12,11 +12,10 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowLeftRight,
-  Sparkles,
   Hash,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
-import { groupTransactionsByMonthlyBooks } from '../utils/calculations';
+import { groupTransactionsByMonthlyBooks, getJenisBiaya } from '../utils/calculations';
 import { formatRupiah } from '../utils/terbilang';
 import { exportLpjToExcel } from '../utils/excelExport';
 import { triggerPrint } from '../utils/printHelper';
@@ -64,10 +63,10 @@ export const BkuGeneralView: React.FC = () => {
         <div>
           <h2 className="text-base font-bold text-white flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-            Buku Kas Umum (BKU) - Tutup Buku & Tanda Tangan Per Bulan
+            Buku Kas Umum (BKU) - Format Resmi 2 Sisi (Penerimaan & Pengeluaran)
           </h2>
           <p className="text-xs text-purple-200/90">
-            Setiap bulan memiliki penutupan buku kas mandiri, saldo sisa bulan sebelumnya, serta kolom tanda tangan Kepala Sekolah dan Bendahara.
+            Sesuai format resmi: Kolom Penerimaan (1-4) & Pengeluaran (5-9), Tutup Buku Kas, dan 3 Tanda Tangan (Kepala Sekolah, Ketua P2S, Bendahara).
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -102,7 +101,7 @@ export const BkuGeneralView: React.FC = () => {
           <button
             onClick={openProfileModal}
             className="flex items-center space-x-1 bg-purple-900/80 hover:bg-purple-800 text-amber-300 border border-amber-400/30 text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 cursor-pointer"
-            title="Ganti Profil & Bulan Laporan"
+            title="Ganti Profil & Pejabat Penandatangan"
           >
             <Calendar className="w-4 h-4 text-amber-400" />
             <span>Pengaturan Profil</span>
@@ -139,464 +138,455 @@ export const BkuGeneralView: React.FC = () => {
         </div>
       </div>
 
-      {/* Info Banner on Multiple Months */}
-      {monthlyGroups.length > 1 && (
-        <div className="bg-amber-50 border-2 border-amber-300/80 rounded-2xl p-3.5 text-slate-900 flex items-center justify-between gap-3 shadow-xs print:hidden">
-          <div className="flex items-center gap-2.5 text-xs">
-            <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0" />
-            <div>
-              <span className="font-bold text-purple-950">
-                Format Penutupan Buku Bulanan Aktif:
-              </span>{' '}
-              <span className="text-purple-900">
-                Terdeteksi {monthlyGroups.length} periode bulan ({monthlyGroups.map((g) => g.label).join(', ')}). Setiap bulan ditutup otomatis dengan saldo kas bank, kas tunai, dan tanda tangan lengkap.
-              </span>
+      {/* Render Each Month Sheet */}
+      {groupsToRender.map((group, gIdx) => {
+        // Build 2-sided items (Penerimaan on left, Pengeluaran on right)
+        interface PenerimaanItem {
+          id: string;
+          tanggal: string;
+          uraian: string;
+          nomorBukti: string;
+          jumlah: number;
+          isInitial?: boolean;
+          transaction?: Transaction;
+        }
+
+        interface PengeluaranItem {
+          id: string;
+          tanggal: string;
+          uraian: string;
+          nomorBukti: string;
+          jenisBiaya: string;
+          jumlah: number;
+          transaction: Transaction;
+        }
+
+        const penerimaanItems: PenerimaanItem[] = [];
+
+        // Saldo Kas Umum Bulan Lalu jika bukan bulan pertama
+        if (!group.isFirstMonth && group.bku.initialRow) {
+          penerimaanItems.push({
+            id: `initial-${group.monthKey}`,
+            tanggal: group.bku.initialRow.tanggal,
+            uraian: group.bku.initialRow.uraian,
+            nomorBukti: '-',
+            jumlah: group.bku.initialRow.saldo,
+            isInitial: true,
+            transaction: group.bku.initialRow.transaction,
+          });
+        }
+
+        // Transaksi Penerimaan dalam bulan ini (tidak termasuk transfer internal tarik tunai)
+        group.transactions.forEach((t) => {
+          if (t.jenis === 'PENERIMAAN' && t.metode !== 'TARIK_TUNAI') {
+            penerimaanItems.push({
+              id: t.id,
+              tanggal: t.tanggal,
+              uraian: t.uraian,
+              nomorBukti: t.nomorBukti || '-',
+              jumlah: t.penerimaan,
+              transaction: t,
+            });
+          }
+        });
+
+        // Transaksi Pengeluaran dalam bulan ini (belanja riil)
+        const pengeluaranItems: PengeluaranItem[] = [];
+        group.transactions.forEach((t) => {
+          if (t.jenis === 'PENGELUARAN' || (t.metode !== 'TARIK_TUNAI' && t.pengeluaran > 0)) {
+            pengeluaranItems.push({
+              id: t.id,
+              tanggal: t.tanggal,
+              uraian: t.uraian,
+              nomorBukti: t.nomorBukti || '',
+              jenisBiaya: t.jenisBiaya || getJenisBiaya(t),
+              jumlah: t.pengeluaran,
+              transaction: t,
+            });
+          }
+        });
+
+        const maxRows = Math.max(penerimaanItems.length, pengeluaranItems.length, 8);
+        const totalPenerimaan = penerimaanItems.reduce((acc, p) => acc + p.jumlah, 0);
+        const totalPengeluaran = pengeluaranItems.reduce((acc, q) => acc + q.jumlah, 0);
+        const saldoKasUmum = totalPenerimaan - totalPengeluaran;
+
+        return (
+          <div
+            key={group.monthKey}
+            className={`bg-white rounded-xl shadow-xs border border-slate-300 p-6 sm:p-8 print:p-0 print:border-none print:shadow-none print:w-full text-black sheet-paper ${
+              gIdx > 0 ? 'mt-8 print:mt-0 print:break-before-page' : ''
+            }`}
+          >
+            {/* Kop Judul Laporan Sesuai Screenshot 1 */}
+            <div className="text-center space-y-0.5 mb-5 text-black">
+              <h1 className="text-base sm:text-lg font-bold uppercase tracking-wider text-black">
+                BUKU KAS UMUM
+              </h1>
+              <p className="text-xs sm:text-sm font-semibold text-black">
+                Bulan : {group.label}
+              </p>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Render Each Month as Its Own Dedicated Sheet */}
-      {groupsToRender.map((group, gIdx) => (
-        <div
-          key={group.monthKey}
-          className={`bg-white rounded-xl shadow-xs border border-slate-300 p-6 sm:p-8 print:p-0 print:border-none print:shadow-none print:w-full text-black sheet-paper ${
-            gIdx > 0 ? 'mt-8 print:mt-0 print:break-before-page' : ''
-          }`}
-        >
-          {/* Kop Judul Laporan */}
-          <div className="text-center space-y-1 mb-6 border-b-2 border-slate-900 pb-4 text-black">
-            <h1 className="text-lg sm:text-xl font-black uppercase tracking-wider text-black">
-              BUKU KAS UMUM
-            </h1>
-            <h2 className="text-xs sm:text-sm font-bold uppercase text-black max-w-4xl mx-auto leading-snug">
-              {profile.judulPekerjaan}
-            </h2>
-            <p className="text-xs font-bold text-black uppercase">
-              Bulan : {group.label}
-            </p>
-          </div>
+            {/* Tabel BKU Format 2 Sisi Sesuai Screenshot 1 */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse border border-black text-black font-sans">
+                <thead>
+                  {/* Tier 1 Header: Penerimaan vs Pengeluaran */}
+                  <tr className="bg-slate-100 font-bold text-center text-black">
+                    <th
+                      colSpan={4}
+                      className="border border-black py-2 px-2 text-center text-black font-bold uppercase tracking-wider bg-slate-100"
+                    >
+                      Penerimaan
+                    </th>
+                    <th
+                      colSpan={5}
+                      className="border border-black py-2 px-2 text-center text-black font-bold uppercase tracking-wider bg-slate-100"
+                    >
+                      Pengeluaran
+                    </th>
+                    <th className="border border-black py-2 px-1 w-20 text-center print:hidden bg-[#220738] text-white font-medium text-[11px]">
+                      Aksi
+                    </th>
+                  </tr>
 
-          {/* Profil Metadata Header */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-y-1 gap-x-8 text-xs font-semibold text-black mb-6">
-            <div className="space-y-1">
-              <div className="flex">
-                <span className="w-32 font-bold shrink-0 text-black">NAMA SEKOLAH</span>
-                <span className="shrink-0 mr-2 text-black">:</span>
-                <span className="font-bold text-black">{profile.namaSekolah}</span>
-              </div>
-              <div className="flex">
-                <span className="w-32 font-bold shrink-0 text-black">ALAMAT</span>
-                <span className="shrink-0 mr-2 text-black">:</span>
-                <span className="text-black font-medium">{profile.alamat}</span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="flex">
-                <span className="w-32 font-bold shrink-0 text-black">KECAMATAN</span>
-                <span className="shrink-0 mr-2 text-black">:</span>
-                <span className="font-bold text-black">{profile.kecamatan}</span>
-              </div>
-              <div className="flex">
-                <span className="w-32 font-bold shrink-0 text-black">KABUPATEN</span>
-                <span className="shrink-0 mr-2 text-black">:</span>
-                <span className="font-bold text-black">{profile.kabupaten}</span>
-              </div>
-            </div>
-          </div>
+                  {/* Tier 2 Header: 9 Kolom Resmi */}
+                  <tr className="bg-white font-bold text-center text-black">
+                    {/* Penerimaan */}
+                    <th className="border border-black py-2 px-2 w-24 text-center text-black">
+                      Tanggal
+                    </th>
+                    <th className="border border-black py-2 px-2 text-left text-black min-w-[150px]">
+                      Uraian
+                    </th>
+                    <th className="border border-black py-2 px-2 w-20 text-center text-black">
+                      No. Bukti
+                    </th>
+                    <th className="border border-black py-2 px-2 w-28 text-right text-black">
+                      Jumlah (Rp.)
+                    </th>
 
-          {/* Tabel BKU */}
-          <div className="overflow-x-auto">
-            {(() => {
-              const nonInitialRows = group.bku.rows.filter((r) => !r.isInitialRow);
-              const groupTxIds = nonInitialRows.map((r) => r.transaction.id);
-              const isAllGroupSelected =
-                groupTxIds.length > 0 &&
-                groupTxIds.every((id) => selectedTxIds.includes(id));
+                    {/* Pengeluaran */}
+                    <th className="border border-black py-2 px-2 w-24 text-center text-black">
+                      Tanggal
+                    </th>
+                    <th className="border border-black py-2 px-2 text-left text-black min-w-[170px]">
+                      Uraian
+                    </th>
+                    <th className="border border-black py-2 px-2 w-20 text-center text-black">
+                      No. Bukti
+                    </th>
+                    <th className="border border-black py-2 px-2 w-20 text-center text-black">
+                      Jenis Biaya
+                    </th>
+                    <th className="border border-black py-2 px-2 w-28 text-right text-black">
+                      Jumlah (Rp.)
+                    </th>
 
-              const toggleSelectAllGroup = () => {
-                if (isAllGroupSelected) {
-                  setSelectedTxIds((prev) =>
-                    prev.filter((id) => !groupTxIds.includes(id))
-                  );
-                } else {
-                  setSelectedTxIds((prev) =>
-                    Array.from(new Set([...prev, ...groupTxIds]))
-                  );
-                }
-              };
+                    <th className="border border-black py-2 px-1 print:hidden bg-purple-900/30 text-[10px]"></th>
+                  </tr>
 
-              const handleToggleSelect = (id: string) => {
-                setSelectedTxIds((prev) =>
-                  prev.includes(id)
-                    ? prev.filter((item) => item !== id)
-                    : [...prev, id]
-                );
-              };
+                  {/* Tier 3: Nomor Kolom 1 s/d 9 Sesuai Gambar */}
+                  <tr className="bg-slate-50 text-center text-[10px] text-black font-bold">
+                    <th className="border border-black py-0.5">1</th>
+                    <th className="border border-black py-0.5">2</th>
+                    <th className="border border-black py-0.5">3</th>
+                    <th className="border border-black py-0.5">4</th>
+                    <th className="border border-black py-0.5">5</th>
+                    <th className="border border-black py-0.5">6</th>
+                    <th className="border border-black py-0.5">7</th>
+                    <th className="border border-black py-0.5">8</th>
+                    <th className="border border-black py-0.5">9</th>
+                    <th className="border border-black py-0.5 print:hidden"></th>
+                  </tr>
+                </thead>
 
-              const handleMoveRowUp = (currTx: Transaction, prevTx?: Transaction) => {
-                if (!prevTx) return;
-                swapTransactionNomorBukti(currTx.id, prevTx.id, {
-                  swapPositions: true,
-                  swapDates: currTx.tanggal !== prevTx.tanggal,
-                });
-                showToast({
-                  type: 'success',
-                  title: 'Pindah Baris ke Atas',
-                  message: `"${currTx.uraian.slice(0, 24)}..." dipindahkan ke atas & nomor BKU diselaraskan.`,
-                });
-              };
+                <tbody>
+                  {Array.from({ length: maxRows }).map((_, idx) => {
+                    const p = penerimaanItems[idx];
+                    const q = pengeluaranItems[idx];
 
-              const handleMoveRowDown = (currTx: Transaction, nextTx?: Transaction) => {
-                if (!nextTx) return;
-                swapTransactionNomorBukti(currTx.id, nextTx.id, {
-                  swapPositions: true,
-                  swapDates: currTx.tanggal !== nextTx.tanggal,
-                });
-                showToast({
-                  type: 'success',
-                  title: 'Pindah Baris ke Bawah',
-                  message: `"${currTx.uraian.slice(0, 24)}..." dipindahkan ke bawah & nomor BKU diselaraskan.`,
-                });
-              };
+                    return (
+                      <tr
+                        key={`bku-row-${group.monthKey}-${idx}`}
+                        className="hover:bg-slate-50 transition text-black font-sans"
+                      >
+                        {/* Kolom 1: Tanggal Penerimaan */}
+                        <td className="border border-black py-1.5 px-2 text-center whitespace-nowrap">
+                          {p ? p.tanggal : ''}
+                        </td>
 
-              return (
-                <table className="w-full text-xs border-collapse border border-slate-900 text-black">
-                  <thead>
-                    <tr className="bg-slate-100 font-bold text-center text-black">
-                      <th className="border border-slate-900 py-2 px-1 w-10 text-center print:hidden bg-[#220738] text-white select-none">
-                        <input
-                          type="checkbox"
-                          title="Pilih Semua Transaksi Bulan Ini"
-                          checked={isAllGroupSelected}
-                          onChange={toggleSelectAllGroup}
-                          className="w-4 h-4 text-purple-900 rounded cursor-pointer align-middle accent-amber-400"
-                        />
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-2 w-12 text-black font-black">
-                        NO.
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-3 w-32 text-black font-black">
-                        TANGGAL
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-4 text-left text-black font-black">
-                        URAIAN TRANSAKSI
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-3 w-28 text-black font-black">
-                        No. Bukti
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-3 w-36 text-right text-black font-black">
-                        PENERIMAAN (Rp)
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-3 w-36 text-right text-black font-black">
-                        PENGELUARAN (Rp)
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-3 w-36 text-right text-black font-black">
-                        SALDO (Rp)
-                      </th>
-                      <th className="border border-slate-900 py-2.5 px-2 w-28 text-center print:hidden">
-                        Aksi
-                      </th>
-                    </tr>
-                    <tr className="bg-slate-50 font-bold text-center text-[11px] text-slate-800">
-                      <th className="border border-slate-900 py-1 print:hidden bg-purple-950/20"></th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">1</th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">2</th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">3</th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">4</th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">5</th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">6</th>
-                      <th className="border border-slate-900 py-1 text-black font-serif italic">7</th>
-                      <th className="border border-slate-900 py-1 print:hidden"></th>
-                    </tr>
-                  </thead>
+                        {/* Kolom 2: Uraian Penerimaan */}
+                        <td className="border border-black py-1.5 px-2 text-left">
+                          {p ? (
+                            <span className={p.isInitial ? 'font-bold italic text-purple-950' : 'font-medium'}>
+                              {p.uraian}
+                            </span>
+                          ) : (
+                            ''
+                          )}
+                        </td>
 
-                  {/* Baris Transaksi */}
-                  <tbody>
-                    {group.bku.rows.map((row, idx) => {
-                      const isSelected =
-                        !row.isInitialRow && selectedTxIds.includes(row.transaction.id);
+                        {/* Kolom 3: No. Bukti Penerimaan */}
+                        <td className="border border-black py-1.5 px-2 text-center font-mono font-medium">
+                          {p ? p.nomorBukti : ''}
+                        </td>
 
-                      const currentIndexInNonInitial = !row.isInitialRow
-                        ? nonInitialRows.findIndex(
-                            (r) => r.transaction.id === row.transaction.id
-                          )
-                        : -1;
-                      const canMoveUp = currentIndexInNonInitial > 0;
-                      const canMoveDown =
-                        currentIndexInNonInitial >= 0 &&
-                        currentIndexInNonInitial < nonInitialRows.length - 1;
+                        {/* Kolom 4: Jumlah Penerimaan */}
+                        <td className="border border-black py-1.5 px-2 text-right font-mono font-bold">
+                          {p ? formatRupiah(p.jumlah, false) : ''}
+                        </td>
 
-                      return (
-                        <tr
-                          key={
-                            row.isInitialRow
-                              ? `initial-${group.monthKey}`
-                              : row.transaction.id
-                          }
-                          className={`hover:bg-slate-50 transition ${
-                            row.isInitialRow
-                              ? 'bg-amber-50/50 font-bold'
-                              : isSelected
-                              ? 'bg-amber-100/70 border-l-4 border-l-amber-500 font-semibold ring-1 ring-amber-300 inset'
-                              : idx % 2 === 1
-                              ? 'bg-slate-50/40'
-                              : 'bg-white'
-                          }`}
-                        >
-                          {/* Kotak Centang (Screen only) */}
-                          <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
-                            {!row.isInitialRow ? (
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleToggleSelect(row.transaction.id)}
-                                className="w-4 h-4 text-purple-900 rounded cursor-pointer align-middle accent-purple-800"
-                                title="Centang untuk edit / hapus / tukar nomor BKU"
-                              />
-                            ) : (
-                              <span className="text-[10px] text-slate-400 font-mono">-</span>
-                            )}
-                          </td>
+                        {/* Kolom 5: Tanggal Pengeluaran */}
+                        <td className="border border-black py-1.5 px-2 text-center whitespace-nowrap">
+                          {q ? q.tanggal : ''}
+                        </td>
 
-                          <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
-                            {row.no}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 whitespace-nowrap font-medium text-black">
-                            {row.tanggal}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-4 font-bold text-black">
-                            <div className="flex items-center justify-between gap-2">
-                              <span
-                                className={
-                                  row.isInitialRow ? 'font-black italic text-purple-950' : ''
-                                }
-                              >
-                                {row.uraian}
-                              </span>
-                              {row.isInitialRow && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200/80 text-amber-950 border border-amber-400 print:hidden">
-                                  Saldo Sisa Bulan Lalu
-                                </span>
+                        {/* Kolom 6: Uraian Pengeluaran */}
+                        <td className="border border-black py-1.5 px-2 text-left">
+                          {q ? (
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-medium">{q.uraian}</span>
+                              {!q.transaction.subItems?.length && null}
+                              {q.transaction.subItems && q.transaction.subItems.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTab('bku-tunai')}
+                                  className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-300 hover:bg-purple-200 transition shrink-0 print:hidden cursor-pointer"
+                                  title="Lihat rincian di Kas Tunai"
+                                >
+                                  {q.transaction.subItems.length} item
+                                </button>
                               )}
-                              {!row.isInitialRow &&
-                                row.transaction.subItems &&
-                                row.transaction.subItems.length > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setActiveTab('bku-tunai')}
-                                    className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-950 border border-purple-300 hover:bg-purple-200 transition shrink-0 print:hidden cursor-pointer"
-                                    title="Lihat rincian belanja transaksi ini di lembar Kas Tunai"
-                                  >
-                                    <Layers className="w-3 h-3 text-purple-800" />
-                                    <span>
-                                      {row.transaction.subItems.length} Rincian di Kas Tunai
-                                    </span>
-                                  </button>
-                                )}
                             </div>
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 text-center font-mono font-bold text-black">
-                            {row.nomorBukti || ''}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 text-right font-mono font-bold text-black">
-                            {row.penerimaan > 0 ? formatRupiah(row.penerimaan, false) : ''}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 text-right font-mono font-bold text-black">
-                            {row.pengeluaran > 0 ? formatRupiah(row.pengeluaran, false) : ''}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 text-right font-mono font-bold text-black">
-                            {formatRupiah(row.saldo, false)}
-                          </td>
+                          ) : (
+                            ''
+                          )}
+                        </td>
 
-                          {/* Actions (Screen only) */}
-                          <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
-                            {!row.isInitialRow && (
-                              <div className="flex items-center justify-center space-x-1">
-                                {/* Pindah ke Atas */}
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleMoveRowUp(
-                                      row.transaction,
-                                      nonInitialRows[currentIndexInNonInitial - 1]?.transaction
-                                    )
-                                  }
-                                  disabled={!canMoveUp}
-                                  className="p-1 text-slate-600 hover:text-purple-900 hover:bg-purple-100 rounded disabled:opacity-20 disabled:cursor-not-allowed transition cursor-pointer"
-                                  title="Pindah ke Atas & selaraskan nomor BKU dengan baris di atasnya"
-                                >
-                                  <ArrowUp className="w-3.5 h-3.5" />
-                                </button>
+                        {/* Kolom 7: No. Bukti Pengeluaran */}
+                        <td className="border border-black py-1.5 px-2 text-center font-mono font-bold">
+                          {q ? q.nomorBukti : ''}
+                        </td>
 
-                                {/* Pindah ke Bawah */}
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleMoveRowDown(
-                                      row.transaction,
-                                      nonInitialRows[currentIndexInNonInitial + 1]?.transaction
-                                    )
-                                  }
-                                  disabled={!canMoveDown}
-                                  className="p-1 text-slate-600 hover:text-purple-900 hover:bg-purple-100 rounded disabled:opacity-20 disabled:cursor-not-allowed transition cursor-pointer"
-                                  title="Pindah ke Bawah & selaraskan nomor BKU dengan baris di bawahnya"
-                                >
-                                  <ArrowDown className="w-3.5 h-3.5" />
-                                </button>
+                        {/* Kolom 8: Jenis Biaya Pengeluaran Sesuai Gambar */}
+                        <td className="border border-black py-1.5 px-2 text-center font-medium">
+                          {q ? q.jenisBiaya : ''}
+                        </td>
 
-                                {/* Ganti / Sisipkan Nomor BKU (Auto-Geser) */}
-                                <button
-                                  type="button"
-                                  onClick={() => openSwapRenumberModal(row.transaction.id, undefined, 'shift')}
-                                  className="p-1 text-purple-800 hover:text-purple-950 hover:bg-purple-100 rounded transition cursor-pointer"
-                                  title="Ganti nomor BKU baris ini & otomatis geser nomor setelahnya"
-                                >
-                                  <Hash className="w-3.5 h-3.5 text-purple-700" />
-                                </button>
+                        {/* Kolom 9: Jumlah Pengeluaran */}
+                        <td className="border border-black py-1.5 px-2 text-right font-mono font-bold">
+                          {q ? formatRupiah(q.jumlah, false) : ''}
+                        </td>
 
-                                {/* Tukar Nomor BKU */}
-                                <button
-                                  type="button"
-                                  onClick={() => openSwapRenumberModal(row.transaction.id, undefined, 'swap')}
-                                  className="p-1 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded transition cursor-pointer"
-                                  title="Tukar Nomor BKU dengan transaksi lain"
-                                >
-                                  <ArrowLeftRight className="w-3.5 h-3.5" />
-                                </button>
-
-                                {row.pengeluaran > 0 && (
-                                  <button
-                                    onClick={() => {
-                                      setSelectedTransactionForKwitansi(row.transaction.id);
-                                      setActiveTab('kwitansi');
-                                    }}
-                                    className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded cursor-pointer"
-                                    title="Cetak Kwitansi"
-                                  >
-                                    <Receipt className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => openTransactionModal(row.transaction)}
-                                  className="p-1 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
-                                  title="Edit Baris"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
+                        {/* Aksi Baris (Screen Only) */}
+                        <td className="border border-black py-1.5 px-1 text-center print:hidden">
+                          {q?.transaction && (
+                            <div className="flex items-center justify-center space-x-1">
+                              {q.transaction.pengeluaran > 0 && (
                                 <button
                                   onClick={() => {
-                                    if (
-                                      window.confirm(`Hapus transaksi "${row.uraian}"?`)
-                                    ) {
-                                      deleteTransaction(row.transaction.id);
-                                    }
+                                    setSelectedTransactionForKwitansi(q.transaction.id);
+                                    setActiveTab('kwitansi');
                                   }}
-                                  className="p-1 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                                  title="Hapus"
+                                  className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded cursor-pointer"
+                                  title="Cetak Kwitansi"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Receipt className="w-3.5 h-3.5" />
                                 </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                              )}
+                              <button
+                                onClick={() => openTransactionModal(q.transaction)}
+                                className="p-1 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                                title="Edit Baris"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Hapus transaksi "${q.uraian}"?`)) {
+                                    deleteTransaction(q.transaction.id);
+                                  }
+                                }}
+                                className="p-1 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                title="Hapus"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
 
-                    {/* Baris Total / JUMLAH */}
-                    <tr className="bg-slate-100 font-bold text-black text-xs">
-                      <td className="border border-slate-900 py-2.5 px-1 print:hidden bg-slate-100"></td>
-                      <td
-                        className="border border-slate-900 py-2.5 px-2 text-center text-black font-black"
-                        colSpan={4}
-                      >
-                        JUMLAH
-                      </td>
-                  <td className="border border-slate-900 py-2.5 px-3 text-right font-mono font-black text-black">
-                    <div>{formatRupiah(group.bku.totalPenerimaan, false)}</div>
-                    <div className="text-[9px] font-normal text-emerald-800 print:hidden font-sans">
-                      {group.isFirstMonth ? 'Dana masuk rekening' : 'Akumulasi penerimaan'}
-                    </div>
-                  </td>
-                  <td className="border border-slate-900 py-2.5 px-3 text-right font-mono font-black text-rose-700">
-                    <div>{formatRupiah(group.bku.totalPengeluaran, false)}</div>
-                    <div className="text-[9px] font-normal text-rose-800 print:hidden font-sans">
-                      {group.isFirstMonth ? 'Total belanja riil' : 'Akumulasi belanja'}
-                    </div>
-                  </td>
-                  <td className="border border-slate-900 py-2.5 px-3 text-right font-mono font-black text-emerald-950">
-                    <div>{formatRupiah(group.bku.saldoAkhir, false)}</div>
-                    <div className="text-[9px] font-normal text-slate-600 print:hidden font-sans">
-                      Sisa Kas Umum ({group.monthName})
-                    </div>
-                  </td>
-                  <td className="border border-slate-900 py-2.5 px-2 print:hidden"></td>
-                </tr>
-              </tbody>
-            </table>
-              );
-            })()}
-          </div>
+                  {/* Baris Bawah 1: Total Pengeluaran (III) */}
+                  <tr className="font-bold text-black bg-white">
+                    <td className="border border-black py-1.5 px-2"></td>
+                    <td className="border border-black py-1.5 px-2"></td>
+                    <td className="border border-black py-1.5 px-2"></td>
+                    <td className="border border-black py-1.5 px-2"></td>
 
-          {/* Bagian Bawah: Penutupan Kas Per Bulan (Tutup Buku) */}
-          <div className="mt-6 pt-4 border-t border-slate-300 text-xs text-black space-y-2">
-            <p className="font-bold text-black">
-              Pada hari ini : {group.tanggalTutupBuku}
-            </p>
-            <p className="font-bold text-black">
-              Buku Kas Umum ditutup dengan keadaan/posisi Buku sebagai berikut :
-            </p>
+                    <td colSpan={4} className="border border-black py-1.5 px-3 text-left font-bold text-black">
+                      Total Pengeluaran
+                    </td>
+                    <td className="border border-black py-1.5 px-2 text-right font-mono font-bold text-black">
+                      <div>{formatRupiah(totalPengeluaran, false)}</div>
+                      <div className="text-[10px] font-normal italic text-slate-700">III</div>
+                    </td>
+                    <td className="border border-black py-1.5 px-1 print:hidden"></td>
+                  </tr>
 
-            <div className="w-full max-w-md space-y-1 pl-4 pt-1 font-mono text-black">
-              <div className="flex justify-between text-black">
-                <span className="text-black font-semibold">Sisa Saldo Bank</span>
-                <span className="font-bold text-black">: {formatRupiah(group.summary.saldoBank)}</span>
-              </div>
-              <div className="flex justify-between text-black">
-                <span className="text-black font-semibold">Sisa Saldo Kas Tunai</span>
-                <span className="font-bold text-black">: {formatRupiah(group.summary.saldoTunai)}</span>
-              </div>
-              <div className="flex justify-between border-t-2 border-slate-900 pt-1 font-bold text-black">
-                <span className="text-black font-bold">Jumlah</span>
-                <span className="font-black text-black">: {formatRupiah(group.summary.saldoKumulatif)}</span>
+                  {/* Baris Bawah 2: Saldo Kas Umum (IV = I - III) */}
+                  <tr className="font-bold text-black bg-white">
+                    <td className="border border-black py-1.5 px-2"></td>
+                    <td className="border border-black py-1.5 px-2"></td>
+                    <td className="border border-black py-1.5 px-2"></td>
+                    <td className="border border-black py-1.5 px-2"></td>
+
+                    <td colSpan={4} className="border border-black py-1.5 px-3 text-left font-bold text-black">
+                      Saldo Kas Umum
+                    </td>
+                    <td className="border border-black py-1.5 px-2 text-right font-mono font-bold text-black">
+                      <div>{formatRupiah(saldoKasUmum, false)}</div>
+                      <div className="text-[10px] font-normal italic text-slate-700 leading-tight">
+                        IV (saldo buku Kas Umum = I - III)
+                      </div>
+                    </td>
+                    <td className="border border-black py-1.5 px-1 print:hidden"></td>
+                  </tr>
+
+                  {/* Baris Bawah 3: Total Penerimaan Penyeimbang (I & II) */}
+                  <tr className="font-bold text-black bg-white">
+                    <td colSpan={3} className="border border-black py-1.5 px-3 text-left font-bold text-black">
+                      Total Penerimaan
+                    </td>
+                    <td className="border border-black py-1.5 px-2 text-right font-mono font-bold text-black">
+                      <div>{formatRupiah(totalPenerimaan, false)}</div>
+                      <div className="text-[9.5px] font-normal italic text-slate-700 leading-tight">
+                        I = (Total Penjumlahan di kolom 4 dipindahkan ke kolom II)
+                      </div>
+                    </td>
+
+                    <td colSpan={4} className="border border-black py-1.5 px-3 text-left font-bold text-black">
+                      Total Penerimaan
+                    </td>
+                    <td className="border border-black py-1.5 px-2 text-right font-mono font-bold text-black">
+                      <div>{formatRupiah(totalPengeluaran + saldoKasUmum, false)}</div>
+                      <div className="text-[9.5px] font-normal italic text-slate-700 leading-tight">
+                        II (penjumlahan III + IV) sama dengan jumlah I
+                      </div>
+                    </td>
+                    <td className="border border-black py-1.5 px-1 print:hidden"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bagian Bawah: Penutupan Kas Sesuai Format Kotak di Screenshot 1 */}
+            <div className="mt-5 text-xs text-black space-y-2 font-sans break-inside-avoid">
+              <p className="font-normal text-black">
+                Pada hari ini : <strong className="font-bold">{group.tanggalTutupBuku.split(',')[0] || 'Senin'}</strong> Tanggal{' '}
+                <strong className="font-bold">{group.tanggalTutupBuku}</strong> Buku Kas Umum ditutup dengan keadaan/posisi Buku sebagai berikut :
+              </p>
+
+              <table className="w-full max-w-xl border-collapse border border-black text-xs font-sans mt-2">
+                <tbody>
+                  <tr className="border border-black">
+                    <td className="border border-black py-1.5 px-3 font-bold w-3/5 text-black">
+                      Saldo Buku Kas Umum
+                    </td>
+                    <td className="border border-black py-1.5 px-3 font-mono font-bold text-right w-2/5 text-black">
+                      Rp {formatRupiah(group.summary.saldoKumulatif, false)}
+                    </td>
+                  </tr>
+                  <tr className="border border-black">
+                    <td className="border border-black py-2 px-3 text-black">
+                      <div className="font-bold mb-1">Terdiri dari :</div>
+                      <div className="flex justify-between pl-3 py-0.5 font-medium">
+                        <span>1. Saldo Bank</span>
+                        <span className="font-mono">: Rp {formatRupiah(group.summary.saldoBank, false)}</span>
+                      </div>
+                      <div className="flex justify-between pl-3 py-0.5 font-medium">
+                        <span>2. Saldo Kas Tunai</span>
+                        <span className="font-mono">: Rp {formatRupiah(group.summary.saldoTunai, false)}</span>
+                      </div>
+                      <div className="italic text-[11px] text-slate-700 pl-3 pt-1">
+                        (diisi penjumlahan saldo bank dan saldo kas tunai)
+                      </div>
+                    </td>
+                    <td className="border border-black py-2 px-3 font-mono font-bold text-right align-bottom text-black">
+                      Rp {formatRupiah(group.summary.saldoBank + group.summary.saldoTunai, false)}
+                    </td>
+                  </tr>
+                  <tr className="border border-black">
+                    <td className="border border-black py-1.5 px-3 font-bold text-black">
+                      Perbedaan
+                    </td>
+                    <td className="border border-black py-1.5 px-3 font-mono font-bold text-right text-black">
+                      {group.summary.saldoKumulatif - (group.summary.saldoBank + group.summary.saldoTunai) === 0
+                        ? 'Rp 0 (Nihil)'
+                        : `Rp ${formatRupiah(group.summary.saldoKumulatif - (group.summary.saldoBank + group.summary.saldoTunai), false)}`}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Kolom 3 Tanda Tangan: Mengetahui Kepala Sekolah, Ketua P2S, Bendahara Sesuai Screenshot 1 */}
+            <div className="mt-8 text-xs text-black break-inside-avoid">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                {/* Kiri: Mengetahui Kepala Sekolah */}
+                <div className="flex flex-col justify-between h-36">
+                  <div>
+                    <p className="font-normal text-black">Mengetahui,</p>
+                    <p className="font-bold text-black">Kepala {profile.namaSekolah || 'Sekolah'}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold underline uppercase text-black">
+                      {profile.namaKepalaSekolah}
+                    </p>
+                    <p className="font-mono text-black font-semibold">
+                      NIP. {profile.nipKepalaSekolah}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tengah: Ketua P2S */}
+                <div className="flex flex-col justify-between h-36">
+                  <div>
+                    <p className="font-bold text-black">Ketua P2S</p>
+                  </div>
+                  <div>
+                    <p className="font-bold underline uppercase text-black">
+                      {profile.namaKetuaP2S || profile.namaPanitia || 'Nama Ketua P2S'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Kanan: Tanggal & Bendahara */}
+                <div className="flex flex-col justify-between h-36">
+                  <div>
+                    <p className="font-normal text-black">
+                      {profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, {group.tanggalTutupBuku}
+                    </p>
+                    <p className="font-bold text-black">Bendahara</p>
+                  </div>
+                  <div>
+                    <p className="font-bold underline uppercase text-black">
+                      {profile.namaBendahara}
+                    </p>
+                    <p className="font-mono text-black font-semibold">
+                      NIP. {profile.nipBendahara}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Kolom Tanda Tangan: Kepala Sekolah & Bendahara */}
-          <div className="mt-10 text-xs text-black break-inside-avoid">
-            <p className="text-center font-bold uppercase tracking-wider mb-6 text-black">
-              {profile.namaPanitia}
-            </p>
-            <div className="grid grid-cols-2 gap-8 text-center">
-              <div className="space-y-20">
-                <p className="font-bold text-black">Kepala Sekolah</p>
-                <div>
-                  <p className="font-bold underline uppercase tracking-wide text-black">
-                    {profile.namaKepalaSekolah}
-                  </p>
-                  <p className="font-mono text-black font-semibold">
-                    NIP. {profile.nipKepalaSekolah}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-20">
-                <p className="font-bold text-black">Dibuat Oleh Bendahara</p>
-                <div>
-                  <p className="font-bold underline uppercase tracking-wide text-black">
-                    {profile.namaBendahara}
-                  </p>
-                  <p className="font-mono text-black font-semibold">
-                    NIP. {profile.nipBendahara}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Floating Selection Bar for bulk operations */}
       <TransactionSelectionBar

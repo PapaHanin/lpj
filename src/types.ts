@@ -20,6 +20,7 @@ export interface Transaction {
   penerimaan: number;
   pengeluaran: number;
   penerima?: string; // Nama pihak ketiga / penerima dana
+  jenisBiaya?: string; // e.g. "Bahan", "Upah", "Alat", "Operasional"
   subItems?: SubItem[];
   keterangan?: string;
   createdAt?: string;
@@ -40,6 +41,7 @@ export interface ProjectProfile {
   namaBendahara: string;
   nipBendahara: string;
   namaPanitia: string;
+  namaKetuaP2S?: string;
   tempatPelunasan: string;
 }
 
