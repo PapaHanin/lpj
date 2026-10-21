@@ -13,6 +13,11 @@ import {
   ArrowDown,
   ArrowLeftRight,
   Hash,
+  Eye,
+  ShoppingBag,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { groupTransactionsByMonthlyBooks } from '../utils/calculations';
@@ -27,6 +32,7 @@ export const BkuTunaiView: React.FC = () => {
     profile,
     transactions,
     openTransactionModal,
+    openNotaModal,
     deleteTransaction,
     setSelectedTransactionForKwitansi,
     setActiveTab,
@@ -39,7 +45,18 @@ export const BkuTunaiView: React.FC = () => {
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
   const [showSubDetails, setShowSubDetails] = useState<boolean>(false);
+  const [expandedTxIds, setExpandedTxIds] = useState<Set<string>>(new Set());
   const [signatureFormat, setSignatureFormat] = useState<'3_pihak' | '2_pihak'>('3_pihak');
+
+  const toggleExpandTx = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedTxIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const monthlyGroups = useMemo(
     () => groupTransactionsByMonthlyBooks(transactions, profile),
@@ -152,10 +169,10 @@ export const BkuTunaiView: React.FC = () => {
                 ? 'bg-amber-400 text-purple-950 border-amber-300 shadow-sm'
                 : 'bg-purple-900/80 hover:bg-purple-800 text-purple-200 border-purple-700'
             }`}
-            title="Tampilkan atau sembunyikan sub-rincian nota belanja di bawah uraian"
+            title="Tampilkan atau sembunyikan semua rincian barang nota belanja di tabel"
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span>{showSubDetails ? 'Sembunyikan Rincian Nota' : 'Lihat Rincian Nota'}</span>
+            <Eye className="w-3.5 h-3.5 text-amber-400" />
+            <span>{showSubDetails ? 'Sembunyikan Semua Item' : 'Tampilkan Semua Item Nota'}</span>
           </button>
           <button
             onClick={() => exportLpjToExcel(profile, transactions)}
@@ -427,22 +444,105 @@ export const BkuTunaiView: React.FC = () => {
                               <div>
                                 <span>{row.uraian}</span>
                                 {hasSub && (
-                                  <div className="mt-1 space-y-0.5">
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:hidden inline-block mr-2">
-                                      {row.transaction.subItems?.length} item nota
-                                    </span>
-                                    {showSubDetails && row.transaction.subItems && (
-                                      <div className="mt-1 text-[11px] font-normal text-slate-700 bg-slate-50 p-2 rounded border border-slate-200">
-                                        <p className="font-bold text-purple-950 mb-1">Rincian Nota Belanja:</p>
-                                        <ul className="list-disc pl-4 space-y-0.5">
-                                          {row.transaction.subItems.map((sub, sIdx) => (
-                                            <li key={sub.id || sIdx}>
-                                              <span className="font-semibold text-black">{sub.nama}</span>: {sub.volume} {sub.satuan} × {formatRupiah(sub.hargaSatuan)} = <span className="font-bold text-black">{formatRupiah(sub.subtotal)}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    )}
+                                  <div className="mt-1 space-y-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap print:hidden">
+                                      {/* Tombol Utama Klik Lihat Item Nota (Membuka Modal Penuh) */}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openNotaModal(row.transaction);
+                                        }}
+                                        className="text-[10.5px] font-extrabold px-2 py-0.5 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-950 border border-amber-400 inline-flex items-center gap-1.5 transition shadow-xs hover:shadow-sm cursor-pointer group active:scale-95 ring-1 ring-amber-300/60"
+                                        title="Klik untuk melihat daftar barang belanja nota ini"
+                                      >
+                                        <Eye className="w-3 h-3 text-amber-800 group-hover:text-black transition" />
+                                        <span>{row.transaction.subItems?.length} item nota</span>
+                                        <span className="text-[9px] bg-amber-400 text-purple-950 px-1 py-0.2 rounded font-black">
+                                          Lihat
+                                        </span>
+                                      </button>
+
+                                      {/* Tombol Buka/Tutup Tabel Rincian di Baris */}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => toggleExpandTx(row.transaction.id, e)}
+                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-950 border border-purple-300 inline-flex items-center gap-0.5 transition cursor-pointer"
+                                        title={
+                                          showSubDetails || expandedTxIds.has(row.transaction.id)
+                                            ? 'Tutup rincian tabel di baris ini'
+                                            : 'Buka rincian tabel di baris ini'
+                                        }
+                                      >
+                                        {showSubDetails || expandedTxIds.has(row.transaction.id) ? (
+                                          <>
+                                            <ChevronUp className="w-3 h-3 text-purple-900" />
+                                            <span>Tutup</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ChevronDown className="w-3 h-3 text-purple-900" />
+                                            <span>Rincian</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+
+                                    {/* Tabel Rincian Barang Belanja (Inline Table) */}
+                                    {(showSubDetails || expandedTxIds.has(row.transaction.id)) &&
+                                      row.transaction.subItems && (
+                                        <div className="mt-1.5 text-[11px] font-normal text-slate-900 bg-white p-2 rounded-xl border border-amber-300 shadow-xs print:hidden">
+                                          <div className="flex items-center justify-between gap-2 mb-1.5 pb-1 border-b border-slate-200">
+                                            <span className="font-extrabold text-purple-950 flex items-center gap-1 text-[11px]">
+                                              <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
+                                              Barang Belanja ({row.transaction.subItems.length} item):
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                openNotaModal(row.transaction);
+                                              }}
+                                              className="text-[10px] font-extrabold text-purple-900 hover:text-purple-950 flex items-center gap-0.5 underline cursor-pointer"
+                                            >
+                                              <span>Buka Layar Penuh</span>
+                                              <ExternalLink className="w-2.5 h-2.5" />
+                                            </button>
+                                          </div>
+                                          <table className="w-full text-left text-[11px] border border-slate-200 rounded overflow-hidden">
+                                            <thead>
+                                              <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                                <th className="py-1 px-1.5 text-center w-6">No</th>
+                                                <th className="py-1 px-2">Nama Barang / Material</th>
+                                                <th className="py-1 px-1.5 text-center">Vol & Satuan</th>
+                                                <th className="py-1 px-2 text-right">Harga Satuan</th>
+                                                <th className="py-1 px-2 text-right">Subtotal</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                              {row.transaction.subItems.map((sub, sIdx) => (
+                                                <tr key={sub.id || sIdx} className="hover:bg-amber-50/50">
+                                                  <td className="py-1 px-1.5 text-center text-slate-500 font-mono">
+                                                    {sIdx + 1}
+                                                  </td>
+                                                  <td className="py-1 px-2 font-bold text-slate-900">
+                                                    {sub.nama}
+                                                  </td>
+                                                  <td className="py-1 px-1.5 text-center text-slate-800 font-medium">
+                                                    {sub.volume} {sub.satuan}
+                                                  </td>
+                                                  <td className="py-1 px-2 text-right font-mono text-slate-700">
+                                                    {formatRupiah(sub.hargaSatuan)}
+                                                  </td>
+                                                  <td className="py-1 px-2 text-right font-mono font-bold text-purple-950 bg-amber-50/30">
+                                                    {formatRupiah(sub.subtotal)}
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
                                   </div>
                                 )}
                               </div>

@@ -13,6 +13,7 @@ import {
   ArrowDown,
   ArrowLeftRight,
   Hash,
+  Eye,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { groupTransactionsByMonthlyBooks, getJenisBiaya } from '../utils/calculations';
@@ -27,6 +28,7 @@ export const BkuGeneralView: React.FC = () => {
     profile,
     transactions,
     openTransactionModal,
+    openNotaModal,
     deleteTransaction,
     setSelectedTransactionForKwitansi,
     setActiveTab,
@@ -447,11 +449,12 @@ export const BkuGeneralView: React.FC = () => {
                               {q.transaction.subItems && q.transaction.subItems.length > 0 && (
                                 <button
                                   type="button"
-                                  onClick={() => setActiveTab('bku-tunai')}
-                                  className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-300 hover:bg-purple-200 transition shrink-0 print:hidden cursor-pointer"
-                                  title="Lihat rincian di Kas Tunai"
+                                  onClick={() => openNotaModal(q.transaction)}
+                                  className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 hover:border-amber-400 transition shrink-0 print:hidden cursor-pointer flex items-center gap-1 shadow-xs group active:scale-95"
+                                  title="Klik untuk melihat rincian barang belanja nota ini"
                                 >
-                                  {q.transaction.subItems.length} item
+                                  <Eye className="w-3 h-3 text-amber-800 group-hover:text-black transition" />
+                                  <span>{q.transaction.subItems.length} item nota</span>
                                 </button>
                               )}
                             </div>

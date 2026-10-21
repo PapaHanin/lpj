@@ -6,6 +6,7 @@ import {
   Receipt,
   ArrowRight,
   Sparkles,
+  Eye,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { formatRupiahBulat, terbilangRupiah } from '../utils/terbilang';
@@ -19,6 +20,7 @@ export const CetakKwitansiView: React.FC = () => {
     selectedTransactionIdForKwitansi,
     setSelectedTransactionForKwitansi,
     updateTransaction,
+    openNotaModal,
     showToast,
   } = useLpjStore();
 
@@ -97,9 +99,22 @@ export const CetakKwitansiView: React.FC = () => {
         {/* Dropdown & Quick Selector */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3 border-t border-purple-800/80">
           <div className="md:col-span-2">
-            <label className="block text-xs font-bold text-amber-300 mb-1">
-              Pilih dari Daftar Bukti BKU:
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-amber-300">
+                Pilih dari Daftar Bukti BKU:
+              </label>
+              {selectedTx?.subItems && selectedTx.subItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => openNotaModal(selectedTx)}
+                  className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-purple-950 transition flex items-center gap-1 shadow-xs cursor-pointer active:scale-95"
+                  title="Lihat rincian barang belanja nota ini"
+                >
+                  <Eye className="w-3 h-3 text-purple-950" />
+                  <span>Lihat {selectedTx.subItems.length} Item Barang Nota</span>
+                </button>
+              )}
+            </div>
             <select
               value={selectedTx?.id || ''}
               onChange={(e) => {

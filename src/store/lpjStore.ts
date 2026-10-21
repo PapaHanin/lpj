@@ -66,6 +66,12 @@ interface LpjState {
   swapRenumberInitialTxIds: [string, string] | null;
   swapRenumberDefaultTab?: 'shift' | 'swap' | 'renumber' | null;
 
+  // Modal Detail Item Nota Belanja
+  isNotaDetailModalOpen: boolean;
+  selectedTransactionForNotaModal: Transaction | null;
+  openNotaModal: (tx: Transaction) => void;
+  closeNotaModal: () => void;
+
   // Bangunan Proyek & Daftar Barang/Belanja State
   bangunanList: BangunanProyek[];
   selectedBangunanId: string;
@@ -208,6 +214,10 @@ export const useLpjStore = create<LpjState>()(
       isSwapRenumberModalOpen: false,
       swapRenumberInitialTxIds: null,
       swapRenumberDefaultTab: 'shift',
+
+      // State Modal Detail Item Nota Belanja
+      isNotaDetailModalOpen: false,
+      selectedTransactionForNotaModal: null,
 
       // State Bangunan & Daftar Barang/Belanja
       bangunanList: INITIAL_BANGUNAN_LIST,
@@ -650,6 +660,18 @@ export const useLpjStore = create<LpjState>()(
           isTransactionModalOpen: false,
           transactionToEdit: null,
           modalPreset: null,
+        }),
+
+      openNotaModal: (tx) =>
+        set({
+          isNotaDetailModalOpen: true,
+          selectedTransactionForNotaModal: tx,
+        }),
+
+      closeNotaModal: () =>
+        set({
+          isNotaDetailModalOpen: false,
+          selectedTransactionForNotaModal: null,
         }),
 
       openProfileModal: () => set({ isProfileModalOpen: true }),
