@@ -13,7 +13,9 @@ import {
   DAK_FISIK_PERIODS_2026,
   ALL_WEEKS_2026,
   createDefaultWeeksForBangunan,
+  getKodeMtp,
 } from '../utils/bahanTukangUtils';
+import { formatToSlashDate } from '../utils/dateUtils';
 import { terbilangRupiah } from '../utils/terbilang';
 import { triggerPrint } from '../utils/printHelper';
 import {
@@ -62,6 +64,7 @@ export const DaftarTukangTab: React.FC = () => {
     setAllWorkersDayAttendance,
     updateAbsenMingguanHeader,
     updatePekerjaAttendance,
+    setWorkerTotalHariKerja,
     addPekerjaToAbsen,
     updatePekerjaInfo,
     deletePekerjaFromAbsen,
@@ -177,7 +180,11 @@ export const DaftarTukangTab: React.FC = () => {
   const [isAddWorkerOpen, setIsAddWorkerOpen] = useState(false);
   const [newWorkerNama, setNewWorkerNama] = useState('');
   const [newWorkerTenagaKerja, setNewWorkerTenagaKerja] = useState('Pekerja');
+  const [newWorkerKodeMtp, setNewWorkerKodeMtp] = useState<'M' | 'T' | 'P'>('P');
+  const [newWorkerTempatTinggal, setNewWorkerTempatTinggal] = useState<'dalam_desa' | 'luar_desa'>('dalam_desa');
   const [newWorkerUpah, setNewWorkerUpah] = useState<number>(100000);
+  const [showJumlahUpahCol, setShowJumlahUpahCol] = useState<boolean>(false);
+  const [showKopIdentitas, setShowKopIdentitas] = useState<boolean>(false);
 
   // Modal Bangunan Baru State
   const [isAddBangunanOpen, setIsAddBangunanOpen] = useState(false);
@@ -198,6 +205,8 @@ export const DaftarTukangTab: React.FC = () => {
     id: string;
     nama: string;
     tenagaKerja: string;
+    kodeMtp: 'M' | 'T' | 'P';
+    tempatTinggal: 'dalam_desa' | 'luar_desa';
     upahHarian: number;
     paraf?: string;
   } | null>(null);
@@ -229,15 +238,17 @@ export const DaftarTukangTab: React.FC = () => {
 
   const pertanggal = useMemo(() => {
     if (currentAbsen.hariTanggal && !currentAbsen.hariTanggal.includes('2023')) {
-      return currentAbsen.hariTanggal;
+      return formatToSlashDate(currentAbsen.hariTanggal);
     }
-    return currentSchedule ? currentSchedule.hariTanggal : `Periode ${periodeKe} (Minggu ${mggStart} s.d ${mggEnd})`;
+    return currentSchedule ? formatToSlashDate(currentSchedule.hariTanggal) : `Periode ${periodeKe} (Minggu ${mggStart} s.d ${mggEnd})`;
   }, [currentAbsen.hariTanggal, currentSchedule, periodeKe, mggStart, mggEnd]);
 
   const namaKepalaSekolah = profile.namaKepalaSekolah || currentAbsen.namaKepalaSekolah || 'Nama Kepala Sekolah';
   const nipKepalaSekolah = profile.nipKepalaSekolah || currentAbsen.nipKepalaSekolah || '-';
   const namaBendahara = profile.namaBendahara || currentAbsen.namaBendahara || 'Nama Bendahara';
   const nipBendahara = profile.nipBendahara || currentAbsen.nipBendahara || '-';
+  const namaKetuaP2SP = profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2SP';
+  const namaPelaksana = currentAbsen.namaPelaksana || profile.namaPelaksana || 'Pelaksana';
 
   // Grand Total of Wages for the 2-week period
   const grandTotalUpah = useMemo(() => {
@@ -262,20 +273,37 @@ export const DaftarTukangTab: React.FC = () => {
     );
   }, [currentAbsen, currentSubWeek]);
 
+  const totalHari1MingguAll = useMemo(() => {
+    if (!currentAbsen) return 0;
+    return currentAbsen.pekerja.reduce(
+      (sum, p) => sum + calculateTotalHariForWeek(p.hariKerja, currentSubWeek),
+      0
+    );
+  }, [currentAbsen, currentSubWeek]);
+
   // Active Grand Total depending on format
   const activeGrandTotal = is1Week ? grandTotalUpah1Minggu : grandTotalUpah;
 
   const pertanggal1Week = useMemo(() => {
     if (currentSchedule) {
-      return currentSubWeek === 1
-        ? currentSchedule.subWeek1.hariTanggal
-        : currentSchedule.subWeek2.hariTanggal;
+      return formatToSlashDate(
+        currentSubWeek === 1
+          ? currentSchedule.subWeek1.hariTanggal
+          : currentSchedule.subWeek2.hariTanggal
+      );
     }
     if (currentAbsen.hariTanggal) {
-      return `${currentAbsen.hariTanggal} (Minggu ke-${activeWeekNum})`;
+      return formatToSlashDate(currentAbsen.hariTanggal);
     }
     return `Minggu ke-${activeWeekNum}`;
   }, [currentSchedule, currentSubWeek, currentAbsen.hariTanggal, activeWeekNum]);
+
+  // Extract end date in DD/MM/YYYY for "Tanggal ....." at bottom right
+  const tanggalTtdMingguan = useMemo(() => {
+    const parts = pertanggal1Week.split(/s\.d|s\/d|-/i).map((s) => s.trim());
+    const lastPart = parts[parts.length - 1] || pertanggal1Week;
+    return formatToSlashDate(lastPart);
+  }, [pertanggal1Week]);
 
   // Cycle Attendance: 1,00 -> 0,50 -> 0 (-) -> 1,00
   const handleToggleAttendance = (
@@ -345,7 +373,9 @@ export const DaftarTukangTab: React.FC = () => {
       newWorkerTenagaKerja,
       newWorkerNama.trim(),
       newWorkerUpah,
-      newWorkerTenagaKerja
+      newWorkerTenagaKerja,
+      newWorkerKodeMtp,
+      newWorkerTempatTinggal
     );
 
     setNewWorkerNama('');
@@ -359,6 +389,8 @@ export const DaftarTukangTab: React.FC = () => {
       upahHarian: editingWorker.upahHarian,
       kategori: editingWorker.tenagaKerja,
       tenagaKerja: editingWorker.tenagaKerja,
+      kodeMtp: editingWorker.kodeMtp,
+      tempatTinggal: editingWorker.tempatTinggal,
       paraf: editingWorker.paraf,
     });
     setEditingWorker(null);
@@ -558,151 +590,91 @@ export const DaftarTukangTab: React.FC = () => {
     });
   };
 
-  // Export to Excel: Supports 1-Week or 2-Week formats based on user preference
+  // Export to Excel: Supports 1-Week (New UPAH MINGGUAN format) or 2-Week formats
   const handleExportExcelAbsen = () => {
     if (!currentAbsen) return;
 
     if (is1Week) {
       const dataRows: (string | number)[][] = [
-        ['REKAPITULASI UPAH KERJA MINGGUAN'],
+        ['UPAH MINGGUAN'],
+        [`${namaSekolah} - ${pekerjaan} (Minggu ke-${activeWeekNum}: ${pertanggal1Week})`],
         [],
-        ['PEKERJAAN', `:\t${pekerjaan}`],
-        ['NAMA SEKOLAH', `:\t${namaSekolah}`],
-        ['ALAMAT', `:\t${alamat}`],
-        ['PERIODE (MINGGU) KE', `:\t${activeWeekNum}`],
-        ['PERTANGGAL', `:\t${pertanggal1Week}`],
-        [],
+        ['', '', 'Tempat Tinggal', '', '', '', '', ''],
         [
-          'NO.',
-          'NAMA TUKANG',
-          'TENAGA KERJA',
-          'HARI KERJA (SENIN - MINGGU)',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          'JUMLAH',
-          '',
-          '',
-          'PARAF',
-        ],
-        [
-          '',
-          '',
-          '',
-          'I',
-          'II',
-          'III',
-          'IV',
-          'V',
-          'VI',
-          'VII',
-          'TENAGA',
-          'UPAH/HARI',
-          'UPAH 1 MGG',
-          '',
-        ],
-        [
-          '',
-          '',
-          '',
-          'O/H',
-          'O/H',
-          'O/H',
-          'O/H',
-          'O/H',
-          'O/H',
-          'O/H',
-          'Org/Mgg',
-          '(Rp.)',
-          '(Rp.)',
-          '',
+          'No',
+          'Nama',
+          'Dalam Desa',
+          'Luar Desa',
+          'M/T/P',
+          'Hari Kerja',
+          'Upah Perhari',
+          'Tanda Tangan/Cap jempol',
         ],
         ...currentAbsen.pekerja.map((p, idx) => {
           const totalHari = calculateTotalHariForWeek(p.hariKerja, currentSubWeek);
-          const upah1Minggu = calculateUpahJumlahForWeek(p, currentSubWeek);
+          const mtp = p.kodeMtp || getKodeMtp(p);
+          const isLuarDesa = p.tempatTinggal === 'luar_desa';
           return [
             idx + 1,
             p.nama,
-            p.tenagaKerja || p.kategori,
-            ...activeWeekCols.map((col) =>
-              formatDayCell(getDayValue(p.hariKerja, col.key))
-            ),
-            formatDecimal(totalHari),
-            formatDecimal(p.upahHarian),
-            formatDecimal(upah1Minggu),
+            isLuarDesa ? '' : '✓',
+            isLuarDesa ? '✓' : '',
+            mtp,
+            totalHari,
+            `Rp ${p.upahHarian.toLocaleString('id-ID')}`,
             p.paraf && !/^\d+$/.test(p.paraf.trim()) ? p.paraf : '',
           ];
         }),
         [
-          'JUMLAH UPAH SATU MINGGU (Rp.)',
+          'Jumlah',
           '',
           '',
           '',
           '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          formatDecimal(grandTotalUpah1Minggu),
+          totalHari1MingguAll,
+          `Rp ${grandTotalUpah1Minggu.toLocaleString('id-ID')}`,
           '',
         ],
         [],
-        ['Mengetahui;', '', '', '', '', '', '', '', '', '', 'Lunas Bayar,'],
-        ['Kepala Sekolah,', '', '', '', '', '', '', '', '', '', 'Bendahara,'],
+        ['Catatan', ''],
+        ['M', 'Mandor'],
+        ['T', 'Tukang'],
+        ['P', 'Pekerja', '', '', '', '', `Tanggal : ${tanggalTtdMingguan}`, ''],
+        [],
+        ['', '', '', 'Mengetahui', '', '', '', ''],
+        ['Ketua P2SP', '', '', 'Pelaksana', '', '', 'Bendahara', ''],
         [],
         [],
         [],
-        [namaKepalaSekolah, '', '', '', '', '', '', '', '', '', namaBendahara],
-        [
-          `NIP.${nipKepalaSekolah.replace(/\s+/g, '')}`,
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          `NIP.${nipBendahara.replace(/\s+/g, '')}`,
-        ],
+        [namaKetuaP2SP, '', '', namaPelaksana, '', '', namaBendahara, ''],
       ];
 
       const ws = XLSX.utils.aoa_to_sheet(dataRows);
       ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } },
-        { s: { r: 8, c: 0 }, e: { r: 10, c: 0 } },
-        { s: { r: 8, c: 1 }, e: { r: 10, c: 1 } },
-        { s: { r: 8, c: 2 }, e: { r: 10, c: 2 } },
-        { s: { r: 8, c: 3 }, e: { r: 8, c: 9 } },
-        { s: { r: 8, c: 10 }, e: { r: 8, c: 12 } },
-        { s: { r: 8, c: 13 }, e: { r: 10, c: 13 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } },
+        // Tempat Tinggal merge over Dalam Desa & Luar Desa
+        { s: { r: 3, c: 2 }, e: { r: 3, c: 3 } },
+        // Jumlah row merge cols 0..4
         {
-          s: { r: 11 + currentAbsen.pekerja.length, c: 0 },
-          e: { r: 11 + currentAbsen.pekerja.length, c: 11 },
+          s: { r: 5 + currentAbsen.pekerja.length, c: 0 },
+          e: { r: 5 + currentAbsen.pekerja.length, c: 4 },
+        },
+        // Catatan header merge
+        {
+          s: { r: 7 + currentAbsen.pekerja.length, c: 0 },
+          e: { r: 7 + currentAbsen.pekerja.length, c: 1 },
         },
       ];
       ws['!cols'] = [
-        { wch: 6 }, // NO.
-        { wch: 22 }, // NAMA TUKANG
-        { wch: 18 }, // TENAGA KERJA
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 }, // 7 Hari
-        { wch: 12 }, // TENAGA Org/Mgg
-        { wch: 16 }, // UPAH/HARI (Rp.)
-        { wch: 18 }, // UPAH 1 MGG (Rp.)
-        { wch: 14 }, // PARAF (Ruang Tanda Tangan)
+        { wch: 6 },  // No
+        { wch: 24 }, // Nama
+        { wch: 13 }, // Dalam Desa
+        { wch: 13 }, // Luar Desa
+        { wch: 9 },  // M/T/P
+        { wch: 12 }, // Hari Kerja
+        { wch: 18 }, // Upah Perhari
+        { wch: 26 }, // Tanda Tangan/Cap jempol
       ];
 
       const wb = XLSX.utils.book_new();
@@ -712,7 +684,7 @@ export const DaftarTukangTab: React.FC = () => {
         .substring(0, 25);
       XLSX.writeFile(
         wb,
-        `REKAPITULASI_UPAH_1_MINGGU_${safeBangunanName}_Mgg${activeWeekNum}.xlsx`
+        `UPAH_MINGGUAN_${safeBangunanName}_Mgg${activeWeekNum}.xlsx`
       );
       return;
     }
@@ -1387,154 +1359,576 @@ export const DaftarTukangTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Printable Sheet: 1-Week or 2-Week Format */}
-      <div className="sheet-paper bg-white text-black font-sans rounded-xl shadow-2xl p-6 sm:p-8 border border-slate-300 print:shadow-none print:border-none print:m-0 print:p-0">
-        {/* Document Title */}
-        <div className="text-center mb-3 print:mb-1.5">
-          <h2 className="text-sm sm:text-base md:text-lg print:text-sm font-bold uppercase tracking-wider text-black border-b-2 border-black pb-0.5 inline-block">
-            {is1Week
-              ? 'REKAPITULASI UPAH KERJA MINGGUAN'
-              : 'REKAPITULASI UPAH KERJA DUA MINGGUAN'}
-          </h2>
-          <p className="text-xs print:text-[11px] text-slate-700 mt-0.5 font-semibold">
-            {is1Week
-              ? `(PERIODE: MINGGU KE-${activeWeekNum})`
-              : `(PERIODE DUA MINGGU: MINGGU KE-${mggStart} S.D. KE-${mggEnd})`}
-          </p>
+      {/* Quick Toggles for 1-Week Format */}
+      {is1Week && (
+        <div className="bg-[#1b052c]/90 border border-amber-500/40 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 print:hidden">
+          <div className="flex items-center space-x-2 text-xs text-amber-200">
+            <span className="px-2 py-0.5 rounded bg-amber-400 text-purple-950 font-extrabold uppercase tracking-wider text-[10px]">
+              Format Baru Upah Mingguan
+            </span>
+            <span>
+              Klik langsung pada sel <strong>Dalam Desa / Luar Desa</strong>, <strong>M/T/P</strong>, atau <strong>Hari Kerja</strong> di tabel untuk mengubah cepat.
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setShowKopIdentitas((v) => !v)}
+              className={`px-3 py-1 rounded-lg font-semibold border transition cursor-pointer ${
+                showKopIdentitas
+                  ? 'bg-purple-800/80 text-amber-300 border-amber-400/50'
+                  : 'bg-purple-950/60 text-purple-300 border-purple-800'
+              }`}
+            >
+              {showKopIdentitas ? '✓ Info Sekolah & Periode: Tampil' : '+ Tampilkan Info Sekolah'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowJumlahUpahCol((v) => !v)}
+              className={`px-3 py-1 rounded-lg font-semibold border transition cursor-pointer ${
+                showJumlahUpahCol
+                  ? 'bg-emerald-800/80 text-emerald-200 border-emerald-400/50'
+                  : 'bg-purple-950/60 text-purple-300 border-purple-800'
+              }`}
+            >
+              {showJumlahUpahCol ? '✓ Kolom Total Upah: Tampil' : '+ Tampilkan Kolom Total Upah'}
+            </button>
+          </div>
         </div>
+      )}
 
-        {/* Project Metadata Section (Top-Left Aligned with Colon Alignment like Excel Sheet) */}
-        <div className="text-xs sm:text-[13px] print:text-[11px] leading-snug print:leading-tight mb-3 print:mb-1.5 font-sans text-black">
-          <table className="border-none text-left">
-            <tbody>
-              <tr>
-                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
-                  PEKERJAAN
-                </td>
-                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
-                <td className="py-0.5 print:py-0 text-black font-normal">{pekerjaan}</td>
-              </tr>
-              <tr>
-                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
-                  NAMA SEKOLAH
-                </td>
-                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
-                <td className="py-0.5 print:py-0 text-black font-bold uppercase">
-                  {namaSekolah}
-                </td>
-              </tr>
-              <tr>
-                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
-                  ALAMAT
-                </td>
-                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
-                <td className="py-0.5 print:py-0 text-black font-normal">{alamat}</td>
-              </tr>
-              <tr>
-                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
-                  {is1Week ? 'PERIODE (MINGGU) KE' : 'PERIODE (2 MINGGU) KE'}
-                </td>
-                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
-                <td className="py-0.5 print:py-0 text-black font-bold">
-                  {is1Week ? (
-                    activeWeekNum
-                  ) : (
-                    <>
-                      {periodeKe}{' '}
-                      <span className="font-normal text-slate-700">
-                        (Minggu ke-{mggStart} s.d {mggEnd})
-                      </span>
-                    </>
+      {/* Printable Sheet: 1-Week (NEW UPAH MINGGUAN FORMAT) or 2-Week Format */}
+      {is1Week ? (
+        <div className="sheet-paper bg-white text-black font-sans rounded-xl shadow-2xl p-6 sm:p-8 border border-slate-300 print:shadow-none print:border-none print:m-0 print:p-0">
+          {/* Title matching format_upah_tukang_e7129d51.png */}
+          <div className="text-center mb-4 print:mb-3">
+            <h2 className="text-lg sm:text-xl print:text-base font-bold uppercase tracking-wide text-black">
+              UPAH MINGGUAN
+            </h2>
+          </div>
+
+          {/* Optional Project Metadata if toggled */}
+          {showKopIdentitas && (
+            <div className="text-xs sm:text-[13px] print:text-[11px] leading-snug print:leading-tight mb-3 print:mb-2 font-sans text-black">
+              <table className="border-none text-left">
+                <tbody>
+                  <tr>
+                    <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                      PEKERJAAN
+                    </td>
+                    <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                    <td className="py-0.5 print:py-0 text-black font-normal">{pekerjaan}</td>
+                  </tr>
+                  <tr>
+                    <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                      NAMA SEKOLAH
+                    </td>
+                    <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                    <td className="py-0.5 print:py-0 text-black font-bold uppercase">
+                      {namaSekolah}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                      MINGGU KE / TANGGAL
+                    </td>
+                    <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                    <td className="py-0.5 print:py-0 text-black font-semibold">
+                      Minggu Ke-{activeWeekNum} ({pertanggal1Week})
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Table matching format_upah_tukang_e7129d51.png */}
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full border-collapse text-xs sm:text-[13px] print:text-[11px] text-black font-sans">
+              <thead>
+                {/* Top Group Row: Only "Tempat Tinggal" above Dalam Desa & Luar Desa */}
+                <tr>
+                  <th className="border-none bg-transparent p-0" colSpan={2}></th>
+                  <th
+                    colSpan={2}
+                    className="border border-black bg-[#cfe2f3] text-black font-bold py-1.5 px-2 text-center"
+                  >
+                    Tempat Tinggal
+                  </th>
+                  <th
+                    className="border-none bg-transparent p-0"
+                    colSpan={showJumlahUpahCol ? 6 : 5}
+                  ></th>
+                </tr>
+
+                {/* Main Blue Header Row */}
+                <tr className="bg-[#16537e] text-white font-bold text-center">
+                  <th className="border border-black py-2 px-2 w-10 align-middle">No</th>
+                  <th className="border border-black py-2 px-3 min-w-[160px] align-middle">
+                    Nama
+                  </th>
+                  <th className="border border-black py-2 px-2 w-28 align-middle">
+                    Dalam Desa
+                  </th>
+                  <th className="border border-black py-2 px-2 w-28 align-middle">
+                    Luar Desa
+                  </th>
+                  <th
+                    className="border border-black py-2 px-2 w-20 align-middle"
+                    title="M = Mandor, T = Tukang, P = Pekerja"
+                  >
+                    M/T/P
+                  </th>
+                  <th className="border border-black py-2 px-2 w-24 align-middle">
+                    Hari Kerja
+                  </th>
+                  <th className="border border-black py-2 px-3 w-36 align-middle">
+                    Upah Perhari
+                  </th>
+                  {showJumlahUpahCol && (
+                    <th className="border border-black py-2 px-3 w-36 align-middle">
+                      Jumlah Upah
+                    </th>
                   )}
-                </td>
-              </tr>
-              <tr>
-                <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
-                  PERTANGGAL
-                </td>
-                <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
-                <td className="py-0.5 print:py-0 text-black font-normal">
-                  {is1Week ? pertanggal1Week : pertanggal}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <th className="border border-black py-2 px-3 min-w-[150px] w-44 align-middle">
+                    Tanda Tangan/Cap jempol
+                  </th>
+                  <th className="border border-black py-2 px-2 w-16 align-middle print:hidden bg-slate-800 text-amber-300">
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {currentAbsen.pekerja.map((worker, idx) => {
+                  const totalHari1Minggu = calculateTotalHariForWeek(
+                    worker.hariKerja,
+                    currentSubWeek
+                  );
+                  const upah1Minggu = calculateUpahJumlahForWeek(
+                    worker,
+                    currentSubWeek
+                  );
+                  const kodeMtp = getKodeMtp(worker);
+                  const isLuarDesa = worker.tempatTinggal === 'luar_desa';
+                  const isEvenRow = idx % 2 === 1;
+                  const blueCellBg = isEvenRow ? 'bg-white' : 'bg-[#cfe2f3]';
+                  const greenCellBg = 'bg-[#d9ead3]';
+
+                  return (
+                    <tr
+                      key={`${worker.id}-${idx}`}
+                      className="border-b border-black transition-colors"
+                    >
+                      {/* No */}
+                      <td
+                        className={`border border-black py-1.5 px-2 text-center font-medium ${blueCellBg}`}
+                      >
+                        {idx + 1}
+                      </td>
+
+                      {/* Nama */}
+                      <td
+                        className={`border border-black py-1.5 px-3 text-left font-medium uppercase whitespace-nowrap ${blueCellBg}`}
+                      >
+                        {worker.nama}
+                      </td>
+
+                      {/* Dalam Desa */}
+                      <td
+                        onClick={() =>
+                          updatePekerjaInfo(currentAbsen.id, worker.id, {
+                            tempatTinggal: 'dalam_desa',
+                          })
+                        }
+                        className={`border border-black py-1.5 px-2 text-center font-bold cursor-pointer select-none hover:opacity-80 ${blueCellBg}`}
+                        title="Klik untuk pilih Tempat Tinggal: Dalam Desa"
+                      >
+                        {!isLuarDesa ? '✓' : ''}
+                      </td>
+
+                      {/* Luar Desa */}
+                      <td
+                        onClick={() =>
+                          updatePekerjaInfo(currentAbsen.id, worker.id, {
+                            tempatTinggal: 'luar_desa',
+                          })
+                        }
+                        className={`border border-black py-1.5 px-2 text-center font-bold cursor-pointer select-none hover:opacity-80 ${blueCellBg}`}
+                        title="Klik untuk pilih Tempat Tinggal: Luar Desa"
+                      >
+                        {isLuarDesa ? '✓' : ''}
+                      </td>
+
+                      {/* M/T/P */}
+                      <td
+                        onClick={() => {
+                          const nextCode: 'M' | 'T' | 'P' =
+                            kodeMtp === 'M' ? 'T' : kodeMtp === 'T' ? 'P' : 'M';
+                          const nextRole =
+                            nextCode === 'M'
+                              ? 'Kepala Tukang'
+                              : nextCode === 'T'
+                              ? 'Tukang'
+                              : 'Pekerja';
+                          const nextKategori =
+                            nextCode === 'M'
+                              ? 'Mandor'
+                              : nextCode === 'T'
+                              ? 'Tukang'
+                              : 'Pekerja';
+                          updatePekerjaInfo(currentAbsen.id, worker.id, {
+                            kodeMtp: nextCode,
+                            tenagaKerja: nextRole,
+                            kategori: nextKategori,
+                          });
+                        }}
+                        className={`border border-black py-1.5 px-2 text-center font-bold cursor-pointer select-none hover:opacity-80 ${blueCellBg}`}
+                        title="Klik untuk mengganti kode M (Mandor) / T (Tukang) / P (Pekerja)"
+                      >
+                        {kodeMtp}
+                      </td>
+
+                      {/* Hari Kerja */}
+                      <td
+                        className={`border border-black py-1 px-2 text-center font-semibold ${blueCellBg}`}
+                      >
+                        <div className="flex items-center justify-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setWorkerTotalHariKerja(
+                                currentAbsen.id,
+                                worker.id,
+                                Math.max(0, totalHari1Minggu - 1),
+                                currentSubWeek
+                              )
+                            }
+                            className="w-4 h-4 rounded bg-black/10 hover:bg-black/20 text-black text-[10px] font-bold flex items-center justify-center print:hidden cursor-pointer"
+                            title="Kurangi 1 hari kerja"
+                          >
+                            -
+                          </button>
+                          <span className="min-w-[20px] text-center">
+                            {formatDecimal(totalHari1Minggu)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setWorkerTotalHariKerja(
+                                currentAbsen.id,
+                                worker.id,
+                                Math.min(7, totalHari1Minggu + 1),
+                                currentSubWeek
+                              )
+                            }
+                            className="w-4 h-4 rounded bg-black/10 hover:bg-black/20 text-black text-[10px] font-bold flex items-center justify-center print:hidden cursor-pointer"
+                            title="Tambah 1 hari kerja"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Upah Perhari (Green column matching image) */}
+                      <td
+                        className={`border border-black py-1.5 px-2.5 text-right font-medium tabular-nums whitespace-nowrap ${greenCellBg}`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>Rp</span>
+                          <span>{formatDecimal(worker.upahHarian)}</span>
+                        </div>
+                      </td>
+
+                      {/* Optional Jumlah Upah 1 Minggu */}
+                      {showJumlahUpahCol && (
+                        <td
+                          className={`border border-black py-1.5 px-2.5 text-right font-semibold tabular-nums whitespace-nowrap ${greenCellBg}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>Rp</span>
+                            <span>{formatDecimal(upah1Minggu)}</span>
+                          </div>
+                        </td>
+                      )}
+
+                      {/* Tanda Tangan / Cap jempol (Green column matching image) */}
+                      <td
+                        className={`border border-black py-2 px-2 text-center font-normal h-8 sm:h-9 print:h-7 ${greenCellBg}`}
+                      >
+                        {worker.paraf && !/^\d+$/.test(worker.paraf.trim())
+                          ? worker.paraf
+                          : ''}
+                      </td>
+
+                      {/* Aksi (print:hidden) */}
+                      <td className="border border-black py-1 px-1 text-center print:hidden bg-slate-50">
+                        <div className="flex items-center justify-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditingWorker({
+                                id: worker.id,
+                                nama: worker.nama,
+                                tenagaKerja: worker.tenagaKerja || worker.kategori,
+                                kodeMtp: getKodeMtp(worker),
+                                tempatTinggal: worker.tempatTinggal || 'dalam_desa',
+                                upahHarian: worker.upahHarian,
+                                paraf: worker.paraf,
+                              })
+                            }
+                            className="p-1 text-blue-600 hover:bg-blue-100 rounded transition cursor-pointer"
+                            title="Edit pekerja"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Hapus pekerja ${worker.nama} dari daftar periode ini?`
+                                )
+                              ) {
+                                deletePekerjaFromAbsen(currentAbsen.id, worker.id);
+                              }
+                            }}
+                            className="p-1 text-red-600 hover:bg-red-100 rounded transition cursor-pointer"
+                            title="Hapus pekerja"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {/* Footer Row: Jumlah */}
+                <tr className="font-bold text-black">
+                  <td
+                    colSpan={5}
+                    className="border border-black bg-[#cfe2f3] py-2 px-3 text-center font-bold"
+                  >
+                    Jumlah
+                  </td>
+                  <td className="border border-black bg-[#cfe2f3] py-2 px-2 text-center font-bold tabular-nums">
+                    {formatDecimal(totalHari1MingguAll)}
+                  </td>
+                  <td className="border border-black bg-[#d9ead3] py-2 px-2.5 text-right font-bold tabular-nums whitespace-nowrap">
+                    <div className="flex items-center justify-between">
+                      <span>Rp</span>
+                      <span>
+                        {formatDecimal(
+                          showJumlahUpahCol
+                            ? currentAbsen.pekerja.reduce(
+                                (acc, w) => acc + (w.upahHarian || 0),
+                                0
+                              )
+                            : grandTotalUpah1Minggu
+                        )}
+                      </span>
+                    </div>
+                  </td>
+                  {showJumlahUpahCol && (
+                    <td className="border border-black bg-[#d9ead3] py-2 px-2.5 text-right font-bold tabular-nums whitespace-nowrap">
+                      <div className="flex items-center justify-between">
+                        <span>Rp</span>
+                        <span>{formatDecimal(grandTotalUpah1Minggu)}</span>
+                      </div>
+                    </td>
+                  )}
+                  <td className="border border-black bg-[#d9ead3] py-2 px-2 text-center"></td>
+                  <td className="border border-black bg-slate-50 py-2 px-1 print:hidden"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bottom Section matching format_upah_tukang_e7129d51.png: Catatan M/T/P & Tanggal */}
+          <div className="mt-4 print:mt-3 flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs sm:text-[13px] print:text-[11px] text-black font-sans break-inside-avoid">
+            {/* Left: Catatan M/T/P */}
+            <div>
+              <p className="font-bold mb-0.5">Catatan:</p>
+              <table className="border-none text-left">
+                <tbody>
+                  <tr>
+                    <td className="font-semibold pr-3 py-0">M</td>
+                    <td className="py-0">Mandor</td>
+                  </tr>
+                  <tr>
+                    <td className="font-semibold pr-3 py-0">T</td>
+                    <td className="py-0">Tukang</td>
+                  </tr>
+                  <tr>
+                    <td className="font-semibold pr-3 py-0">P</td>
+                    <td className="py-0">Pekerja</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Right: Tanggal DD/MM/YYYY */}
+            <div className="sm:pr-12 print:pr-8 pt-1">
+              <p className="font-medium">
+                Tanggal : <span className="font-semibold">{tanggalTtdMingguan}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Mengetahui & 3 Signatures: Ketua P2SP, Pelaksana, Bendahara */}
+          <div className="mt-4 print:mt-3 text-xs sm:text-[13px] print:text-[11px] text-black font-sans break-inside-avoid page-break-inside-avoid">
+            <p className="text-center font-medium mb-2">Mengetahui</p>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              {/* Ketua P2SP */}
+              <div>
+                <p className="font-medium">Ketua P2SP</p>
+                <div className="h-14 sm:h-16 print:h-12" />
+                <p className="font-bold underline uppercase">{namaKetuaP2SP}</p>
+              </div>
+
+              {/* Pelaksana */}
+              <div>
+                <p className="font-medium">Pelaksana</p>
+                <div className="h-14 sm:h-16 print:h-12" />
+                <p className="font-bold underline uppercase">{namaPelaksana}</p>
+              </div>
+
+              {/* Bendahara */}
+              <div>
+                <p className="font-medium">Bendahara</p>
+                <div className="h-14 sm:h-16 print:h-12" />
+                <p className="font-bold underline uppercase">{namaBendahara}</p>
+                {nipBendahara && nipBendahara !== '-' && (
+                  <p className="text-[11px] print:text-[10px] tabular-nums">
+                    NIP. {nipBendahara}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
+      ) : (
+        <div className="sheet-paper bg-white text-black font-sans rounded-xl shadow-2xl p-6 sm:p-8 border border-slate-300 print:shadow-none print:border-none print:m-0 print:p-0">
+          {/* Document Title */}
+          <div className="text-center mb-3 print:mb-1.5">
+            <h2 className="text-sm sm:text-base md:text-lg print:text-sm font-bold uppercase tracking-wider text-black border-b-2 border-black pb-0.5 inline-block">
+              REKAPITULASI UPAH KERJA DUA MINGGUAN
+            </h2>
+            <p className="text-xs print:text-[11px] text-slate-700 mt-0.5 font-semibold">
+              {`(PERIODE DUA MINGGU: MINGGU KE-${mggStart} S.D. KE-${mggEnd})`}
+            </p>
+          </div>
 
-        {/* Table Structure: Supports 1-Week (7 Days) and 2-Week (14 Days) */}
-        <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full border-collapse border border-black text-xs sm:text-[13px] print:text-[10px] text-black font-sans">
-            <thead>
-              {/* Header Tier 1 */}
-              <tr className="border-b border-black font-bold bg-white text-black text-center">
-                <th
-                  rowSpan={3}
-                  className="border border-black px-1.5 py-1 print:py-0.5 text-center w-7 align-middle"
-                >
-                  NO.
-                </th>
-                <th
-                  rowSpan={3}
-                  className="border border-black px-2 py-1 print:py-0.5 text-center min-w-[130px] align-middle"
-                >
-                  NAMA TUKANG
-                </th>
-                <th
-                  rowSpan={3}
-                  className="border border-black px-1.5 py-1 print:py-0.5 text-center min-w-[95px] align-middle"
-                >
-                  TENAGA KERJA
-                </th>
+          {/* Project Metadata Section */}
+          <div className="text-xs sm:text-[13px] print:text-[11px] leading-snug print:leading-tight mb-3 print:mb-1.5 font-sans text-black">
+            <table className="border-none text-left">
+              <tbody>
+                <tr>
+                  <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                    PEKERJAAN
+                  </td>
+                  <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                  <td className="py-0.5 print:py-0 text-black font-normal">{pekerjaan}</td>
+                </tr>
+                <tr>
+                  <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                    NAMA SEKOLAH
+                  </td>
+                  <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                  <td className="py-0.5 print:py-0 text-black font-bold uppercase">
+                    {namaSekolah}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                    ALAMAT
+                  </td>
+                  <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                  <td className="py-0.5 print:py-0 text-black font-normal">{alamat}</td>
+                </tr>
+                <tr>
+                  <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                    PERIODE (2 MINGGU) KE
+                  </td>
+                  <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                  <td className="py-0.5 print:py-0 text-black font-bold">
+                    {periodeKe}{' '}
+                    <span className="font-normal text-slate-700">
+                      (Minggu ke-{mggStart} s.d {mggEnd})
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                    PERTANGGAL
+                  </td>
+                  <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                  <td className="py-0.5 print:py-0 text-black font-normal">
+                    {pertanggal}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-                {is1Week ? (
+          {/* 2-Week Table (14 Days) */}
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full border-collapse border border-black text-xs sm:text-[13px] print:text-[10px] text-black font-sans">
+              <thead>
+                <tr className="border-b border-black font-bold bg-white text-black text-center">
+                  <th
+                    rowSpan={3}
+                    className="border border-black px-1.5 py-1 print:py-0.5 text-center w-7 align-middle"
+                  >
+                    NO.
+                  </th>
+                  <th
+                    rowSpan={3}
+                    className="border border-black px-2 py-1 print:py-0.5 text-center min-w-[130px] align-middle"
+                  >
+                    NAMA TUKANG
+                  </th>
+                  <th
+                    rowSpan={3}
+                    className="border border-black px-1.5 py-1 print:py-0.5 text-center min-w-[95px] align-middle"
+                  >
+                    TENAGA KERJA
+                  </th>
                   <th
                     colSpan={7}
                     className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-100/80"
                   >
-                    HARI KERJA (SENIN - MINGGU)
+                    MINGGU I (HARI 1 - 7)
                   </th>
-                ) : (
-                  <>
-                    <th
-                      colSpan={7}
-                      className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-100/80"
-                    >
-                      MINGGU I (HARI 1 - 7)
-                    </th>
-                    <th
-                      colSpan={7}
-                      className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-200/70"
-                    >
-                      MINGGU II (HARI 8 - 14)
-                    </th>
-                  </>
-                )}
+                  <th
+                    colSpan={7}
+                    className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-200/70"
+                  >
+                    MINGGU II (HARI 8 - 14)
+                  </th>
+                  <th
+                    colSpan={3}
+                    className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-100/80"
+                  >
+                    JUMLAH
+                  </th>
+                  <th
+                    rowSpan={3}
+                    className="border border-black px-1.5 py-1 print:py-0.5 text-center min-w-[65px] sm:min-w-[80px] w-16 sm:w-20 print:w-16 align-middle font-bold tracking-wide"
+                  >
+                    PARAF
+                  </th>
+                  <th
+                    rowSpan={3}
+                    className="border border-black px-1.5 py-1 text-center w-10 align-middle print:hidden bg-slate-50"
+                  >
+                    AKSI
+                  </th>
+                </tr>
 
-                <th
-                  colSpan={3}
-                  className="border border-black py-1 print:py-0.5 px-1 text-center font-bold tracking-wide bg-slate-100/80"
-                >
-                  JUMLAH
-                </th>
-                <th
-                  rowSpan={3}
-                  className="border border-black px-1.5 py-1 print:py-0.5 text-center min-w-[65px] sm:min-w-[80px] w-16 sm:w-20 print:w-16 align-middle font-bold tracking-wide"
-                >
-                  PARAF
-                </th>
-                <th
-                  rowSpan={3}
-                  className="border border-black px-1.5 py-1 text-center w-10 align-middle print:hidden bg-slate-50"
-                >
-                  AKSI
-                </th>
-              </tr>
-
-              {/* Header Tier 2 */}
-              <tr className="border-b border-black font-bold bg-white text-black text-center">
-                {is1Week ? (
-                  // 1-Week Days: I s.d VII
-                  activeWeekCols.map((h) => {
+                <tr className="border-b border-black font-bold bg-white text-black text-center">
+                  {HARI_KERJA_2_MINGGU.filter((h) => h.weekGroup === 1).map((h) => {
                     const isLibur = (currentAbsen.hariLibur || []).includes(h.key);
                     return (
                       <th
@@ -1545,297 +1939,205 @@ export const DaftarTukangTab: React.FC = () => {
                             ? 'bg-red-50 text-red-700'
                             : 'hover:bg-slate-100 bg-slate-100/50'
                         }`}
-                        title={`Minggu ${activeWeekNum} Hari ${h.roman} (${h.dayName}): Klik untuk tandai libur`}
+                        title={`Minggu I Hari ${h.roman} (${h.dayName}): Klik untuk tandai libur`}
                       >
                         {h.roman}
                       </th>
                     );
-                  })
-                ) : (
-                  // 2-Week Days: Minggu I & Minggu II
-                  <>
-                    {HARI_KERJA_2_MINGGU.filter((h) => h.weekGroup === 1).map((h) => {
-                      const isLibur = (currentAbsen.hariLibur || []).includes(h.key);
-                      return (
-                        <th
-                          key={h.key}
-                          onClick={() => toggleHariLibur(currentAbsen.id, h.key)}
-                          className={`border border-black py-1 print:py-0.5 px-0.5 w-7 text-center cursor-pointer transition select-none ${
-                            isLibur
-                              ? 'bg-red-50 text-red-700'
-                              : 'hover:bg-slate-100 bg-slate-100/50'
-                          }`}
-                          title={`Minggu I Hari ${h.roman} (${h.dayName}): Klik untuk tandai libur`}
-                        >
-                          {h.roman}
-                        </th>
-                      );
-                    })}
-                    {HARI_KERJA_2_MINGGU.filter((h) => h.weekGroup === 2).map((h) => {
-                      const isLibur = (currentAbsen.hariLibur || []).includes(h.key);
-                      return (
-                        <th
-                          key={h.key}
-                          onClick={() => toggleHariLibur(currentAbsen.id, h.key)}
-                          className={`border border-black py-1 print:py-0.5 px-0.5 w-7 text-center cursor-pointer transition select-none ${
-                            isLibur
-                              ? 'bg-red-50 text-red-700'
-                              : 'hover:bg-slate-100 bg-slate-200/50'
-                          }`}
-                          title={`Minggu II Hari ${h.roman} (${h.dayName}): Klik untuk tandai libur`}
-                        >
-                          {h.roman}
-                        </th>
-                      );
-                    })}
-                  </>
-                )}
-
-                {/* Jumlah sub headers */}
-                <th className="border border-black py-1 print:py-0.5 px-1 text-center min-w-[65px]">
-                  TENAGA
-                </th>
-                <th className="border border-black py-1 print:py-0.5 px-1.5 text-center min-w-[90px]">
-                  UPAH/HARI
-                </th>
-                <th className="border border-black py-1 print:py-0.5 px-1.5 text-center min-w-[105px]">
-                  {is1Week ? 'UPAH 1 MGG' : 'UPAH 2 MGG'}
-                </th>
-              </tr>
-
-              {/* Header Tier 3 (Units: O/H, Org/Mgg or Org/2Mgg, (Rp.)) */}
-              <tr className="border-b border-black font-semibold bg-white text-black text-center text-[10px] print:text-[8.5px]">
-                {is1Week
-                  ? activeWeekCols.map((h) => (
+                  })}
+                  {HARI_KERJA_2_MINGGU.filter((h) => h.weekGroup === 2).map((h) => {
+                    const isLibur = (currentAbsen.hariLibur || []).includes(h.key);
+                    return (
                       <th
-                        key={`unit-${h.key}`}
-                        className="border border-black py-0.5 print:py-0 px-0.5 text-center font-normal"
+                        key={h.key}
+                        onClick={() => toggleHariLibur(currentAbsen.id, h.key)}
+                        className={`border border-black py-1 print:py-0.5 px-0.5 w-7 text-center cursor-pointer transition select-none ${
+                          isLibur
+                            ? 'bg-red-50 text-red-700'
+                            : 'hover:bg-slate-100 bg-slate-200/50'
+                        }`}
+                        title={`Minggu II Hari ${h.roman} (${h.dayName}): Klik untuk tandai libur`}
                       >
-                        O/H
+                        {h.roman}
                       </th>
-                    ))
-                  : HARI_KERJA_2_MINGGU.map((h) => (
-                      <th
-                        key={`unit-${h.key}`}
-                        className="border border-black py-0.5 print:py-0 px-0.5 text-center font-normal"
-                      >
-                        O/H
-                      </th>
-                    ))}
-                <th className="border border-black py-0.5 print:py-0 px-1 text-center font-normal">
-                  {is1Week ? 'Org/Mgg' : 'Org/2Mgg'}
-                </th>
-                <th className="border border-black py-0.5 print:py-0 px-1 text-center font-normal">
-                  (Rp.)
-                </th>
-                <th className="border border-black py-0.5 print:py-0 px-1 text-center font-normal">
-                  (Rp.)
-                </th>
-              </tr>
-            </thead>
+                    );
+                  })}
+                  <th className="border border-black py-1 print:py-0.5 px-1 text-center min-w-[65px]">
+                    TENAGA
+                  </th>
+                  <th className="border border-black py-1 print:py-0.5 px-1.5 text-center min-w-[90px]">
+                    UPAH/HARI
+                  </th>
+                  <th className="border border-black py-1 print:py-0.5 px-1.5 text-center min-w-[105px]">
+                    UPAH 2 MGG
+                  </th>
+                </tr>
 
-            {/* Data Rows */}
-            <tbody>
-              {currentAbsen.pekerja.map((worker, idx) => {
-                const totalHari2Minggu = calculateTotalHari(worker.hariKerja);
-                const totalHari1Minggu = calculateTotalHariForWeek(
-                  worker.hariKerja,
-                  currentSubWeek
-                );
-                const upah2Minggu = calculateUpahJumlah(worker);
-                const upah1Minggu = calculateUpahJumlahForWeek(
-                  worker,
-                  currentSubWeek
-                );
+                <tr className="border-b border-black font-semibold bg-white text-black text-center text-[10px] print:text-[8.5px]">
+                  {HARI_KERJA_2_MINGGU.map((h) => (
+                    <th
+                      key={`unit-${h.key}`}
+                      className="border border-black py-0.5 print:py-0 px-0.5 text-center font-normal"
+                    >
+                      O/H
+                    </th>
+                  ))}
+                  <th className="border border-black py-0.5 print:py-0 px-1 text-center font-normal">
+                    Org/2Mgg
+                  </th>
+                  <th className="border border-black py-0.5 print:py-0 px-1 text-center font-normal">
+                    (Rp.)
+                  </th>
+                  <th className="border border-black py-0.5 print:py-0 px-1 text-center font-normal">
+                    (Rp.)
+                  </th>
+                </tr>
+              </thead>
 
-                const activeTotalHari = is1Week
-                  ? totalHari1Minggu
-                  : totalHari2Minggu;
-                const activeUpahPekerja = is1Week ? upah1Minggu : upah2Minggu;
-                const rowNum = idx + 1;
+              <tbody>
+                {currentAbsen.pekerja.map((worker, idx) => {
+                  const totalHari2Minggu = calculateTotalHari(worker.hariKerja);
+                  const upah2Minggu = calculateUpahJumlah(worker);
+                  const rowNum = idx + 1;
 
-                return (
-                  <tr
-                    key={`${worker.id}-${idx}`}
-                    className="border-b border-black hover:bg-amber-50/30 transition-colors"
-                  >
-                    {/* NO. */}
-                    <td className="border border-black py-1 print:py-0.5 px-1 text-center font-normal">
-                      {rowNum}
-                    </td>
+                  return (
+                    <tr
+                      key={`${worker.id}-${idx}`}
+                      className="border-b border-black hover:bg-amber-50/30 transition-colors"
+                    >
+                      <td className="border border-black py-1 print:py-0.5 px-1 text-center font-normal">
+                        {rowNum}
+                      </td>
+                      <td className="border border-black py-1 print:py-0.5 px-2 text-left font-normal uppercase whitespace-nowrap">
+                        {worker.nama}
+                      </td>
+                      <td className="border border-black py-1 print:py-0.5 px-1.5 text-left whitespace-nowrap">
+                        {worker.tenagaKerja || worker.kategori}
+                      </td>
+                      {HARI_KERJA_2_MINGGU.map((h) => {
+                        const dayVal = getDayValue(worker.hariKerja, h.key);
+                        const isLibur = (currentAbsen.hariLibur || []).includes(
+                          h.key
+                        );
 
-                    {/* NAMA TUKANG */}
-                    <td className="border border-black py-1 print:py-0.5 px-2 text-left font-normal uppercase whitespace-nowrap">
-                      {worker.nama}
-                    </td>
-
-                    {/* TENAGA KERJA */}
-                    <td className="border border-black py-1 print:py-0.5 px-1.5 text-left whitespace-nowrap">
-                      {worker.tenagaKerja || worker.kategori}
-                    </td>
-
-                    {/* Day Columns */}
-                    {is1Week
-                      ? activeWeekCols.map((h) => {
-                          const dayVal = getDayValue(worker.hariKerja, h.key);
-                          const isLibur = (currentAbsen.hariLibur || []).includes(
-                            h.key
-                          );
-
-                          return (
-                            <td
-                              key={h.key}
-                              onClick={() =>
-                                handleToggleAttendance(worker.id, h.key, dayVal)
-                              }
-                              className={`border border-black py-1 print:py-0.5 px-0.5 text-center font-normal cursor-pointer select-none transition ${
-                                isLibur
-                                  ? 'bg-red-50/60 text-red-700 hover:bg-red-100'
-                                  : 'hover:bg-amber-100/70'
-                              }`}
-                              title={`Klik untuk ubah kehadiran ${worker.nama} (${h.label}): ${formatDayCell(dayVal)}`}
-                            >
-                              {formatDayCell(dayVal)}
-                            </td>
-                          );
-                        })
-                      : HARI_KERJA_2_MINGGU.map((h) => {
-                          const dayVal = getDayValue(worker.hariKerja, h.key);
-                          const isLibur = (currentAbsen.hariLibur || []).includes(
-                            h.key
-                          );
-
-                          return (
-                            <td
-                              key={h.key}
-                              onClick={() =>
-                                handleToggleAttendance(worker.id, h.key, dayVal)
-                              }
-                              className={`border border-black py-1 print:py-0.5 px-0.5 text-center font-normal cursor-pointer select-none transition ${
-                                isLibur
-                                  ? 'bg-red-50/60 text-red-700 hover:bg-red-100'
-                                  : h.weekGroup === 2
-                                  ? 'bg-slate-50/60 hover:bg-amber-100/70'
-                                  : 'hover:bg-amber-100/70'
-                              }`}
-                              title={`Klik untuk ubah kehadiran ${worker.nama} (${h.label}): ${formatDayCell(dayVal)}`}
-                            >
-                              {formatDayCell(dayVal)}
-                            </td>
-                          );
-                        })}
-
-                    {/* TENAGA (Org/Mgg or Org/2Mgg) */}
-                    <td className="border border-black py-1 print:py-0.5 px-1 text-center font-normal">
-                      {formatDecimal(activeTotalHari)}
-                    </td>
-
-                    {/* UPAH/HARI (Rp.) */}
-                    <td className="border border-black py-1 print:py-0.5 px-1.5 text-right font-normal tabular-nums whitespace-nowrap">
-                      {formatDecimal(worker.upahHarian)}
-                    </td>
-
-                    {/* UPAH JUMLAH (Rp.) */}
-                    <td className="border border-black py-1 print:py-0.5 px-2 text-right font-normal tabular-nums whitespace-nowrap">
-                      {formatDecimal(activeUpahPekerja)}
-                    </td>
-
-                    {/* PARAF: Ruang kosong untuk tanda tangan tukang (tanpa angka) */}
-                    <td className="border border-black py-1.5 sm:py-2 print:py-0.5 px-1.5 text-center font-normal min-w-[65px] sm:min-w-[80px] w-16 sm:w-20 print:w-16 h-8 sm:h-9 print:h-7">
-                      {/* Sengaja dikosongkan untuk tanda tangan / paraf fisik tukang */}
-                      {worker.paraf && !/^\d+$/.test(worker.paraf.trim()) ? worker.paraf : ''}
-                    </td>
-
-                    {/* AKSI (print:hidden) */}
-                    <td className="border border-black py-1 px-1 text-center print:hidden bg-slate-50/70">
-                      <div className="flex items-center justify-center space-x-1">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditingWorker({
-                              id: worker.id,
-                              nama: worker.nama,
-                              tenagaKerja: worker.tenagaKerja || worker.kategori,
-                              upahHarian: worker.upahHarian,
-                              paraf: worker.paraf,
-                            })
-                          }
-                          className="p-1 text-blue-600 hover:bg-blue-100 rounded transition cursor-pointer"
-                          title="Edit nama, jabatan, upah"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (
-                              confirm(
-                                `Hapus pekerja ${worker.nama} dari daftar periode ini?`
-                              )
-                            ) {
-                              deletePekerjaFromAbsen(currentAbsen.id, worker.id);
+                        return (
+                          <td
+                            key={h.key}
+                            onClick={() =>
+                              handleToggleAttendance(worker.id, h.key, dayVal)
                             }
-                          }}
-                          className="p-1 text-red-600 hover:bg-red-100 rounded transition cursor-pointer"
-                          title="Hapus pekerja"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                            className={`border border-black py-1 print:py-0.5 px-0.5 text-center font-normal cursor-pointer select-none transition ${
+                              isLibur
+                                ? 'bg-red-50/60 text-red-700 hover:bg-red-100'
+                                : h.weekGroup === 2
+                                ? 'bg-slate-50/60 hover:bg-amber-100/70'
+                                : 'hover:bg-amber-100/70'
+                            }`}
+                            title={`Klik untuk ubah kehadiran ${worker.nama} (${h.label}): ${formatDayCell(dayVal)}`}
+                          >
+                            {formatDayCell(dayVal)}
+                          </td>
+                        );
+                      })}
+                      <td className="border border-black py-1 print:py-0.5 px-1 text-center font-normal">
+                        {formatDecimal(totalHari2Minggu)}
+                      </td>
+                      <td className="border border-black py-1 print:py-0.5 px-1.5 text-right font-normal tabular-nums whitespace-nowrap">
+                        {formatDecimal(worker.upahHarian)}
+                      </td>
+                      <td className="border border-black py-1 print:py-0.5 px-2 text-right font-normal tabular-nums whitespace-nowrap">
+                        {formatDecimal(upah2Minggu)}
+                      </td>
+                      <td className="border border-black py-1.5 sm:py-2 print:py-0.5 px-1.5 text-center font-normal min-w-[65px] sm:min-w-[80px] w-16 sm:w-20 print:w-16 h-8 sm:h-9 print:h-7">
+                        {worker.paraf && !/^\d+$/.test(worker.paraf.trim()) ? worker.paraf : ''}
+                      </td>
+                      <td className="border border-black py-1 px-1 text-center print:hidden bg-slate-50/70">
+                        <div className="flex items-center justify-center space-x-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditingWorker({
+                                id: worker.id,
+                                nama: worker.nama,
+                                tenagaKerja: worker.tenagaKerja || worker.kategori,
+                                kodeMtp: getKodeMtp(worker),
+                                tempatTinggal: worker.tempatTinggal || 'dalam_desa',
+                                upahHarian: worker.upahHarian,
+                                paraf: worker.paraf,
+                              })
+                            }
+                            className="p-1 text-blue-600 hover:bg-blue-100 rounded transition cursor-pointer"
+                            title="Edit nama, jabatan, upah"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                confirm(
+                                  `Hapus pekerja ${worker.nama} dari daftar periode ini?`
+                                )
+                              ) {
+                                deletePekerjaFromAbsen(currentAbsen.id, worker.id);
+                              }
+                            }}
+                            className="p-1 text-red-600 hover:bg-red-100 rounded transition cursor-pointer"
+                            title="Hapus pekerja"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
 
-              {/* Bottom Total Row: JUMLAH UPAH (Rp.) */}
-              <tr className="border-t-2 border-black font-bold bg-white text-black">
-                <td
-                  colSpan={is1Week ? 12 : 19}
-                  className="border border-black py-1.5 print:py-0.5 px-3 text-center uppercase tracking-wider font-bold"
-                >
-                  {is1Week
-                    ? 'JUMLAH UPAH SATU MINGGU (Rp.)'
-                    : 'JUMLAH UPAH DUA MINGGU (Rp.)'}
-                </td>
-                <td className="border border-black py-1.5 print:py-0.5 px-2 text-right font-bold tabular-nums whitespace-nowrap">
-                  {formatDecimal(activeGrandTotal)}
-                </td>
-                <td className="border border-black py-1.5 print:py-0.5 px-1 text-center"></td>
-                <td className="border border-black py-1.5 print:py-0.5 px-1 print:hidden bg-slate-50"></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* Terbilang Box below table */}
-        <div className="mt-2.5 print:mt-1.5 p-2 print:py-1 print:px-2 border border-black/50 bg-slate-50 print:bg-white text-xs sm:text-[13px] print:text-[10px] text-black">
-          <span className="font-bold">Terbilang: </span>
-          <span className="italic font-medium">
-            {terbilangRupiah(activeGrandTotal)}
-          </span>
-        </div>
-
-        {/* Signatures Section: 2 Columns */}
-        <div className="mt-5 print:mt-3 grid grid-cols-2 gap-6 print:gap-4 text-xs sm:text-[13px] print:text-[11px] text-black font-sans break-inside-avoid page-break-inside-avoid">
-          {/* Left Column: Mengetahui; Kepala Sekolah */}
-          <div className="text-left pl-2">
-            <p className="leading-tight">Mengetahui;</p>
-            <p className="leading-tight">Kepala Sekolah,</p>
-            <div className="h-12 sm:h-14 print:h-10" />
-            <p className="font-bold underline uppercase leading-tight">{namaKepalaSekolah}</p>
-            <p className="tabular-nums leading-tight">NIP.{nipKepalaSekolah.replace(/\s+/g, '')}</p>
+                <tr className="border-t-2 border-black font-bold bg-white text-black">
+                  <td
+                    colSpan={19}
+                    className="border border-black py-1.5 print:py-0.5 px-3 text-center uppercase tracking-wider font-bold"
+                  >
+                    JUMLAH UPAH DUA MINGGU (Rp.)
+                  </td>
+                  <td className="border border-black py-1.5 print:py-0.5 px-2 text-right font-bold tabular-nums whitespace-nowrap">
+                    {formatDecimal(activeGrandTotal)}
+                  </td>
+                  <td className="border border-black py-1.5 print:py-0.5 px-1 text-center"></td>
+                  <td className="border border-black py-1.5 print:py-0.5 px-1 print:hidden bg-slate-50"></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
-          {/* Right Column: Lunas Bayar, Bendahara */}
-          <div className="text-left pl-8 sm:pl-16 print:pl-8">
-            <p className="leading-tight">Lunas Bayar,</p>
-            <p className="leading-tight">Bendahara,</p>
-            <div className="h-12 sm:h-14 print:h-10" />
-            <p className="font-bold underline uppercase leading-tight">{namaBendahara}</p>
-            <p className="tabular-nums leading-tight">NIP.{nipBendahara.replace(/\s+/g, '')}</p>
+          {/* Terbilang Box below table */}
+          <div className="mt-2.5 print:mt-1.5 p-2 print:py-1 print:px-2 border border-black/50 bg-slate-50 print:bg-white text-xs sm:text-[13px] print:text-[10px] text-black">
+            <span className="font-bold">Terbilang: </span>
+            <span className="italic font-medium">
+              {terbilangRupiah(activeGrandTotal)}
+            </span>
+          </div>
+
+          {/* Signatures Section: 2 Columns */}
+          <div className="mt-5 print:mt-3 grid grid-cols-2 gap-6 print:gap-4 text-xs sm:text-[13px] print:text-[11px] text-black font-sans break-inside-avoid page-break-inside-avoid">
+            <div className="text-left pl-2">
+              <p className="leading-tight">Mengetahui;</p>
+              <p className="leading-tight">Kepala Sekolah,</p>
+              <div className="h-12 sm:h-14 print:h-10" />
+              <p className="font-bold underline uppercase leading-tight">{namaKepalaSekolah}</p>
+              <p className="tabular-nums leading-tight">NIP.{nipKepalaSekolah.replace(/\s+/g, '')}</p>
+            </div>
+
+            <div className="text-left pl-8 sm:pl-16 print:pl-8">
+              <p className="leading-tight">Lunas Bayar,</p>
+              <p className="leading-tight">Bendahara,</p>
+              <div className="h-12 sm:h-14 print:h-10" />
+              <p className="font-bold underline uppercase leading-tight">{namaBendahara}</p>
+              <p className="tabular-nums leading-tight">NIP.{nipBendahara.replace(/\s+/g, '')}</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Modal Edit Header & Signatures */}
       {isEditHeaderOpen && (
@@ -1850,7 +2152,7 @@ export const DaftarTukangTab: React.FC = () => {
             <div className="bg-purple-950/80 border border-purple-700/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs mb-3">
               <div className="flex items-center space-x-2 text-purple-200">
                 <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>Nama Sekolah, Kepala Sekolah & Bendahara terhubung ke <strong>Pengaturan Profil</strong>.</span>
+                <span>Nama Sekolah, Kepala Sekolah, Ketua P2SP, Pelaksana & Bendahara terhubung ke <strong>Pengaturan Profil</strong>.</span>
               </div>
               <button
                 type="button"
@@ -1936,11 +2238,11 @@ export const DaftarTukangTab: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-purple-200 font-medium mb-1">
-                    Pertanggal (Rentang 14 Hari)
+                    Pertanggal (Format DD/MM/YYYY)
                   </label>
                   <input
                     type="text"
-                    placeholder="Contoh: 14 s.d 27 Agustus 2023"
+                    placeholder="Contoh: 14/08/2026 s.d 27/08/2026"
                     value={currentAbsen.hariTanggal}
                     onChange={(e) =>
                       updateAbsenMingguanHeader(currentAbsen.id, {
@@ -1956,28 +2258,28 @@ export const DaftarTukangTab: React.FC = () => {
                 <h4 className="text-amber-300 font-bold mb-2">Penandatangan Laporan (Terhubung ke Pengaturan):</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <p className="text-[11px] text-purple-300 font-semibold">Kepala Sekolah:</p>
+                    <p className="text-[11px] text-purple-300 font-semibold">Ketua P2SP:</p>
                     <input
                       type="text"
-                      placeholder="Nama Kepala Sekolah"
-                      value={profile.namaKepalaSekolah || currentAbsen.namaKepalaSekolah || ''}
+                      placeholder="Nama Ketua P2SP"
+                      value={profile.namaKetuaP2S || profile.namaPanitia || ''}
                       onChange={(e) => {
                         const val = e.target.value;
-                        updateAbsenMingguanHeader(currentAbsen.id, { namaKepalaSekolah: val });
-                        setProfile({ namaKepalaSekolah: val });
+                        setProfile({ namaKetuaP2S: val, namaPanitia: val });
                       }}
                       className="w-full bg-[#160424] border border-purple-800 rounded px-2.5 py-1.5 text-white"
                     />
+                    <p className="text-[11px] text-purple-300 font-semibold pt-1">Pelaksana:</p>
                     <input
                       type="text"
-                      placeholder="NIP Kepala Sekolah"
-                      value={profile.nipKepalaSekolah || currentAbsen.nipKepalaSekolah || ''}
+                      placeholder="Nama Pelaksana"
+                      value={profile.namaPelaksana || currentAbsen.namaPelaksana || ''}
                       onChange={(e) => {
                         const val = e.target.value;
-                        updateAbsenMingguanHeader(currentAbsen.id, { nipKepalaSekolah: val });
-                        setProfile({ nipKepalaSekolah: val });
+                        updateAbsenMingguanHeader(currentAbsen.id, { namaPelaksana: val });
+                        setProfile({ namaPelaksana: val });
                       }}
-                      className="w-full bg-[#160424] border border-purple-800 rounded px-2.5 py-1.5 text-white font-mono"
+                      className="w-full bg-[#160424] border border-purple-800 rounded px-2.5 py-1.5 text-white"
                     />
                   </div>
 
@@ -2004,6 +2306,18 @@ export const DaftarTukangTab: React.FC = () => {
                         setProfile({ nipBendahara: val });
                       }}
                       className="w-full bg-[#160424] border border-purple-800 rounded px-2.5 py-1.5 text-white font-mono"
+                    />
+                    <p className="text-[11px] text-purple-300 font-semibold pt-1">Kepala Sekolah (Format 2 Minggu):</p>
+                    <input
+                      type="text"
+                      placeholder="Nama Kepala Sekolah"
+                      value={profile.namaKepalaSekolah || currentAbsen.namaKepalaSekolah || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateAbsenMingguanHeader(currentAbsen.id, { namaKepalaSekolah: val });
+                        setProfile({ namaKepalaSekolah: val });
+                      }}
+                      className="w-full bg-[#160424] border border-purple-800 rounded px-2.5 py-1.5 text-white"
                     />
                   </div>
                 </div>
@@ -2049,36 +2363,62 @@ export const DaftarTukangTab: React.FC = () => {
 
               <div>
                 <label className="block text-purple-200 font-medium mb-1">
-                  Tenaga Kerja (Jabatan / Peran)
+                  Tempat Tinggal
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewWorkerTempatTinggal('dalam_desa')}
+                    className={`py-2 rounded-lg font-bold border text-xs transition cursor-pointer ${
+                      newWorkerTempatTinggal === 'dalam_desa'
+                        ? 'bg-amber-400 text-purple-950 border-amber-400 shadow-md'
+                        : 'bg-[#160424] text-purple-300 border-purple-800'
+                    }`}
+                  >
+                    ✓ Dalam Desa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewWorkerTempatTinggal('luar_desa')}
+                    className={`py-2 rounded-lg font-bold border text-xs transition cursor-pointer ${
+                      newWorkerTempatTinggal === 'luar_desa'
+                        ? 'bg-amber-400 text-purple-950 border-amber-400 shadow-md'
+                        : 'bg-[#160424] text-purple-300 border-purple-800'
+                    }`}
+                  >
+                    ✓ Luar Desa
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-purple-200 font-medium mb-1">
+                  Jabatan & Kode M/T/P (M = Mandor, T = Tukang, P = Pekerja)
                 </label>
                 <div className="grid grid-cols-3 gap-2 mb-2">
-                  {['Kepala Tukang', 'Tukang', 'Pekerja'].map((role) => (
+                  {[
+                    { role: 'Kepala Tukang', code: 'M' as const, label: 'M - Mandor / Ka. Tukang', wage: 150000 },
+                    { role: 'Tukang', code: 'T' as const, label: 'T - Tukang', wage: 140000 },
+                    { role: 'Pekerja', code: 'P' as const, label: 'P - Pekerja', wage: 100000 },
+                  ].map((item) => (
                     <button
-                      key={role}
+                      key={item.code}
                       type="button"
                       onClick={() => {
-                        setNewWorkerTenagaKerja(role);
-                        if (role === 'Kepala Tukang') setNewWorkerUpah(150000);
-                        else if (role === 'Tukang') setNewWorkerUpah(140000);
-                        else setNewWorkerUpah(100000);
+                        setNewWorkerTenagaKerja(item.role);
+                        setNewWorkerKodeMtp(item.code);
+                        setNewWorkerUpah(item.wage);
                       }}
-                      className={`py-2 rounded-lg font-bold border text-xs transition ${
-                        newWorkerTenagaKerja === role
+                      className={`py-2 px-1.5 rounded-lg font-bold border text-xs transition cursor-pointer ${
+                        newWorkerKodeMtp === item.code
                           ? 'bg-amber-400 text-purple-950 border-amber-400 shadow-md'
                           : 'bg-[#160424] text-purple-300 border-purple-800'
                       }`}
                     >
-                      {role}
+                      {item.label}
                     </button>
                   ))}
                 </div>
-                <input
-                  type="text"
-                  value={newWorkerTenagaKerja}
-                  onChange={(e) => setNewWorkerTenagaKerja(e.target.value)}
-                  placeholder="Atau ketik peran lain..."
-                  className="w-full bg-[#160424] border border-purple-800 rounded-lg px-3 py-2 text-white"
-                />
               </div>
 
               <div>
@@ -2095,7 +2435,7 @@ export const DaftarTukangTab: React.FC = () => {
                   className="w-full bg-[#160424] border border-purple-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-400 font-mono"
                 />
                 <p className="text-[11px] text-purple-300 mt-1">
-                  Sesuai screenshot: Kepala Tukang Rp 150rb, Tukang Rp 140rb, Pekerja Rp 100rb.
+                  Standar: Mandor (M) Rp 150.000, Tukang (T) Rp 140.000, Pekerja (P) Rp 100.000.
                 </p>
               </div>
 
@@ -2145,8 +2485,74 @@ export const DaftarTukangTab: React.FC = () => {
 
               <div>
                 <label className="block text-purple-200 font-medium mb-1">
-                  Tenaga Kerja (Jabatan / Peran)
+                  Tempat Tinggal
                 </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingWorker({
+                        ...editingWorker,
+                        tempatTinggal: 'dalam_desa',
+                      })
+                    }
+                    className={`py-2 rounded-lg font-bold border text-xs transition cursor-pointer ${
+                      editingWorker.tempatTinggal === 'dalam_desa'
+                        ? 'bg-amber-400 text-purple-950 border-amber-400 shadow-md'
+                        : 'bg-[#160424] text-purple-300 border-purple-800'
+                    }`}
+                  >
+                    ✓ Dalam Desa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingWorker({
+                        ...editingWorker,
+                        tempatTinggal: 'luar_desa',
+                      })
+                    }
+                    className={`py-2 rounded-lg font-bold border text-xs transition cursor-pointer ${
+                      editingWorker.tempatTinggal === 'luar_desa'
+                        ? 'bg-amber-400 text-purple-950 border-amber-400 shadow-md'
+                        : 'bg-[#160424] text-purple-300 border-purple-800'
+                    }`}
+                  >
+                    ✓ Luar Desa
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-purple-200 font-medium mb-1">
+                  Kode M/T/P & Jabatan
+                </label>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {[
+                    { code: 'M' as const, role: 'Kepala Tukang', label: 'M - Mandor' },
+                    { code: 'T' as const, role: 'Tukang', label: 'T - Tukang' },
+                    { code: 'P' as const, role: 'Pekerja', label: 'P - Pekerja' },
+                  ].map((item) => (
+                    <button
+                      key={item.code}
+                      type="button"
+                      onClick={() =>
+                        setEditingWorker({
+                          ...editingWorker,
+                          kodeMtp: item.code,
+                          tenagaKerja: item.role,
+                        })
+                      }
+                      className={`py-1.5 rounded-lg font-bold border text-xs transition cursor-pointer ${
+                        editingWorker.kodeMtp === item.code
+                          ? 'bg-amber-400 text-purple-950 border-amber-400 shadow-md'
+                          : 'bg-[#160424] text-purple-300 border-purple-800'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
                 <input
                   type="text"
                   value={editingWorker.tenagaKerja}
@@ -2190,9 +2596,6 @@ export const DaftarTukangTab: React.FC = () => {
                   placeholder="Kosongkan untuk ruang tanda tangan tukang"
                   className="w-full bg-[#160424] border border-purple-800 rounded-lg px-3 py-2 text-white font-mono"
                 />
-                <p className="text-[11px] text-purple-300 mt-1">
-                  Biarkan kosong agar kolom PARAF menjadi ruang kosong untuk tanda tangan tukang (tanpa angka).
-                </p>
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-2">

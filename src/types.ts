@@ -44,6 +44,7 @@ export interface ProjectProfile {
   nipBendahara: string;
   namaPanitia: string;
   namaKetuaP2S?: string;
+  namaPelaksana?: string;
   tempatPelunasan: string;
   tampilkanTarikTunaiDiBku?: boolean;
   posisiTarikTunaiDiBku?: PosisiTarikTunaiBku;
@@ -54,11 +55,34 @@ export type ActiveTab =
   | 'bku'
   | 'bku-tunai'
   | 'bk-bank'
+  | 'bku-pajak'
   | 'kwitansi'
   | 'daftar-barang'
   | 'input';
 
 export type SubTabDaftarBarang = 'bahan' | 'tukang';
+
+export type JenisPajak =
+  | 'PPN'
+  | 'PPh 22'
+  | 'PPN + PPh 22'
+  | 'PPh 21'
+  | 'PPh 23'
+  | 'PPh 4%'
+  | 'PPh Pasal 4(2)'
+  | 'Pajak Daerah';
+
+export interface PajakRowItem {
+  id: string;
+  tanggal: string; // e.g. "01/08/2026"
+  nomorBukti: string; // e.g. "BKU 01", "KW-001", "SP2D-001"
+  uraian: string;
+  penerimaan: number;
+  pengeluaran: number;
+  isTaxRow?: boolean;
+  jenisPajak?: JenisPajak;
+  linkedTxId?: string;
+}
 
 export interface CustomBahanItem {
   id: string;
@@ -70,7 +94,7 @@ export interface CustomBahanItem {
   total: number;
 }
 
-export type KategoriPekerja = 'Kepala Tukang' | 'Tukang' | 'Pekerja' | 'Knek' | 'TUKANG' | 'KNEK' | string;
+export type KategoriPekerja = 'Mandor' | 'Kepala Tukang' | 'Tukang' | 'Pekerja' | 'Knek' | 'TUKANG' | 'KNEK' | string;
 
 export interface HariKerjaRecord {
   // Minggu I (Hari 1 s.d 7)
@@ -104,7 +128,9 @@ export interface HariKerjaRecord {
 export interface PekerjaTukang {
   id: string;
   kategori: KategoriPekerja;
-  tenagaKerja?: string; // e.g. "Kepala Tukang", "Tukang", "Pekerja"
+  tenagaKerja?: string; // e.g. "Mandor", "Kepala Tukang", "Tukang", "Pekerja"
+  kodeMtp?: 'M' | 'T' | 'P'; // M = Mandor, T = Tukang, P = Pekerja
+  tempatTinggal?: 'dalam_desa' | 'luar_desa'; // Tempat tinggal: Dalam Desa / Luar Desa
   nama: string;
   hariKerja: HariKerjaRecord;
   upahHarian: number;
@@ -128,12 +154,15 @@ export interface AbsenMingguanTukang {
   lokasi: string;       // ALAMAT
   periodeKe?: number;   // PERIODE (2 MINGGU) KE (1, 2, 3...)
   mingguKe: number;     // MINGGU KE (atau nomor periode 2-mingguan)
-  hariTanggal: string;  // PERTANGGAL (e.g. "14 s.d 27 Agustus 2023")
+  hariTanggal: string;  // PERTANGGAL (e.g. "19/08/2026 s.d 26/08/2026")
   pekerja: PekerjaTukang[];
   hariLibur?: string[];
   namaKepalaSekolah?: string;
   nipKepalaSekolah?: string;
   namaBendahara?: string;
   nipBendahara?: string;
+  namaKetuaP2S?: string;
+  namaPelaksana?: string;
 }
+
 

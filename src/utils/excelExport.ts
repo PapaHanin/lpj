@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { ProjectProfile, Transaction } from '../types';
 import { groupTransactionsByMonthlyBooks } from './calculations';
 import { formatRupiahBulat, terbilangRupiah } from './terbilang';
+import { formatToSlashDate } from './dateUtils';
 import { useLpjStore } from '../store/lpjStore';
 import {
   extractDaftarBahan,
@@ -13,6 +14,7 @@ import {
   formatTotalHari,
   HARI_KERJA_2_MINGGU,
   getDayValue,
+  getKodeMtp,
 } from './bahanTukangUtils';
 
 export function exportLpjToExcel(
@@ -80,7 +82,7 @@ export function exportLpjToExcel(
       const penerimaanList: { tanggal: string; uraian: string; noBukti: string; jumlah: number }[] = [];
       if (!group.isFirstMonth && group.bku.initialRow) {
         penerimaanList.push({
-          tanggal: group.bku.initialRow.tanggal,
+          tanggal: formatToSlashDate(group.bku.initialRow.tanggal),
           uraian: group.bku.initialRow.uraian,
           noBukti: '-',
           jumlah: group.bku.initialRow.saldo,
@@ -92,7 +94,7 @@ export function exportLpjToExcel(
       group.transactions.forEach((t) => {
         if (t.jenis === 'PENERIMAAN' && t.metode !== 'TARIK_TUNAI') {
           penerimaanList.push({
-            tanggal: t.tanggal,
+            tanggal: formatToSlashDate(t.tanggal),
             uraian: t.uraian,
             noBukti: t.nomorBukti || '-',
             jumlah: t.penerimaan,
@@ -103,7 +105,7 @@ export function exportLpjToExcel(
           (posisiTarikTunai === 'penerimaan' || posisiTarikTunai === 'kedua_sisi')
         ) {
           penerimaanList.push({
-            tanggal: t.tanggal,
+            tanggal: formatToSlashDate(t.tanggal),
             uraian: `${t.uraian} [Tarik Tunai]`,
             noBukti: t.nomorBukti || '-',
             jumlah: t.penerimaan || t.pengeluaran,
@@ -115,7 +117,7 @@ export function exportLpjToExcel(
       group.transactions.forEach((t) => {
         if (t.jenis === 'PENGELUARAN' || (t.metode !== 'TARIK_TUNAI' && t.pengeluaran > 0)) {
           pengeluaranList.push({
-            tanggal: t.tanggal,
+            tanggal: formatToSlashDate(t.tanggal),
             uraian: t.uraian,
             noBukti: t.nomorBukti || '',
             jenisBiaya: t.jenisBiaya || '',
@@ -127,7 +129,7 @@ export function exportLpjToExcel(
           (posisiTarikTunai === 'pengeluaran' || posisiTarikTunai === 'kedua_sisi')
         ) {
           pengeluaranList.push({
-            tanggal: t.tanggal,
+            tanggal: formatToSlashDate(t.tanggal),
             uraian: `${t.uraian} [Tarik Tunai]`,
             noBukti: t.nomorBukti || '',
             jenisBiaya: t.jenisBiaya || 'Tarik Tunai',
@@ -167,8 +169,9 @@ export function exportLpjToExcel(
         'Total Penerimaan (II = III + IV)', '', '', '', totalPengeluaran + saldoKasUmum
       ]);
 
+      const tglTutup = formatToSlashDate(group.tanggalTutupBuku);
       sheet1Rows.push(['']);
-      sheet1Rows.push([`Pada hari ini : ${group.tanggalTutupBuku} Buku Kas Umum ditutup dengan keadaan/posisi Buku sebagai berikut :`]);
+      sheet1Rows.push([`Pada hari ini : ${tglTutup} Buku Kas Umum ditutup dengan keadaan/posisi Buku sebagai berikut :`]);
       sheet1Rows.push(['Saldo Buku Kas Umum', '', '', group.summary.saldoKumulatif]);
       sheet1Rows.push(['Terdiri dari :']);
       sheet1Rows.push(['1. Saldo Bank', '', '', group.summary.saldoBank]);
@@ -178,13 +181,13 @@ export function exportLpjToExcel(
       sheet1Rows.push(['']);
 
       // 3 Tanda Tangan: Kepala Sekolah, Ketua P2S, Bendahara
-      sheet1Rows.push(['Mengetahui,', '', '', 'Ketua P2S', '', '', `${profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, ${group.tanggalTutupBuku}`, '', '']);
+      sheet1Rows.push(['Mengetahui,', '', '', 'Ketua P2SP', '', '', `${profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, ${tglTutup}`, '', '']);
       sheet1Rows.push([`Kepala ${profile.namaSekolah || 'Sekolah'}`, '', '', '', '', '', 'Bendahara', '', '']);
       sheet1Rows.push(['', '', '', '', '', '', '', '', '']);
       sheet1Rows.push(['', '', '', '', '', '', '', '', '']);
       sheet1Rows.push([
         profile.namaKepalaSekolah, '', '',
-        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2S', '', '',
+        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2SP', '', '',
         profile.namaBendahara, '', ''
       ]);
       sheet1Rows.push([
@@ -245,7 +248,7 @@ export function exportLpjToExcel(
         if (r.isInitialRow) {
           sheet2Rows.push([
             r.no,
-            r.tanggal,
+            formatToSlashDate(r.tanggal),
             r.uraian,
             '-',
             r.penerimaan > 0 ? r.penerimaan : '',
@@ -257,7 +260,7 @@ export function exportLpjToExcel(
 
         sheet2Rows.push([
           r.nomorBukti ? r.no : '',
-          r.tanggal,
+          formatToSlashDate(r.tanggal),
           r.uraian,
           r.nomorBukti || '',
           r.penerimaan > 0 ? r.penerimaan : '',
@@ -266,6 +269,7 @@ export function exportLpjToExcel(
         ]);
       });
 
+      const tglTutup = formatToSlashDate(group.tanggalTutupBuku);
       sheet2Rows.push([
         'JUMLAH',
         '',
@@ -276,7 +280,7 @@ export function exportLpjToExcel(
         group.bkuTunai.saldoAkhir,
       ]);
       sheet2Rows.push(['']);
-      sheet2Rows.push([`Pada hari ini : ${group.tanggalTutupBuku}`]);
+      sheet2Rows.push([`Pada hari ini : ${tglTutup}`]);
       sheet2Rows.push([
         'Buku Kas Pembantu Tunai ditutup dengan keadaan/posisi Buku sebagai berikut :',
       ]);
@@ -284,13 +288,13 @@ export function exportLpjToExcel(
       sheet2Rows.push(['Terbilang', `: ${terbilangRupiah(group.summary.saldoTunai)}`]);
       sheet2Rows.push(['']);
       // 3 Tanda Tangan: Kepala Sekolah, Ketua P2S, Bendahara
-      sheet2Rows.push(['Mengetahui,', '', 'Ketua P2S', '', `${profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, ${group.tanggalTutupBuku}`, '', '']);
+      sheet2Rows.push(['Mengetahui,', '', 'Ketua P2SP', '', `${profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, ${tglTutup}`, '', '']);
       sheet2Rows.push([`Kepala ${profile.namaSekolah || 'Sekolah'}`, '', '', '', 'Bendahara', '', '']);
       sheet2Rows.push(['', '', '', '', '', '', '']);
       sheet2Rows.push(['', '', '', '', '', '', '']);
       sheet2Rows.push([
         profile.namaKepalaSekolah, '',
-        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2S', '',
+        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2SP', '',
         profile.namaBendahara, '', ''
       ]);
       sheet2Rows.push([
@@ -340,7 +344,7 @@ export function exportLpjToExcel(
       group.bkBank.rows.forEach((r) => {
         sheet3Rows.push([
           r.no,
-          r.tanggal,
+          formatToSlashDate(r.tanggal),
           r.uraian,
           r.nomorBukti || '',
           r.debet > 0 ? r.debet : '',
@@ -349,6 +353,7 @@ export function exportLpjToExcel(
         ]);
       });
 
+      const tglTutup = formatToSlashDate(group.tanggalTutupBuku);
       sheet3Rows.push([
         '',
         '',
@@ -359,7 +364,7 @@ export function exportLpjToExcel(
         group.bkBank.saldoAkhir,
       ]);
       sheet3Rows.push(['']);
-      sheet3Rows.push([`Pada hari ini : ${group.tanggalTutupBuku}`]);
+      sheet3Rows.push([`Pada hari ini : ${tglTutup}`]);
       sheet3Rows.push([
         'Buku Kas Bank ditutup dengan keadaan/posisi Buku sebagai berikut :',
       ]);
@@ -387,7 +392,73 @@ export function exportLpjToExcel(
     XLSX.utils.book_append_sheet(wb, ws3, 'BK BANK');
 
     // ==========================================
-    // SHEET 4: CETAK KWITANSI
+    // SHEET 4: BKU PAJAK (Sesuai Gambar format_bku_pajak_d1c829d3.png + 3 Tanda Tangan)
+    // ==========================================
+    let runningSaldoPajak = 0;
+    let totalTerimaPajak = 0;
+    let totalKeluarPajak = 0;
+    const pajakRowsComputed = (store.pajakRows || []).map((row, idx) => {
+      const terima = Number(row.penerimaan) || 0;
+      const keluar = Number(row.pengeluaran) || 0;
+      totalTerimaPajak += terima;
+      totalKeluarPajak += keluar;
+      runningSaldoPajak = runningSaldoPajak + terima - keluar;
+      return [
+        idx + 1,
+        formatToSlashDate(row.tanggal),
+        row.nomorBukti || '',
+        row.uraian,
+        terima > 0 ? terima : '-',
+        keluar > 0 ? keluar : '-',
+        runningSaldoPajak > 0 ? runningSaldoPajak : '-',
+      ];
+    });
+
+    const tglTutupPajak = formatToSlashDate(profile.tanggalTutupBuku || '31/08/2026');
+    const sheetPajakRows: (string | number)[][] = [
+      [profile.namaSekolah],
+      ['BUKU KAS UMUM'],
+      ['BUKU PEMBANTU PAJAK'],
+      [`BULAN : ${(profile.bulanLaporan || 'AGUSTUS 2026').toUpperCase()}`],
+      [],
+      ['Kepala Sekolah', `: ${profile.namaKepalaSekolah}`],
+      ['Bendahara Pengeluaran', `: ${profile.namaBendahara}`],
+      [],
+      ['No Urut', 'Tanggal', 'Nomor Bukti', 'Uraian', 'Penerimaan Rp.', 'Pengeluaran Rp.', 'Saldo Rp.'],
+      ['1', '2', '3', '4', '5', '6', '7'],
+      ...pajakRowsComputed,
+      ['', '', '', 'JUMLAH', totalTerimaPajak, totalKeluarPajak, runningSaldoPajak],
+      [],
+      ['Mengetahui,', '', '', 'Ketua P2SP', '', `${profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, ${tglTutupPajak}`, ''],
+      [`Kepala ${profile.namaSekolah || 'Sekolah'}`, '', '', '', '', 'Bendahara', ''],
+      ['', '', '', '', '', '', ''],
+      ['', '', '', '', '', '', ''],
+      [
+        profile.namaKepalaSekolah, '', '',
+        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2SP', '',
+        profile.namaBendahara, ''
+      ],
+      [
+        `NIP. ${profile.nipKepalaSekolah}`, '', '',
+        '', '',
+        `NIP. ${profile.nipBendahara}`, ''
+      ],
+    ];
+
+    const wsPajak = XLSX.utils.aoa_to_sheet(sheetPajakRows);
+    wsPajak['!cols'] = [
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 52 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsPajak, 'BKU PAJAK');
+
+    // ==========================================
+    // SHEET 5: CETAK KWITANSI
     // ==========================================
     const kwitansiTx =
       selectedKwitansiTx ||
@@ -396,6 +467,7 @@ export function exportLpjToExcel(
 
     const kwitansiNominal = kwitansiTx ? kwitansiTx.pengeluaran : 0;
     const kwitansiTerbilang = terbilangRupiah(kwitansiNominal);
+    const kwitansiTgl = formatToSlashDate(kwitansiTx?.tanggal || profile.tanggalTutupBuku);
 
     const sheet4Rows: (string | number)[][] = [
       ['', '', 'KWITANSI', '', ''],
@@ -414,9 +486,9 @@ export function exportLpjToExcel(
       [
         'Setuju Bayar :',
         '',
-        `Lunas Bayar : Lunas  ${kwitansiTx?.tanggal || profile.tanggalTutupBuku}`,
+        `Lunas Bayar : Lunas  ${kwitansiTgl}`,
         '',
-        kwitansiTx?.tanggal || profile.tanggalTutupBuku,
+        kwitansiTgl,
       ],
       ['Kepala Sekolah', '', 'Bendahara', '', 'Yang Menerima'],
       ['', '', '', '', ''],
@@ -449,7 +521,7 @@ export function exportLpjToExcel(
     XLSX.utils.book_append_sheet(wb, ws4, 'CETAK KWITANSI');
 
     // ==========================================
-    // SHEET 5: DAFTAR BAHAN (Sesuai Foto Excel)
+    // SHEET 6: DAFTAR BAHAN
     // ==========================================
     const allBahanItems = [
       ...extractDaftarBahan(transactions, true),
@@ -484,7 +556,7 @@ export function exportLpjToExcel(
     XLSX.utils.book_append_sheet(wb, ws5, 'DAFTAR BAHAN');
 
     // ==========================================
-    // SHEET 6: ABSEN HARIAN TUKANG
+    // SHEET 7 & 8: UPAH MINGGUAN (FORMAT BARU) & 2 MINGGUAN
     // ==========================================
     const activeAbsen =
       store.absenTukangList.find((w) => w.id === store.selectedAbsenWeekId) ||
@@ -504,12 +576,94 @@ export function exportLpjToExcel(
       const periodeKe = activeAbsen.periodeKe || activeAbsen.mingguKe || 1;
       const mggStart = (periodeKe - 1) * 2 + 1;
       const mggEnd = periodeKe * 2;
-      const pertanggal = activeAbsen.hariTanggal || `Periode ${periodeKe} (Minggu ${mggStart} s.d ${mggEnd})`;
+      const pertanggal = formatToSlashDate(activeAbsen.hariTanggal || '14/08/2026 s.d 27/08/2026');
       const namaKepalaSekolah = profile.namaKepalaSekolah || activeAbsen.namaKepalaSekolah || 'Nama Kepala Sekolah';
       const nipKepalaSekolah = profile.nipKepalaSekolah || activeAbsen.nipKepalaSekolah || '-';
       const namaBendahara = profile.namaBendahara || activeAbsen.namaBendahara || 'Nama Bendahara';
       const nipBendahara = profile.nipBendahara || activeAbsen.nipBendahara || '-';
+      const namaKetuaP2SP = profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2SP';
+      const namaPelaksana = profile.namaPelaksana || activeAbsen.namaPelaksana || 'Pelaksana';
 
+      // SHEET 7: UPAH MINGGUAN (Sesuai format_upah_tukang_e7129d51.png)
+      const totalHari1Mgg = activeAbsen.pekerja.reduce(
+        (sum, p) => sum + calculateTotalHariForWeek(p.hariKerja, 1),
+        0
+      );
+      const totalUpah1Mgg = activeAbsen.pekerja.reduce(
+        (sum, p) => sum + calculateUpahJumlahForWeek(p, 1),
+        0
+      );
+
+      const sheet7Rows: (string | number)[][] = [
+        ['UPAH MINGGUAN'],
+        [],
+        ['', '', 'Tempat Tinggal', '', '', '', '', ''],
+        [
+          'No',
+          'Nama',
+          'Dalam Desa',
+          'Luar Desa',
+          'M/T/P',
+          'Hari Kerja',
+          'Upah Perhari',
+          'Tanda Tangan/Cap jempol',
+        ],
+        ...activeAbsen.pekerja.map((p, idx) => [
+          idx + 1,
+          p.nama,
+          p.tempatTinggal !== 'luar_desa' ? '✓' : '',
+          p.tempatTinggal === 'luar_desa' ? '✓' : '',
+          getKodeMtp(p),
+          calculateTotalHariForWeek(p.hariKerja, 1),
+          p.upahHarian,
+          p.paraf && !/^\d+$/.test(p.paraf.trim()) ? p.paraf : '',
+        ]),
+        [
+          'Jumlah',
+          '',
+          '',
+          '',
+          '',
+          totalHari1Mgg,
+          totalUpah1Mgg,
+          '',
+        ],
+        [],
+        ['Catatan:', '', '', '', '', `Tanggal : ${formatToSlashDate(profile.tanggalTutupBuku || '20/08/2026')}`, '', ''],
+        ['M', 'Mandor', '', '', '', '', '', ''],
+        ['T', 'Tukang', '', '', '', '', '', ''],
+        ['P', 'Pekerja', '', '', '', '', '', ''],
+        [],
+        ['', '', '', 'Mengetahui', '', '', '', ''],
+        ['Ketua P2SP', '', '', 'Pelaksana', '', '', 'Bendahara', ''],
+        [],
+        [],
+        [],
+        [namaKetuaP2SP, '', '', namaPelaksana, '', '', namaBendahara, ''],
+      ];
+
+      const ws7 = XLSX.utils.aoa_to_sheet(sheet7Rows);
+      ws7['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
+        { s: { r: 2, c: 2 }, e: { r: 2, c: 3 } },
+        {
+          s: { r: 4 + activeAbsen.pekerja.length, c: 0 },
+          e: { r: 4 + activeAbsen.pekerja.length, c: 4 },
+        },
+      ];
+      ws7['!cols'] = [
+        { wch: 6 },
+        { wch: 24 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 18 },
+        { wch: 24 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws7, 'UPAH MINGGUAN');
+
+      // SHEET 8: REKAP UPAH 2 MINGGU
       const sheet6Rows: (string | number)[][] = [
         ['REKAPITULASI UPAH KERJA DUA MINGGUAN'],
         [],
@@ -672,140 +826,6 @@ export function exportLpjToExcel(
         { wch: 8 },
       ];
       XLSX.utils.book_append_sheet(wb, ws6, 'REKAP UPAH 2 MINGGU');
-
-      // SHEET 7: REKAP UPAH 1 MINGGU (Minggu I)
-      const weekCols1 = HARI_KERJA_2_MINGGU.filter((c) => c.weekGroup === 1);
-      const totalUpah1Mgg = activeAbsen.pekerja.reduce(
-        (sum, p) => sum + calculateUpahJumlahForWeek(p, 1),
-        0
-      );
-
-      const sheet7Rows: (string | number)[][] = [
-        ['REKAPITULASI UPAH KERJA MINGGUAN'],
-        [],
-        ['PEKERJAAN', `:\t${pekerjaan}`],
-        ['NAMA SEKOLAH', `:\t${namaSekolah}`],
-        ['ALAMAT', `:\t${alamat}`],
-        ['PERIODE (MINGGU) KE', `:\t${mggStart}`],
-        ['PERTANGGAL', `:\t${pertanggal} (Minggu ke-${mggStart})`],
-        [],
-        [
-          'NO.',
-          'NAMA TUKANG',
-          'TENAGA KERJA',
-          'HARI KERJA (SENIN - MINGGU)',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          'JUMLAH',
-          '',
-          '',
-          'PARAF',
-        ],
-        [
-          '',
-          '',
-          '',
-          'I',
-          'II',
-          'III',
-          'IV',
-          'V',
-          'VI',
-          'VII',
-          'TENAGA',
-          'UPAH/HARI',
-          'UPAH 1 MGG',
-          '',
-        ],
-        [
-          '',
-          '',
-          '',
-          'O/H',
-          'O/H',
-          'O/H',
-          'O/H',
-          'O/H',
-          'O/H',
-          'O/H',
-          'Org/Mgg',
-          '(Rp.)',
-          '(Rp.)',
-          '',
-        ],
-        ...activeAbsen.pekerja.map((p, idx) => [
-          idx + 1,
-          p.nama,
-          p.tenagaKerja || p.kategori,
-          ...weekCols1.map((col) =>
-            formatDayCell(getDayValue(p.hariKerja, col.key))
-          ),
-          formatTotalHari(calculateTotalHariForWeek(p.hariKerja, 1)),
-          p.upahHarian,
-          calculateUpahJumlahForWeek(p, 1),
-          p.paraf || `${idx + 1}`,
-        ]),
-        [
-          'JUMLAH UPAH SATU MINGGU (Rp.)',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          totalUpah1Mgg,
-          '',
-        ],
-        [],
-        ['Mengetahui;', '', '', '', '', '', '', '', '', '', 'Lunas Bayar,'],
-        ['Kepala Sekolah,', '', '', '', '', '', '', '', '', '', 'Bendahara,'],
-        [],
-        [],
-        [],
-        [namaKepalaSekolah, '', '', '', '', '', '', '', '', '', namaBendahara],
-        [`NIP.${nipKepalaSekolah.replace(/\s+/g, '')}`, '', '', '', '', '', '', '', '', '', `NIP.${nipBendahara.replace(/\s+/g, '')}`],
-      ];
-
-      const ws7 = XLSX.utils.aoa_to_sheet(sheet7Rows);
-      ws7['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } },
-        { s: { r: 8, c: 0 }, e: { r: 10, c: 0 } },
-        { s: { r: 8, c: 1 }, e: { r: 10, c: 1 } },
-        { s: { r: 8, c: 2 }, e: { r: 10, c: 2 } },
-        { s: { r: 8, c: 3 }, e: { r: 8, c: 9 } },
-        { s: { r: 8, c: 10 }, e: { r: 8, c: 12 } },
-        { s: { r: 8, c: 13 }, e: { r: 10, c: 13 } },
-        {
-          s: { r: 11 + activeAbsen.pekerja.length, c: 0 },
-          e: { r: 11 + activeAbsen.pekerja.length, c: 11 },
-        },
-      ];
-      ws7['!cols'] = [
-        { wch: 6 },
-        { wch: 22 },
-        { wch: 18 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 6 },
-        { wch: 12 },
-        { wch: 16 },
-        { wch: 18 },
-        { wch: 8 },
-      ];
-      XLSX.utils.book_append_sheet(wb, ws7, 'REKAP UPAH 1 MINGGU');
     }
 
     // Generate binary output

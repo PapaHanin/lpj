@@ -4,6 +4,8 @@ import {
   extractMonthAndYear,
   indonesianDateToIso,
   getClosingDateForMonth,
+  getFirstDateForMonth,
+  formatToSlashDate,
 } from './dateUtils';
 import { parseBkuNumber } from './bkuParser';
 export { formatRupiah, formatRupiahBulat } from './terbilang';
@@ -153,7 +155,7 @@ export const INITIAL_PROFILE: ProjectProfile = {
   provinsi: 'SULAWESI TENGAH',
   tahunAnggaran: '2026',
   bulanLaporan: 'AGUSTUS 2026',
-  tanggalTutupBuku: 'Senin, 31 Agustus 2026',
+  tanggalTutupBuku: '31/08/2026',
   judulPekerjaan:
     'REHABILITASI RUANGAN KELAS 1, RUANG KELAS 2, RUANG KELAS 3, RUANG KELAS 4, RUANG KELAS 5, RUANG KELAS 6, RUANG ADMINISTRASI, TOILET SISWA 1, PEMBANGUNAN TOILET SISWA & PENATAAN LINGKUNGAN.',
   namaKepalaSekolah: 'NI KETUT SUKERTI, S.Pd.SD',
@@ -170,7 +172,7 @@ export const INITIAL_PROFILE: ProjectProfile = {
 export const INITIAL_TRANSACTIONS: Transaction[] = [
   {
     id: 'tx-1',
-    tanggal: '11 Agustus 2026',
+    tanggal: '11/08/2026',
     uraian: 'DANA MASUK DAK FISIK TAHAP 1',
     nomorBukti: '',
     metode: 'BANK',
@@ -181,7 +183,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-2',
-    tanggal: '15 Agustus 2026',
+    tanggal: '15/08/2026',
     uraian: 'PENARIKAN DANA TAHAP 1',
     nomorBukti: '',
     metode: 'TARIK_TUNAI',
@@ -192,7 +194,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-3',
-    tanggal: '16 Agustus 2026',
+    tanggal: '16/08/2026',
     uraian: 'Belanja Spanduk Papan Proyek',
     nomorBukti: 'BKU 01',
     metode: 'TUNAI',
@@ -203,7 +205,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-4',
-    tanggal: '16 Agustus 2026',
+    tanggal: '16/08/2026',
     uraian: 'Bayar Pemasangan Spanduk',
     nomorBukti: 'BKU 02',
     metode: 'TUNAI',
@@ -214,7 +216,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-5',
-    tanggal: '16 Agustus 2026',
+    tanggal: '16/08/2026',
     uraian: 'Pembongkaran Dan Pembersihan Rehab Ruang Kelas 6 ruang, ruang administrasi dan Toilet siswa',
     nomorBukti: 'BKU 03',
     metode: 'TUNAI',
@@ -225,7 +227,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-6',
-    tanggal: '16 Agustus 2026',
+    tanggal: '16/08/2026',
     uraian: 'Bayar Perencana & Pengawasan',
     nomorBukti: 'BKU 04',
     metode: 'TUNAI',
@@ -236,7 +238,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-7',
-    tanggal: '16 Agustus 2026',
+    tanggal: '16/08/2026',
     uraian: 'Belanja Material Pasir & Kayu',
     nomorBukti: 'BKU 05',
     metode: 'TUNAI',
@@ -265,7 +267,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-8',
-    tanggal: '17 Agustus 2026',
+    tanggal: '17/08/2026',
     uraian: 'Pembelanjaan Pasir Cor',
     nomorBukti: 'BKU 06',
     metode: 'TUNAI',
@@ -286,7 +288,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-9',
-    tanggal: '18 Agustus 2026',
+    tanggal: '18/08/2026',
     uraian: 'Pembelanjaan batu kali pondasi',
     nomorBukti: 'BKU 07',
     metode: 'TUNAI',
@@ -307,7 +309,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-10',
-    tanggal: '18 Agustus 2026',
+    tanggal: '18/08/2026',
     uraian: 'Belanja Bahan Material Toko',
     nomorBukti: 'BKU 08',
     metode: 'TUNAI',
@@ -318,7 +320,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-11',
-    tanggal: '19 Agustus 2026',
+    tanggal: '19/08/2026',
     uraian: 'Belanja Bahan Material Toko',
     nomorBukti: 'BKU 09',
     metode: 'TUNAI',
@@ -329,7 +331,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-12',
-    tanggal: '19 Agustus 2026',
+    tanggal: '19/08/2026',
     uraian: 'Pembelanjaan Batu Bata Merah',
     nomorBukti: 'BKU 10',
     metode: 'TUNAI',
@@ -340,7 +342,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-13',
-    tanggal: '22 Agustus 2026',
+    tanggal: '22/08/2026',
     uraian: 'Bayar Fasilitator Teknik',
     nomorBukti: 'BKU 12',
     metode: 'TUNAI',
@@ -351,7 +353,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-14',
-    tanggal: '29 Agustus 2026',
+    tanggal: '29/08/2026',
     uraian: 'Bayar Panjar Upah Tukang Tahap 1',
     nomorBukti: 'BKU 13',
     metode: 'TUNAI',
@@ -362,7 +364,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-15',
-    tanggal: '30 Agustus 2026',
+    tanggal: '30/08/2026',
     uraian: 'Biaya Fasilitator Manajemen',
     nomorBukti: 'BKU 38',
     metode: 'TUNAI',
@@ -400,7 +402,7 @@ export function calculateBkuRows(transactions: Transaction[]): {
 
     return {
       no: idx + 1,
-      tanggal: t.tanggal,
+      tanggal: formatToSlashDate(t.tanggal),
       uraian: t.uraian,
       nomorBukti: t.nomorBukti,
       penerimaan: t.penerimaan,
@@ -448,7 +450,7 @@ export function calculateBkuTunaiRows(transactions: Transaction[]): {
 
     rows.push({
       no: noCounter++,
-      tanggal: t.tanggal,
+      tanggal: formatToSlashDate(t.tanggal),
       uraian: t.uraian,
       nomorBukti: t.nomorBukti,
       penerimaan: penerimaanTunai,
@@ -506,7 +508,7 @@ export function calculateBkBankRows(transactions: Transaction[]): {
 
     rows.push({
       no: noCounter++,
-      tanggal: t.tanggal,
+      tanggal: formatToSlashDate(t.tanggal),
       uraian: t.uraian,
       nomorBukti: t.nomorBukti,
       debet,
@@ -693,11 +695,12 @@ export function groupTransactionsByMonthlyBooks(
     const bkuRows: BkuRow[] = [];
     let bkuRowNo = 1;
     let bkuInitialRow: BkuRow | undefined = undefined;
+    const firstDateStr = getFirstDateForMonth(monthName, year);
 
     if (!isFirstMonth) {
       bkuInitialRow = {
         no: bkuRowNo++,
-        tanggal: `01 ${monthName} ${year}`,
+        tanggal: firstDateStr,
         uraian: `Sisa Saldo Bulan ${prevMonthName}`,
         nomorBukti: '',
         penerimaan: prevPenerimaanBku,
@@ -706,7 +709,7 @@ export function groupTransactionsByMonthlyBooks(
         isInitialRow: true,
         transaction: {
           id: `initial-bku-${key}`,
-          tanggal: `01 ${monthName} ${year}`,
+          tanggal: firstDateStr,
           uraian: `Sisa Saldo Bulan ${prevMonthName}`,
           nomorBukti: '',
           metode: 'BANK',
@@ -749,7 +752,7 @@ export function groupTransactionsByMonthlyBooks(
 
       bkuRows.push({
         no: bkuRowNo++,
-        tanggal: t.tanggal,
+        tanggal: formatToSlashDate(t.tanggal),
         uraian: t.uraian,
         nomorBukti: t.nomorBukti,
         jenisBiaya: isPenarikanBankKeTunai ? (t.jenisBiaya || 'Tarik Tunai') : getJenisBiaya(t),
@@ -779,7 +782,7 @@ export function groupTransactionsByMonthlyBooks(
     if (!isFirstMonth) {
       tunaiInitialRow = {
         no: tunaiRowNo++,
-        tanggal: `01 ${monthName} ${year}`,
+        tanggal: firstDateStr,
         uraian: `Sisa Saldo Kas Tunai Bulan ${prevMonthName}`,
         nomorBukti: '',
         penerimaan: prevSaldoTunai,
@@ -788,7 +791,7 @@ export function groupTransactionsByMonthlyBooks(
         isInitialRow: true,
         transaction: {
           id: `initial-tunai-${key}`,
-          tanggal: `01 ${monthName} ${year}`,
+          tanggal: firstDateStr,
           uraian: `Sisa Saldo Kas Tunai Bulan ${prevMonthName}`,
           nomorBukti: '',
           metode: 'TUNAI',
@@ -823,7 +826,7 @@ export function groupTransactionsByMonthlyBooks(
 
       tunaiRows.push({
         no: tunaiRowNo++,
-        tanggal: t.tanggal,
+        tanggal: formatToSlashDate(t.tanggal),
         uraian: t.uraian,
         nomorBukti: t.nomorBukti,
         penerimaan: penerimaanTunai,
@@ -847,7 +850,7 @@ export function groupTransactionsByMonthlyBooks(
     if (!isFirstMonth) {
       bankInitialRow = {
         no: bankRowNo++,
-        tanggal: `01 ${monthName} ${year}`,
+        tanggal: firstDateStr,
         uraian: `Sisa Saldo Bank Bulan ${prevMonthName}`,
         nomorBukti: '',
         debet: prevSaldoBank,
@@ -856,7 +859,7 @@ export function groupTransactionsByMonthlyBooks(
         isInitialRow: true,
         transaction: {
           id: `initial-bank-${key}`,
-          tanggal: `01 ${monthName} ${year}`,
+          tanggal: firstDateStr,
           uraian: `Sisa Saldo Bank Bulan ${prevMonthName}`,
           nomorBukti: '',
           metode: 'BANK',
@@ -893,7 +896,7 @@ export function groupTransactionsByMonthlyBooks(
 
       bankRows.push({
         no: bankRowNo++,
-        tanggal: t.tanggal,
+        tanggal: formatToSlashDate(t.tanggal),
         uraian: t.uraian,
         nomorBukti: t.nomorBukti,
         debet,

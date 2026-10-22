@@ -19,6 +19,7 @@ import {
 import { useLpjStore } from '../store/lpjStore';
 import { calculateSummary } from '../utils/calculations';
 import { formatRupiah, formatRupiahBulat } from '../utils/terbilang';
+import { formatToSlashDate } from '../utils/dateUtils';
 import { exportLpjToExcel } from '../utils/excelExport';
 import { triggerPrint } from '../utils/printHelper';
 
@@ -307,20 +308,20 @@ export const DashboardView: React.FC = () => {
           </div>
 
           <div
-            onClick={() => setActiveTab('kwitansi')}
+            onClick={() => setActiveTab('bku-pajak')}
             className="group bg-[#220738] p-5 rounded-2xl border border-amber-400/25 hover:border-amber-400 hover:shadow-xl hover:shadow-amber-400/10 transition-all cursor-pointer flex flex-col justify-between text-white"
           >
             <div>
               <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center mb-3 group-hover:scale-110 group-hover:bg-amber-400 group-hover:text-purple-950 transition border border-amber-400/30">
                 <Receipt className="w-5 h-5" />
               </div>
-              <h3 className="font-bold text-white text-sm group-hover:text-amber-300 transition">Cetak Kwitansi Otomatis</h3>
+              <h3 className="font-bold text-white text-sm group-hover:text-amber-300 transition">BKU Pembantu Pajak</h3>
               <p className="text-xs text-purple-200/90 mt-1">
-                Pilih nomor BKU dan cetak lembar kwitansi resmi tanda tangan 3 pihak dengan terbilang rupiah otomatis tanpa error.
+                Buku Pembantu Pajak (PPN, PPh 21, PPh 22, PPh 23) lengkap dengan kalkulator pajak & tanda tangan 3 pihak.
               </p>
             </div>
             <div className="mt-4 flex items-center text-xs font-bold text-amber-400 group-hover:translate-x-1 transition">
-              <span>Pilih & Cetak Kwitansi</span>
+              <span>Buka BKU Pajak</span>
               <ArrowUpRight className="w-4 h-4 ml-1" />
             </div>
           </div>
@@ -364,8 +365,8 @@ export const DashboardView: React.FC = () => {
                   <td className="py-3 px-4 font-mono font-bold text-amber-300">
                     {tx.nomorBukti || '-'}
                   </td>
-                  <td className="py-3 px-4 text-purple-200 whitespace-nowrap">
-                    {tx.tanggal}
+                  <td className="py-3 px-4 text-purple-200 whitespace-nowrap font-mono">
+                    {formatToSlashDate(tx.tanggal)}
                   </td>
                   <td className="py-3 px-4 text-white font-medium">
                     <div>{tx.uraian}</div>

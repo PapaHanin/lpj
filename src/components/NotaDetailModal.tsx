@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLpjStore } from '../store/lpjStore';
 import { formatRupiah } from '../utils/calculations';
+import { formatToSlashDate } from '../utils/dateUtils';
 import {
   Receipt,
   X,
@@ -54,7 +55,7 @@ export const NotaDetailModal: React.FC = () => {
 
   const handleCopyClipboard = () => {
     if (subItems.length === 0) return;
-    const header = `RINCIAN NOTA BELANJA - [${tx.nomorBukti || 'BUKTI'}]\nUraian: ${tx.uraian}\nTanggal: ${tx.tanggal}\nToko/Penerima: ${tx.penerima || '-'}\nTotal: ${formatRupiah(nominalTotal)}\n\nDAFTAR BARANG:`;
+    const header = `RINCIAN NOTA BELANJA - [${tx.nomorBukti || 'BUKTI'}]\nUraian: ${tx.uraian}\nTanggal: ${formatToSlashDate(tx.tanggal)}\nToko/Penerima: ${tx.penerima || '-'}\nTotal: ${formatRupiah(nominalTotal)}\n\nDAFTAR BARANG:`;
     const rows = subItems.map(
       (it, idx) =>
         `${idx + 1}. ${it.nama}: ${it.volume} ${it.satuan} x ${formatRupiah(it.hargaSatuan)} = ${formatRupiah(it.subtotal)}`
@@ -144,7 +145,7 @@ export const NotaDetailModal: React.FC = () => {
                 <span>Tanggal Belanja</span>
               </div>
               <div className="text-xs sm:text-sm font-bold text-slate-900 font-mono">
-                {tx.tanggal}
+                {formatToSlashDate(tx.tanggal)}
               </div>
             </div>
 

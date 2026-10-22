@@ -13,13 +13,20 @@ import {
   PekerjaTukang,
   KategoriPekerja,
   BangunanProyek,
+  PajakRowItem,
 } from '../types';
 import {
   INITIAL_PROFILE,
   INITIAL_TRANSACTIONS,
   sortTransactionsChronologically,
 } from '../utils/calculations';
-import { getClosingDateForMonth, extractMonthAndYear, BULAN_LIST, indonesianDateToIso } from '../utils/dateUtils';
+import {
+  getClosingDateForMonth,
+  extractMonthAndYear,
+  BULAN_LIST,
+  indonesianDateToIso,
+  formatToSlashDate,
+} from '../utils/dateUtils';
 import { parseBkuNumber, formatBkuNumber, getHarmonizedDateForBku } from '../utils/bkuUtils';
 import {
   INITIAL_ABSEN_DATA,
@@ -31,7 +38,12 @@ import {
   DEFAULT_WORKERS_BANGUNAN_1,
   DEFAULT_WORKERS_BANGUNAN_2,
   DEFAULT_WORKERS_BANGUNAN_3,
+  getKodeMtp,
 } from '../utils/bahanTukangUtils';
+import {
+  SAMPLE_IMAGE_PAJAK_ROWS,
+  generatePajakRowsFromTransactions,
+} from '../utils/pajakUtils';
 
 export interface ModalPreset {
   metode?: TransactionMetode;
@@ -53,6 +65,7 @@ export interface ToastNotification {
 interface LpjState {
   profile: ProjectProfile;
   transactions: Transaction[];
+  pajakRows: PajakRowItem[];
   activeTab: ActiveTab;
   selectedTransactionIdForKwitansi: string | null;
   selectedMonthFilter: string; // 'ALL' or e.g. 'Agustus 2026', 'September 2026'
@@ -97,6 +110,13 @@ interface LpjState {
   setProfile: (profile: Partial<ProjectProfile>) => void;
   setSelectedMonthFilter: (filter: string) => void;
   setReportingMonth: (bulan: string, tahun: string) => void;
+  setPajakRows: (rows: PajakRowItem[]) => void;
+  addPajakRow: (row: Omit<PajakRowItem, 'id'>) => void;
+  updatePajakRow: (id: string, updated: Partial<PajakRowItem>) => void;
+  deletePajakRow: (id: string) => void;
+  movePajakRow: (id: string, direction: 'up' | 'down') => void;
+  syncPajakFromTransactions: () => void;
+  loadSamplePajakRows: () => void;
   addTransaction: (
     tx: Omit<Transaction, 'id' | 'createdAt'>,
     options?: { shiftSubsequentBku?: boolean }
@@ -185,7 +205,15 @@ interface LpjState {
     kategori: KategoriPekerja,
     nama: string,
     upahHarian: number,
-    tenagaKerja?: string
+    tenagaKerja?: string,
+    kodeMtp?: 'M' | 'T' | 'P',
+    tempatTinggal?: 'dalam_desa' | 'luar_desa'
+  ) => void;
+  setWorkerTotalHariKerja: (
+    absenId: string,
+    pekerjaId: string,
+    totalDays: number,
+    subWeek?: 1 | 2
   ) => void;
   updatePekerjaInfo: (
     absenId: string,
@@ -204,6 +232,7 @@ export const useLpjStore = create<LpjState>()(
     (set) => ({
       profile: INITIAL_PROFILE,
       transactions: INITIAL_TRANSACTIONS,
+      pajakRows: SAMPLE_IMAGE_PAJAK_ROWS,
       activeTab: 'dashboard',
       selectedTransactionIdForKwitansi: 'tx-15', // Defaults to BKU 38
       selectedMonthFilter: 'ALL',
@@ -244,8 +273,24 @@ export const useLpjStore = create<LpjState>()(
             return false;
           }
           set({
-            profile: { ...INITIAL_PROFILE, ...data.profile },
-            transactions: data.transactions,
+            profile: {
+              ...INITIAL_PROFILE,
+              ...data.profile,
+              tanggalTutupBuku: formatToSlashDate(
+                data.profile.tanggalTutupBuku || INITIAL_PROFILE.tanggalTutupBuku
+              ),
+            },
+            transactions: data.transactions.map((tx: any) => ({
+              ...tx,
+              tanggal: formatToSlashDate(tx.tanggal || ''),
+            })),
+            pajakRows:
+              Array.isArray(data.pajakRows) && data.pajakRows.length > 0
+                ? data.pajakRows.map((r: any) => ({
+                    ...r,
+                    tanggal: formatToSlashDate(r.tanggal || ''),
+                  }))
+                : SAMPLE_IMAGE_PAJAK_ROWS,
             bangunanList:
               Array.isArray(data.bangunanList) && data.bangunanList.length > 0
                 ? data.bangunanList
@@ -268,6 +313,9 @@ export const useLpjStore = create<LpjState>()(
       setProfile: (updatedProfile) =>
         set((state) => {
           const nextProfile = { ...state.profile, ...updatedProfile };
+          if (updatedProfile.tanggalTutupBuku) {
+            nextProfile.tanggalTutupBuku = formatToSlashDate(updatedProfile.tanggalTutupBuku);
+          }
           return {
             profile: nextProfile,
             // Sync school and signatories to all absen periods
@@ -278,6 +326,7 @@ export const useLpjStore = create<LpjState>()(
               nipKepalaSekolah: nextProfile.nipKepalaSekolah,
               namaBendahara: nextProfile.namaBendahara,
               nipBendahara: nextProfile.nipBendahara,
+              namaPelaksana: nextProfile.namaPelaksana || week.namaPelaksana,
             })),
           };
         }),
@@ -299,6 +348,64 @@ export const useLpjStore = create<LpjState>()(
             },
             selectedMonthFilter: bulanLaporan,
           };
+        }),
+
+      setPajakRows: (rows) => set({ pajakRows: rows }),
+
+      addPajakRow: (row) =>
+        set((state) => ({
+          pajakRows: [
+            ...state.pajakRows,
+            {
+              ...row,
+              id: `pjk-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              tanggal: formatToSlashDate(row.tanggal),
+            },
+          ],
+        })),
+
+      updatePajakRow: (id, updated) =>
+        set((state) => ({
+          pajakRows: state.pajakRows.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  ...updated,
+                  tanggal:
+                    updated.tanggal !== undefined
+                      ? formatToSlashDate(updated.tanggal)
+                      : r.tanggal,
+                }
+              : r
+          ),
+        })),
+
+      deletePajakRow: (id) =>
+        set((state) => ({
+          pajakRows: state.pajakRows.filter((r) => r.id !== id),
+        })),
+
+      movePajakRow: (id, direction) =>
+        set((state) => {
+          const idx = state.pajakRows.findIndex((r) => r.id === id);
+          if (idx === -1) return state;
+          const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+          if (targetIdx < 0 || targetIdx >= state.pajakRows.length) return state;
+          const next = [...state.pajakRows];
+          const temp = next[idx];
+          next[idx] = next[targetIdx];
+          next[targetIdx] = temp;
+          return { pajakRows: next };
+        }),
+
+      syncPajakFromTransactions: () =>
+        set((state) => ({
+          pajakRows: generatePajakRowsFromTransactions(state.transactions),
+        })),
+
+      loadSamplePajakRows: () =>
+        set({
+          pajakRows: SAMPLE_IMAGE_PAJAK_ROWS,
         }),
 
       addTransaction: (newTxData, options) =>
@@ -688,6 +795,8 @@ export const useLpjStore = create<LpjState>()(
               ? 'Buku Kas Tunai (BKU Tunai)'
               : state.activeTab === 'bk-bank'
               ? 'Buku Kas Bank (BK Bank)'
+              : state.activeTab === 'bku-pajak'
+              ? 'Buku Pembantu Pajak (BKU Pajak)'
               : state.activeTab === 'kwitansi'
               ? 'Kwitansi Pengeluaran'
               : 'Laporan Pertanggungjawaban DAK Fisik'),
@@ -728,6 +837,7 @@ export const useLpjStore = create<LpjState>()(
         set({
           profile: INITIAL_PROFILE,
           transactions: INITIAL_TRANSACTIONS,
+          pajakRows: SAMPLE_IMAGE_PAJAK_ROWS,
           selectedTransactionIdForKwitansi: 'tx-15',
           bangunanList: INITIAL_BANGUNAN_LIST,
           selectedBangunanId: 'bangunan-1',
@@ -930,13 +1040,68 @@ export const useLpjStore = create<LpjState>()(
           }),
         })),
 
-      addPekerjaToAbsen: (absenId, kategori, nama, upahHarian, tenagaKerja) =>
+      setWorkerTotalHariKerja: (absenId, pekerjaId, totalDays, subWeek = 1) =>
+        set((state) => {
+          const clamped = Math.max(0, Math.min(7, totalDays));
+          return {
+            absenTukangList: state.absenTukangList.map((week) => {
+              if (week.id !== absenId) return week;
+              return {
+                ...week,
+                pekerja: week.pekerja.map((p) => {
+                  if (p.id !== pekerjaId) return p;
+                  const nextHariKerja = { ...p.hariKerja };
+                  const prefix = subWeek === 2 ? 'm2_' : 'm1_';
+                  let rem = clamped;
+                  for (let i = 1; i <= 7; i++) {
+                    const key = `${prefix}${i}` as keyof HariKerjaRecord;
+                    if (rem >= 1) {
+                      nextHariKerja[key] = 1;
+                      rem -= 1;
+                    } else if (rem >= 0.5) {
+                      nextHariKerja[key] = 0.5;
+                      rem = 0;
+                    } else {
+                      nextHariKerja[key] = 0;
+                    }
+                  }
+                  if (subWeek === 1) {
+                    nextHariKerja.senin = nextHariKerja.m1_1 || 0;
+                    nextHariKerja.selasa = nextHariKerja.m1_2 || 0;
+                    nextHariKerja.rabu = nextHariKerja.m1_3 || 0;
+                    nextHariKerja.kamis = nextHariKerja.m1_4 || 0;
+                    nextHariKerja.jumat = nextHariKerja.m1_5 || 0;
+                    nextHariKerja.sabtu = nextHariKerja.m1_6 || 0;
+                    nextHariKerja.minggu = nextHariKerja.m1_7 || 0;
+                  }
+                  return {
+                    ...p,
+                    hariKerja: nextHariKerja,
+                  };
+                }),
+              };
+            }),
+          };
+        }),
+
+      addPekerjaToAbsen: (
+        absenId,
+        kategori,
+        nama,
+        upahHarian,
+        tenagaKerja,
+        kodeMtp,
+        tempatTinggal
+      ) =>
         set((state) => {
           const currentWeek = state.absenTukangList.find((w) => w.id === absenId);
           const targetBangunanId = currentWeek?.bangunanId || state.selectedBangunanId || 'bangunan-1';
           const nextIndex = (currentWeek?.pekerja.length || 0) + 1;
           const cleanName = (nama.trim() || `Pekerja ${nextIndex}`).toUpperCase();
           const baseId = `pkr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          const resolvedMtp =
+            kodeMtp ||
+            getKodeMtp({ kategori, tenagaKerja: tenagaKerja || kategori });
 
           // Tambahkan ke SEMUA periode pada bangunan yang sama agar seragam
           return {
@@ -952,6 +1117,8 @@ export const useLpjStore = create<LpjState>()(
                 id: `${baseId}-p${week.periodeKe || week.mingguKe || 1}`,
                 kategori,
                 tenagaKerja: tenagaKerja || kategori,
+                kodeMtp: resolvedMtp,
+                tempatTinggal: tempatTinggal || 'dalam_desa',
                 nama: cleanName,
                 hariKerja: {
                   m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -1112,13 +1279,14 @@ export const useLpjStore = create<LpjState>()(
             mingguKe: weekNum,
             hariTanggal:
               tanggal ||
-              `Periode ${weekNum} (Minggu ${mggStart} s.d ${mggEnd}) - ${state.profile.bulanLaporan || '2023'}`,
+              `Periode ${weekNum} (Minggu ${mggStart} s.d ${mggEnd})`,
             pekerja: clonedPekerja,
             namaSekolah: state.profile.namaSekolah,
             namaKepalaSekolah: state.profile.namaKepalaSekolah,
             nipKepalaSekolah: state.profile.nipKepalaSekolah,
             namaBendahara: state.profile.namaBendahara,
             nipBendahara: state.profile.nipBendahara,
+            namaPelaksana: state.profile.namaPelaksana,
             hariLibur: ['m1_7', 'm2_7'],
           };
 
@@ -1146,7 +1314,7 @@ export const useLpjStore = create<LpjState>()(
     }),
     {
       name: 'ah-beres-lpj-storage-v2',
-      version: 4,
+      version: 5,
       migrate: (persistedState: any, version: number) => {
         if (version < 2 && persistedState && persistedState.transactions) {
           persistedState.transactions = persistedState.transactions.map((tx: any) => {
@@ -1157,6 +1325,28 @@ export const useLpjStore = create<LpjState>()(
           });
         }
         if (persistedState) {
+          if (persistedState.profile) {
+            persistedState.profile.tanggalTutupBuku = formatToSlashDate(
+              persistedState.profile.tanggalTutupBuku || INITIAL_PROFILE.tanggalTutupBuku
+            );
+            if (!persistedState.profile.namaPelaksana) {
+              persistedState.profile.namaPelaksana = INITIAL_PROFILE.namaPelaksana;
+            }
+          }
+          if (Array.isArray(persistedState.transactions)) {
+            persistedState.transactions = persistedState.transactions.map((tx: any) => ({
+              ...tx,
+              tanggal: formatToSlashDate(tx.tanggal || ''),
+            }));
+          }
+          if (!Array.isArray(persistedState.pajakRows) || persistedState.pajakRows.length === 0) {
+            persistedState.pajakRows = SAMPLE_IMAGE_PAJAK_ROWS;
+          } else {
+            persistedState.pajakRows = persistedState.pajakRows.map((r: any) => ({
+              ...r,
+              tanggal: formatToSlashDate(r.tanggal || ''),
+            }));
+          }
           if (!Array.isArray(persistedState.bangunanList) || persistedState.bangunanList.length === 0) {
             persistedState.bangunanList = INITIAL_BANGUNAN_LIST;
           }
@@ -1172,7 +1362,17 @@ export const useLpjStore = create<LpjState>()(
                 if (!week.bangunanId) {
                   week.bangunanId = 'bangunan-1';
                 }
-                deduplicated.push(week);
+                deduplicated.push({
+                  ...week,
+                  hariTanggal: formatToSlashDate(week.hariTanggal || ''),
+                  pekerja: Array.isArray(week.pekerja)
+                    ? week.pekerja.map((p: PekerjaTukang) => ({
+                        ...p,
+                        kodeMtp: p.kodeMtp || getKodeMtp(p),
+                        tempatTinggal: p.tempatTinggal || 'dalam_desa',
+                      }))
+                    : [],
+                });
               }
             }
             if (!seen.has('absen-minggu-4')) {
@@ -1188,6 +1388,28 @@ export const useLpjStore = create<LpjState>()(
       },
       onRehydrateStorage: () => (state) => {
         if (state) {
+          if (state.profile) {
+            state.profile.tanggalTutupBuku = formatToSlashDate(
+              state.profile.tanggalTutupBuku || INITIAL_PROFILE.tanggalTutupBuku
+            );
+            if (!state.profile.namaPelaksana) {
+              state.profile.namaPelaksana = INITIAL_PROFILE.namaPelaksana;
+            }
+          }
+          if (Array.isArray(state.transactions)) {
+            state.transactions = state.transactions.map((tx) => ({
+              ...tx,
+              tanggal: formatToSlashDate(tx.tanggal || ''),
+            }));
+          }
+          if (!Array.isArray(state.pajakRows) || state.pajakRows.length === 0) {
+            state.pajakRows = SAMPLE_IMAGE_PAJAK_ROWS;
+          } else {
+            state.pajakRows = state.pajakRows.map((r) => ({
+              ...r,
+              tanggal: formatToSlashDate(r.tanggal || ''),
+            }));
+          }
           if (!Array.isArray(state.bangunanList) || state.bangunanList.length === 0) {
             state.bangunanList = INITIAL_BANGUNAN_LIST;
           }
@@ -1208,8 +1430,7 @@ export const useLpjStore = create<LpjState>()(
                     week.bangunanId = 'bangunan-1';
                     hasDuplicates = true;
                   }
-                  // Harmonize tanggal jika masih 2023
-                  let harmonizedTanggal = week.hariTanggal;
+                  let harmonizedTanggal = formatToSlashDate(week.hariTanggal || '');
                   if (harmonizedTanggal && harmonizedTanggal.includes('2023')) {
                     const pNum = week.periodeKe || week.mingguKe || 1;
                     const sched = DAK_FISIK_PERIODS_2026.find((s) => s.periodeKe === pNum);
@@ -1218,9 +1439,19 @@ export const useLpjStore = create<LpjState>()(
                       hasDuplicates = true;
                     }
                   }
+                  if (harmonizedTanggal !== week.hariTanggal) {
+                    hasDuplicates = true;
+                  }
                   deduplicated.push({
                     ...week,
                     hariTanggal: harmonizedTanggal,
+                    pekerja: Array.isArray(week.pekerja)
+                      ? week.pekerja.map((p) => ({
+                          ...p,
+                          kodeMtp: p.kodeMtp || getKodeMtp(p),
+                          tempatTinggal: p.tempatTinggal || 'dalam_desa',
+                        }))
+                      : [],
                   });
                 }
               }
@@ -1243,9 +1474,7 @@ export const useLpjStore = create<LpjState>()(
               deduplicated.unshift(DEFAULT_ABSEN_MINGGU_4);
               hasDuplicates = true;
             }
-            if (hasDuplicates) {
-              state.absenTukangList = deduplicated;
-            }
+            state.absenTukangList = deduplicated;
             if (!state.selectedAbsenWeekId || state.selectedAbsenWeekId === 'absen-minggu-2') {
               state.selectedAbsenWeekId = 'absen-minggu-4';
             }

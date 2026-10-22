@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { formatRupiahBulat, terbilangRupiah } from '../utils/terbilang';
+import { formatToSlashDate } from '../utils/dateUtils';
 import { exportLpjToExcel } from '../utils/excelExport';
 import { triggerPrint } from '../utils/printHelper';
 
@@ -41,8 +42,9 @@ export const CetakKwitansiView: React.FC = () => {
 
   const displayPenerima =
     customPenerima || selectedTx?.penerima || '...........................................';
-  const displayTanggalLunas =
-    customTanggalLunas || selectedTx?.tanggal || profile.tanggalTutupBuku;
+  const displayTanggalLunas = formatToSlashDate(
+    customTanggalLunas || selectedTx?.tanggal || profile.tanggalTutupBuku
+  );
 
   const handlePrint = () => {
     triggerPrint(`Kwitansi Pembayaran (${selectedTx?.nomorBukti || 'BKU'})`);
@@ -126,7 +128,7 @@ export const CetakKwitansiView: React.FC = () => {
             >
               {expenseTransactions.map((tx) => (
                 <option key={tx.id} value={tx.id} className="text-slate-950 font-bold">
-                  {tx.nomorBukti ? `[${tx.nomorBukti}]` : '[NON-BKU]'} {tx.tanggal} - {tx.uraian} ({formatRupiahBulat(tx.pengeluaran)})
+                  {tx.nomorBukti ? `[${tx.nomorBukti}]` : '[NON-BKU]'} {formatToSlashDate(tx.tanggal)} - {tx.uraian} ({formatRupiahBulat(tx.pengeluaran)})
                 </option>
               ))}
             </select>

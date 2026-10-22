@@ -16,6 +16,7 @@ import {
   Building,
   PackageCheck,
   HardDrive,
+  FileCheck2,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
 import { ActiveTab } from '../types';
@@ -52,6 +53,7 @@ export const SidebarNav: React.FC = () => {
     { id: 'bku', label: 'BK Umum', icon: BookOpen, desc: 'Buku Kas Umum' },
     { id: 'bku-tunai', label: 'BKU Tunai', icon: Banknote, desc: 'Rincian sub-nota barang' },
     { id: 'bk-bank', label: 'BK Bank', icon: Landmark, desc: 'Rekening giro/tabungan' },
+    { id: 'bku-pajak', label: 'BKU Pajak', icon: FileCheck2, desc: 'Buku Pembantu Pajak' },
     { id: 'kwitansi', label: 'Cetak Kwitansi', icon: Receipt, desc: 'Format cetak resmi' },
     { id: 'daftar-barang', label: 'Daftar Barang/Belanja', icon: PackageCheck, desc: 'Bahan & Upah Tukang' },
   ];

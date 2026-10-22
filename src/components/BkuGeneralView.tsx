@@ -18,6 +18,7 @@ import {
 import { useLpjStore } from '../store/lpjStore';
 import { groupTransactionsByMonthlyBooks, getJenisBiaya } from '../utils/calculations';
 import { formatRupiah } from '../utils/terbilang';
+import { formatToSlashDate } from '../utils/dateUtils';
 import { exportLpjToExcel } from '../utils/excelExport';
 import { triggerPrint } from '../utils/printHelper';
 import { TransactionSelectionBar } from './TransactionSelectionBar';
@@ -221,7 +222,7 @@ export const BkuGeneralView: React.FC = () => {
         if (!group.isFirstMonth && group.bku.initialRow) {
           penerimaanItems.push({
             id: `initial-${group.monthKey}`,
-            tanggal: group.bku.initialRow.tanggal,
+            tanggal: formatToSlashDate(group.bku.initialRow.tanggal),
             uraian: group.bku.initialRow.uraian,
             nomorBukti: '-',
             jumlah: group.bku.initialRow.saldo,
@@ -235,7 +236,7 @@ export const BkuGeneralView: React.FC = () => {
           if (t.jenis === 'PENERIMAAN' && t.metode !== 'TARIK_TUNAI') {
             penerimaanItems.push({
               id: t.id,
-              tanggal: t.tanggal,
+              tanggal: formatToSlashDate(t.tanggal),
               uraian: t.uraian,
               nomorBukti: t.nomorBukti || '-',
               jumlah: t.penerimaan,
@@ -248,7 +249,7 @@ export const BkuGeneralView: React.FC = () => {
           ) {
             penerimaanItems.push({
               id: `${t.id}-in`,
-              tanggal: t.tanggal,
+              tanggal: formatToSlashDate(t.tanggal),
               uraian: t.uraian,
               nomorBukti: t.nomorBukti || '-',
               jumlah: t.penerimaan || t.pengeluaran,
@@ -264,7 +265,7 @@ export const BkuGeneralView: React.FC = () => {
           if (t.jenis === 'PENGELUARAN' || (t.metode !== 'TARIK_TUNAI' && t.pengeluaran > 0)) {
             pengeluaranItems.push({
               id: t.id,
-              tanggal: t.tanggal,
+              tanggal: formatToSlashDate(t.tanggal),
               uraian: t.uraian,
               nomorBukti: t.nomorBukti || '',
               jenisBiaya: t.jenisBiaya || getJenisBiaya(t),
@@ -278,7 +279,7 @@ export const BkuGeneralView: React.FC = () => {
           ) {
             pengeluaranItems.push({
               id: `${t.id}-out`,
-              tanggal: t.tanggal,
+              tanggal: formatToSlashDate(t.tanggal),
               uraian: t.uraian,
               nomorBukti: t.nomorBukti || '',
               jenisBiaya: t.jenisBiaya || 'Tarik Tunai',

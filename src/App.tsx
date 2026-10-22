@@ -5,6 +5,7 @@ import { DashboardView } from './components/DashboardView';
 import { BkuGeneralView } from './components/BkuGeneralView';
 import { BkuTunaiView } from './components/BkuTunaiView';
 import { BkBankView } from './components/BkBankView';
+import { BkuPajakView } from './components/BkuPajakView';
 import { CetakKwitansiView } from './components/CetakKwitansiView';
 import { DaftarBarangView } from './components/DaftarBarangView';
 import { TransactionModal } from './components/TransactionModal';
@@ -37,6 +38,7 @@ export default function App() {
           {activeTab === 'bku' && <BkuGeneralView />}
           {activeTab === 'bku-tunai' && <BkuTunaiView />}
           {activeTab === 'bk-bank' && <BkBankView />}
+          {activeTab === 'bku-pajak' && <BkuPajakView />}
           {activeTab === 'kwitansi' && <CetakKwitansiView />}
           {activeTab === 'daftar-barang' && <DaftarBarangView />}
         </main>

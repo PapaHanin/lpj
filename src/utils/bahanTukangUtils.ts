@@ -122,170 +122,170 @@ export const DAK_FISIK_PERIODS_2026: DakPeriodSchedule[] = [
     periodeKe: 1,
     mingguStart: 1,
     mingguEnd: 2,
-    hariTanggal: '19 Agustus s.d 2 September 2026',
-    tanggalTutup: '2 September 2026',
+    hariTanggal: '19/08/2026 s.d 02/09/2026',
+    tanggalTutup: '02/09/2026',
     subWeek1: {
       mingguKe: 1,
-      hariTanggal: '19 Agustus s.d 26 Agustus 2026',
-      tanggalTutup: '26 Agustus 2026',
+      hariTanggal: '19/08/2026 s.d 26/08/2026',
+      tanggalTutup: '26/08/2026',
     },
     subWeek2: {
       mingguKe: 2,
-      hariTanggal: '27 Agustus s.d 2 September 2026',
-      tanggalTutup: '2 September 2026',
+      hariTanggal: '27/08/2026 s.d 02/09/2026',
+      tanggalTutup: '02/09/2026',
     },
   },
   {
     periodeKe: 2,
     mingguStart: 3,
     mingguEnd: 4,
-    hariTanggal: '3 September s.d 16 September 2026',
-    tanggalTutup: '16 September 2026',
+    hariTanggal: '03/09/2026 s.d 16/09/2026',
+    tanggalTutup: '16/09/2026',
     subWeek1: {
       mingguKe: 3,
-      hariTanggal: '3 September s.d 9 September 2026',
-      tanggalTutup: '9 September 2026',
+      hariTanggal: '03/09/2026 s.d 09/09/2026',
+      tanggalTutup: '09/09/2026',
     },
     subWeek2: {
       mingguKe: 4,
-      hariTanggal: '10 September s.d 16 September 2026',
-      tanggalTutup: '16 September 2026',
+      hariTanggal: '10/09/2026 s.d 16/09/2026',
+      tanggalTutup: '16/09/2026',
     },
   },
   {
     periodeKe: 3,
     mingguStart: 5,
     mingguEnd: 6,
-    hariTanggal: '17 September s.d 30 September 2026',
-    tanggalTutup: '30 September 2026',
+    hariTanggal: '17/09/2026 s.d 30/09/2026',
+    tanggalTutup: '30/09/2026',
     subWeek1: {
       mingguKe: 5,
-      hariTanggal: '17 September s.d 23 September 2026',
-      tanggalTutup: '23 September 2026',
+      hariTanggal: '17/09/2026 s.d 23/09/2026',
+      tanggalTutup: '23/09/2026',
     },
     subWeek2: {
       mingguKe: 6,
-      hariTanggal: '24 September s.d 30 September 2026',
-      tanggalTutup: '30 September 2026',
+      hariTanggal: '24/09/2026 s.d 30/09/2026',
+      tanggalTutup: '30/09/2026',
     },
   },
   {
     periodeKe: 4,
     mingguStart: 7,
     mingguEnd: 8,
-    hariTanggal: '1 Oktober s.d 14 Oktober 2026',
-    tanggalTutup: '14 Oktober 2026',
+    hariTanggal: '01/10/2026 s.d 14/10/2026',
+    tanggalTutup: '14/10/2026',
     subWeek1: {
       mingguKe: 7,
-      hariTanggal: '1 Oktober s.d 7 Oktober 2026',
-      tanggalTutup: '7 Oktober 2026',
+      hariTanggal: '01/10/2026 s.d 07/10/2026',
+      tanggalTutup: '07/10/2026',
     },
     subWeek2: {
       mingguKe: 8,
-      hariTanggal: '8 Oktober s.d 14 Oktober 2026',
-      tanggalTutup: '14 Oktober 2026',
+      hariTanggal: '08/10/2026 s.d 14/10/2026',
+      tanggalTutup: '14/10/2026',
     },
   },
   {
     periodeKe: 5,
     mingguStart: 9,
     mingguEnd: 10,
-    hariTanggal: '15 Oktober s.d 28 Oktober 2026',
-    tanggalTutup: '28 Oktober 2026',
+    hariTanggal: '15/10/2026 s.d 28/10/2026',
+    tanggalTutup: '28/10/2026',
     subWeek1: {
       mingguKe: 9,
-      hariTanggal: '15 Oktober s.d 21 Oktober 2026',
-      tanggalTutup: '21 Oktober 2026',
+      hariTanggal: '15/10/2026 s.d 21/10/2026',
+      tanggalTutup: '21/10/2026',
     },
     subWeek2: {
       mingguKe: 10,
-      hariTanggal: '22 Oktober s.d 28 Oktober 2026',
-      tanggalTutup: '28 Oktober 2026',
+      hariTanggal: '22/10/2026 s.d 28/10/2026',
+      tanggalTutup: '28/10/2026',
     },
   },
   {
     periodeKe: 6,
     mingguStart: 11,
     mingguEnd: 12,
-    hariTanggal: '29 Oktober s.d 11 November 2026',
-    tanggalTutup: '11 November 2026',
+    hariTanggal: '29/10/2026 s.d 11/11/2026',
+    tanggalTutup: '11/11/2026',
     subWeek1: {
       mingguKe: 11,
-      hariTanggal: '29 Oktober s.d 4 November 2026',
-      tanggalTutup: '4 November 2026',
+      hariTanggal: '29/10/2026 s.d 04/11/2026',
+      tanggalTutup: '04/11/2026',
     },
     subWeek2: {
       mingguKe: 12,
-      hariTanggal: '5 November s.d 11 November 2026',
-      tanggalTutup: '11 November 2026',
+      hariTanggal: '05/11/2026 s.d 11/11/2026',
+      tanggalTutup: '11/11/2026',
     },
   },
   {
     periodeKe: 7,
     mingguStart: 13,
     mingguEnd: 14,
-    hariTanggal: '12 November s.d 25 November 2026',
-    tanggalTutup: '25 November 2026',
+    hariTanggal: '12/11/2026 s.d 25/11/2026',
+    tanggalTutup: '25/11/2026',
     subWeek1: {
       mingguKe: 13,
-      hariTanggal: '12 November s.d 18 November 2026',
-      tanggalTutup: '18 November 2026',
+      hariTanggal: '12/11/2026 s.d 18/11/2026',
+      tanggalTutup: '18/11/2026',
     },
     subWeek2: {
       mingguKe: 14,
-      hariTanggal: '19 November s.d 25 November 2026',
-      tanggalTutup: '25 November 2026',
+      hariTanggal: '19/11/2026 s.d 25/11/2026',
+      tanggalTutup: '25/11/2026',
     },
   },
   {
     periodeKe: 8,
     mingguStart: 15,
     mingguEnd: 16,
-    hariTanggal: '26 November s.d 9 Desember 2026',
-    tanggalTutup: '9 Desember 2026',
+    hariTanggal: '26/11/2026 s.d 09/12/2026',
+    tanggalTutup: '09/12/2026',
     subWeek1: {
       mingguKe: 15,
-      hariTanggal: '26 November s.d 2 Desember 2026',
-      tanggalTutup: '2 Desember 2026',
+      hariTanggal: '26/11/2026 s.d 02/12/2026',
+      tanggalTutup: '02/12/2026',
     },
     subWeek2: {
       mingguKe: 16,
-      hariTanggal: '3 Desember s.d 9 Desember 2026',
-      tanggalTutup: '9 Desember 2026',
+      hariTanggal: '03/12/2026 s.d 09/12/2026',
+      tanggalTutup: '09/12/2026',
     },
   },
   {
     periodeKe: 9,
     mingguStart: 17,
     mingguEnd: 18,
-    hariTanggal: '10 Desember s.d 23 Desember 2026',
-    tanggalTutup: '23 Desember 2026',
+    hariTanggal: '10/12/2026 s.d 23/12/2026',
+    tanggalTutup: '23/12/2026',
     subWeek1: {
       mingguKe: 17,
-      hariTanggal: '10 Desember s.d 16 Desember 2026',
-      tanggalTutup: '16 Desember 2026',
+      hariTanggal: '10/12/2026 s.d 16/12/2026',
+      tanggalTutup: '16/12/2026',
     },
     subWeek2: {
       mingguKe: 18,
-      hariTanggal: '17 Desember s.d 23 Desember 2026',
-      tanggalTutup: '23 Desember 2026',
+      hariTanggal: '17/12/2026 s.d 23/12/2026',
+      tanggalTutup: '23/12/2026',
     },
   },
   {
     periodeKe: 10,
     mingguStart: 19,
     mingguEnd: 20,
-    hariTanggal: '24 Desember s.d 31 Desember 2026',
-    tanggalTutup: '31 Desember 2026',
+    hariTanggal: '24/12/2026 s.d 31/12/2026',
+    tanggalTutup: '31/12/2026',
     subWeek1: {
       mingguKe: 19,
-      hariTanggal: '24 Desember s.d 30 Desember 2026',
-      tanggalTutup: '30 Desember 2026',
+      hariTanggal: '24/12/2026 s.d 30/12/2026',
+      tanggalTutup: '30/12/2026',
     },
     subWeek2: {
       mingguKe: 20,
-      hariTanggal: '31 Desember 2026',
-      tanggalTutup: '31 Desember 2026',
+      hariTanggal: '31/12/2026',
+      tanggalTutup: '31/12/2026',
     },
   },
 ];
@@ -323,13 +323,32 @@ export function getScheduleForWeekNum(weekNum: number): IndividualWeekSchedule |
 }
 
 /**
+ * Helper to derive M / T / P code (M = Mandor, T = Tukang, P = Pekerja)
+ */
+export function getKodeMtp(worker: Partial<PekerjaTukang>): 'M' | 'T' | 'P' {
+  if (worker.kodeMtp === 'M' || worker.kodeMtp === 'T' || worker.kodeMtp === 'P') {
+    return worker.kodeMtp;
+  }
+  const role = (worker.tenagaKerja || worker.kategori || '').toLowerCase();
+  if (role.includes('mandor') || role.includes('kepala') || role === 'm') {
+    return 'M';
+  }
+  if (role.includes('tukang') || role === 't') {
+    return 'T';
+  }
+  return 'P';
+}
+
+/**
  * Daftar Pekerja Bawaan Masing-Masing Bangunan
  */
 export const DEFAULT_WORKERS_BANGUNAN_1: PekerjaTukang[] = [
   {
     id: 'tk-b1-1',
-    kategori: 'Kepala Tukang',
-    tenagaKerja: 'Kepala Tukang',
+    kategori: 'Mandor',
+    tenagaKerja: 'Mandor',
+    kodeMtp: 'M',
+    tempatTinggal: 'dalam_desa',
     nama: 'JONI',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -342,6 +361,8 @@ export const DEFAULT_WORKERS_BANGUNAN_1: PekerjaTukang[] = [
     id: 'tk-b1-2',
     kategori: 'Tukang',
     tenagaKerja: 'Tukang',
+    kodeMtp: 'T',
+    tempatTinggal: 'dalam_desa',
     nama: 'RISKIATUL',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -354,6 +375,8 @@ export const DEFAULT_WORKERS_BANGUNAN_1: PekerjaTukang[] = [
     id: 'tk-b1-3',
     kategori: 'Pekerja',
     tenagaKerja: 'Pekerja',
+    kodeMtp: 'P',
+    tempatTinggal: 'dalam_desa',
     nama: 'ARTON K.',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -366,6 +389,8 @@ export const DEFAULT_WORKERS_BANGUNAN_1: PekerjaTukang[] = [
     id: 'tk-b1-4',
     kategori: 'Pekerja',
     tenagaKerja: 'Pekerja',
+    kodeMtp: 'P',
+    tempatTinggal: 'luar_desa',
     nama: 'SUBHAN',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -379,8 +404,10 @@ export const DEFAULT_WORKERS_BANGUNAN_1: PekerjaTukang[] = [
 export const DEFAULT_WORKERS_BANGUNAN_2: PekerjaTukang[] = [
   {
     id: 'tk-b2-1',
-    kategori: 'Kepala Tukang',
-    tenagaKerja: 'Kepala Tukang',
+    kategori: 'Mandor',
+    tenagaKerja: 'Mandor',
+    kodeMtp: 'M',
+    tempatTinggal: 'dalam_desa',
     nama: 'BAHARUDDIN',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -393,6 +420,8 @@ export const DEFAULT_WORKERS_BANGUNAN_2: PekerjaTukang[] = [
     id: 'tk-b2-2',
     kategori: 'Tukang',
     tenagaKerja: 'Tukang',
+    kodeMtp: 'T',
+    tempatTinggal: 'dalam_desa',
     nama: 'MANSYUR',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -405,6 +434,8 @@ export const DEFAULT_WORKERS_BANGUNAN_2: PekerjaTukang[] = [
     id: 'tk-b2-3',
     kategori: 'Pekerja',
     tenagaKerja: 'Pekerja',
+    kodeMtp: 'P',
+    tempatTinggal: 'dalam_desa',
     nama: 'IMRAN',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -417,6 +448,8 @@ export const DEFAULT_WORKERS_BANGUNAN_2: PekerjaTukang[] = [
     id: 'tk-b2-4',
     kategori: 'Pekerja',
     tenagaKerja: 'Pekerja',
+    kodeMtp: 'P',
+    tempatTinggal: 'luar_desa',
     nama: 'ANTO',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -430,8 +463,10 @@ export const DEFAULT_WORKERS_BANGUNAN_2: PekerjaTukang[] = [
 export const DEFAULT_WORKERS_BANGUNAN_3: PekerjaTukang[] = [
   {
     id: 'tk-b3-1',
-    kategori: 'Kepala Tukang',
-    tenagaKerja: 'Kepala Tukang',
+    kategori: 'Mandor',
+    tenagaKerja: 'Mandor',
+    kodeMtp: 'M',
+    tempatTinggal: 'dalam_desa',
     nama: 'WAHYUDI',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -444,6 +479,8 @@ export const DEFAULT_WORKERS_BANGUNAN_3: PekerjaTukang[] = [
     id: 'tk-b3-2',
     kategori: 'Tukang',
     tenagaKerja: 'Tukang',
+    kodeMtp: 'T',
+    tempatTinggal: 'dalam_desa',
     nama: 'SUDIRMAN',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -456,6 +493,8 @@ export const DEFAULT_WORKERS_BANGUNAN_3: PekerjaTukang[] = [
     id: 'tk-b3-3',
     kategori: 'Pekerja',
     tenagaKerja: 'Pekerja',
+    kodeMtp: 'P',
+    tempatTinggal: 'dalam_desa',
     nama: 'HASAN',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -468,6 +507,8 @@ export const DEFAULT_WORKERS_BANGUNAN_3: PekerjaTukang[] = [
     id: 'tk-b3-4',
     kategori: 'Pekerja',
     tenagaKerja: 'Pekerja',
+    kodeMtp: 'P',
+    tempatTinggal: 'luar_desa',
     nama: 'NURDIN',
     hariKerja: {
       m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
@@ -510,7 +551,7 @@ export function createDefaultWeeksForBangunan(
       mingguKe: sched.periodeKe,
       hariTanggal: sched.hariTanggal,
       hariLibur: ['m1_7', 'm2_7'],
-      pekerja: baseWorkers.map((p, idx) => ({
+      pekerja: baseWorkers.map((p) => ({
         ...p,
         id: `${p.id}-p${sched.periodeKe}`,
         hariKerja: { ...p.hariKerja },
@@ -530,7 +571,7 @@ export const DEFAULT_ABSEN_MINGGU_4: AbsenMingguanTukang = {
   lokasi: '',
   periodeKe: 1,
   mingguKe: 1,
-  hariTanggal: '19 Agustus s.d 2 September 2026',
+  hariTanggal: '19/08/2026 s.d 02/09/2026',
   namaKepalaSekolah: '',
   nipKepalaSekolah: '',
   namaBendahara: '',
@@ -547,7 +588,7 @@ export const DEFAULT_ABSEN_MINGGU_2: AbsenMingguanTukang = {
   lokasi: '',
   periodeKe: 2,
   mingguKe: 2,
-  hariTanggal: '3 September s.d 16 September 2026',
+  hariTanggal: '03/09/2026 s.d 16/09/2026',
   hariLibur: ['m1_7', 'm2_7'],
   pekerja: DEFAULT_WORKERS_BANGUNAN_1.map((p) => ({
     ...p,

@@ -119,8 +119,9 @@ export const TransactionModal: React.FC = () => {
 
   useEffect(() => {
     if (transactionToEdit) {
-      setTanggal(transactionToEdit.tanggal);
-      setIsoDate(indonesianDateToIso(transactionToEdit.tanggal));
+      const formattedEditDate = formatToIndonesianDate(transactionToEdit.tanggal);
+      setTanggal(formattedEditDate);
+      setIsoDate(indonesianDateToIso(formattedEditDate));
       setUraian(transactionToEdit.uraian);
       setNomorBukti(transactionToEdit.nomorBukti || '');
       setMetode(transactionToEdit.metode);
@@ -143,7 +144,7 @@ export const TransactionModal: React.FC = () => {
     } else {
       // Default new transaction based on active reporting month and optional modalPreset
       const info = activeMonthInfo();
-      const defaultDateStr = `15 ${info.month} ${info.year}`;
+      const defaultDateStr = formatToIndonesianDate(`15 ${info.month} ${info.year}`);
       setTanggal(defaultDateStr);
       setIsoDate(indonesianDateToIso(defaultDateStr));
       setUraian(modalPreset?.uraian || '');
@@ -538,13 +539,13 @@ export const TransactionModal: React.FC = () => {
                   className="w-11 px-1 py-2.5 bg-purple-50 border-2 border-purple-900/30 rounded-xl cursor-pointer text-purple-950 font-bold hover:bg-purple-100 transition"
                   title="Pilih tanggal dari kalender"
                 />
-                {/* Text format "16 Agustus 2026" */}
+                {/* Text format "11/08/2026" */}
                 <input
                   type="text"
                   value={tanggal}
                   onChange={(e) => handleTextDateChange(e.target.value)}
-                  placeholder={`Contoh: 15 ${currentMonthInfo.month} ${currentMonthInfo.year}`}
-                  className="w-full text-sm font-black text-slate-950 bg-white border-2 border-purple-900/40 rounded-xl px-3.5 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden placeholder:text-slate-400"
+                  placeholder={`Contoh: 15/08/${currentMonthInfo.year}`}
+                  className="w-full text-sm font-black text-slate-950 bg-white border-2 border-purple-900/40 rounded-xl px-3.5 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden font-mono placeholder:text-slate-400"
                   required
                 />
               </div>
@@ -555,7 +556,7 @@ export const TransactionModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const d = `01 ${currentMonthInfo.month} ${currentMonthInfo.year}`;
+                    const d = formatToIndonesianDate(`01 ${currentMonthInfo.month} ${currentMonthInfo.year}`);
                     setTanggal(d);
                     setIsoDate(indonesianDateToIso(d));
                   }}
@@ -566,7 +567,7 @@ export const TransactionModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const d = `15 ${currentMonthInfo.month} ${currentMonthInfo.year}`;
+                    const d = formatToIndonesianDate(`15 ${currentMonthInfo.month} ${currentMonthInfo.year}`);
                     setTanggal(d);
                     setIsoDate(indonesianDateToIso(d));
                   }}
@@ -592,7 +593,7 @@ export const TransactionModal: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-black text-purple-950 uppercase tracking-wide">
-                  Nomor Bukti BKU
+                  Nomor Bukti (BKU / KW / SP2D / BB)
                 </label>
                 <div className="flex items-center gap-2.5">
                   <button
@@ -624,7 +625,7 @@ export const TransactionModal: React.FC = () => {
                     setNomorBukti(e.target.value);
                     setBkuSuggestionNotice(null);
                   }}
-                  placeholder="Contoh: BKU 05"
+                  placeholder="Contoh: BKU 01, KW-001, SP2D-001, BB-002"
                   className="w-full text-sm font-black text-slate-950 bg-white border-2 border-purple-900/40 rounded-xl px-3.5 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden font-mono placeholder:text-slate-400"
                 />
                 <button
@@ -636,6 +637,19 @@ export const TransactionModal: React.FC = () => {
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Auto BKU</span>
                 </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                <span className="text-[10px] font-bold text-slate-500">Format Bukti:</span>
+                {['BKU 01', 'KW-001', 'SP2D-001', 'BB-002'].map((fmt) => (
+                  <button
+                    key={fmt}
+                    type="button"
+                    onClick={() => setNomorBukti(fmt)}
+                    className="text-[10px] font-mono font-bold text-purple-900 bg-purple-100 hover:bg-amber-300 hover:text-purple-950 px-2 py-0.5 rounded border border-purple-200 transition cursor-pointer"
+                  >
+                    {fmt}
+                  </button>
+                ))}
               </div>
 
               {/* Helper Notice from Date Suggestion */}
