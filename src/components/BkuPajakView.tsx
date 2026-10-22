@@ -1248,7 +1248,7 @@ export const BkuPajakView: React.FC = () => {
                     type="text"
                     value={formNomorBukti}
                     onChange={(e) => setFormNomorBukti(e.target.value)}
-                    placeholder="KW-001 / BKU 02 / Kosongkan"
+                    placeholder="KW-001 / KW-002 / Kosongkan"
                     className="w-full border-2 border-purple-900/30 rounded-xl px-3 py-2 font-mono font-bold text-slate-900"
                   />
                 </div>

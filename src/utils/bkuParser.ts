@@ -42,11 +42,11 @@ export function parseBkuNumber(nomorBukti: string): ParsedBku | null {
  */
 export function formatBkuNumber(
   num: number,
-  prefix: string = 'BKU ',
-  padLength: number = 2,
+  prefix: string = 'KW-',
+  padLength: number = 3,
   suffix: string = ''
 ): string {
-  const pad = Math.max(padLength, 2);
+  const pad = Math.max(padLength, 3);
   const numStr = String(num).padStart(pad, '0');
   return `${prefix}${numStr}${suffix}`;
 }

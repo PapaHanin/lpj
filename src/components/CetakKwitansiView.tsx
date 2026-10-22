@@ -171,12 +171,12 @@ export const CetakKwitansiView: React.FC = () => {
 
         {/* Data Rows */}
         <div className="space-y-4 text-xs sm:text-sm md:text-base leading-relaxed text-black">
-          {/* Nomor BKU */}
+          {/* Nomor Bukti / Kwitansi */}
           <div className="flex items-start text-black">
-            <span className="w-48 sm:w-56 font-bold shrink-0 text-black">Nomor BKU</span>
+            <span className="w-48 sm:w-56 font-bold shrink-0 text-black">Nomor Bukti / Kwitansi</span>
             <span className="shrink-0 mr-3 text-black">:</span>
             <span className="font-mono font-bold text-black">
-              {selectedTx?.nomorBukti || 'BKU 01'}
+              {selectedTx?.nomorBukti || 'KW-001'}
             </span>
           </div>
 

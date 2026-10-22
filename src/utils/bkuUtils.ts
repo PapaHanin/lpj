@@ -22,8 +22,8 @@ export function suggestBkuForDate(
   conflictsWithExisting: boolean;
   explanation: string;
 } {
-  const defaultPrefix = 'BKU ';
-  const defaultPad = 2;
+  const defaultPrefix = 'KW-';
+  const defaultPad = 3;
 
   const validTxs = transactions.filter((t) => t.id !== excludeTxId);
   const sorted = sortTransactionsChronologically(validTxs);
@@ -72,7 +72,7 @@ export function suggestBkuForDate(
   } else if (maxNumBefore > 0) {
     explanation = `Melanjutkan urutan kuitansi sebelumnya (${detectedPrefix}${String(maxNumBefore).padStart(detectedPad, '0')}).`;
   } else {
-    explanation = `Merupakan kuitansi paling awal dalam pembukuan (BKU 01).`;
+    explanation = `Merupakan kuitansi paling awal dalam pembukuan (KW-001).`;
   }
 
   return {

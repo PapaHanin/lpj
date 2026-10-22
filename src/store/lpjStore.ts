@@ -39,6 +39,7 @@ import {
   DEFAULT_WORKERS_BANGUNAN_2,
   DEFAULT_WORKERS_BANGUNAN_3,
   getKodeMtp,
+  cleanMaterialName,
 } from '../utils/bahanTukangUtils';
 import {
   SAMPLE_IMAGE_PAJAK_ROWS,
@@ -50,6 +51,8 @@ export interface ModalPreset {
   jenis?: TransactionJenis;
   withSubItems?: boolean;
   uraian?: string;
+  tanggal?: string;
+  nomorBukti?: string;
 }
 
 export interface ToastNotification {
@@ -225,6 +228,12 @@ interface LpjState {
   syncDakFisikSchedule: () => void;
   addCustomBahan: (item: Omit<CustomBahanItem, 'id'>) => void;
   deleteCustomBahan: (id: string) => void;
+  batchUpdateMaterialPrice: (params: {
+    namaBarang: string;
+    newHarga: number;
+    scope: 'all' | 'specific_month';
+    monthKey?: string;
+  }) => number;
 }
 
 export const useLpjStore = create<LpjState>()(
@@ -1311,6 +1320,94 @@ export const useLpjStore = create<LpjState>()(
         set((state) => ({
           customBahanList: state.customBahanList.filter((b) => b.id !== id),
         })),
+
+      batchUpdateMaterialPrice: ({ namaBarang, newHarga, scope, monthKey }) => {
+        let updatedCount = 0;
+        const targetLower = namaBarang.trim().toLowerCase();
+
+        set((state) => {
+          const updatedTransactions = state.transactions.map((tx) => {
+            if (scope === 'specific_month' && monthKey && monthKey !== 'ALL') {
+              const my = extractMonthAndYear(tx.tanggal);
+              const mName = my?.month || 'Agustus';
+              const yr = my?.year || 2026;
+              const mIdx = BULAN_LIST.findIndex((m) => m.toLowerCase() === mName.toLowerCase());
+              const padM = String(mIdx >= 0 ? mIdx + 1 : 8).padStart(2, '0');
+              const txKey = `${yr}-${padM}`;
+              if (txKey !== monthKey) return tx;
+            }
+
+            let txModified = false;
+            let updatedSubItems = tx.subItems ? [...tx.subItems] : undefined;
+
+            if (updatedSubItems && updatedSubItems.length > 0) {
+              updatedSubItems = updatedSubItems.map((si) => {
+                const siName = si.nama.trim().toLowerCase();
+                if (siName.includes(targetLower) || targetLower.includes(siName)) {
+                  txModified = true;
+                  const vol = typeof si.volume === 'number' ? si.volume : parseFloat(String(si.volume)) || 1;
+                  return {
+                    ...si,
+                    hargaSatuan: newHarga,
+                    subtotal: Math.round(vol * newHarga),
+                  };
+                }
+                return si;
+              });
+
+              if (txModified) {
+                const newTotal = updatedSubItems.reduce((acc, i) => acc + (i.subtotal || 0), 0);
+                updatedCount++;
+                return {
+                  ...tx,
+                  subItems: updatedSubItems,
+                  pengeluaran: tx.pengeluaran > 0 ? newTotal : 0,
+                  penerimaan: tx.metode === 'TARIK_TUNAI' ? newTotal : tx.penerimaan,
+                };
+              }
+            } else {
+              const uLower = tx.uraian.toLowerCase();
+              if (uLower.includes(targetLower) || targetLower.includes(cleanMaterialName(tx.uraian).toLowerCase())) {
+                const qtyUnitRegex =
+                  /(?:^|\s)(\d+(?:[.,]\d+)?)\s*(trek|truk|truck|ret|rit|sak|zak|m3|meter|m|kubik|kbk|batang|btg|lembar|lbr|dus|dos|kg|kilo|buah|bh|unit|roll|rol|kaleng|klg|paket|pkt|lonjor)\b/i;
+                const match = tx.uraian.match(qtyUnitRegex);
+                const vol = match ? parseFloat(match[1].replace(',', '.')) || 1 : 1;
+                const newTotal = Math.round(vol * newHarga);
+                if (tx.pengeluaran > 0 && newTotal > 0) {
+                  updatedCount++;
+                  return {
+                    ...tx,
+                    pengeluaran: newTotal,
+                    penerimaan: tx.metode === 'TARIK_TUNAI' ? newTotal : tx.penerimaan,
+                  };
+                }
+              }
+            }
+
+            return tx;
+          });
+
+          const updatedCustomBahan = state.customBahanList.map((cb) => {
+            const cbName = cb.namaBarang.trim().toLowerCase();
+            if (cbName.includes(targetLower) || targetLower.includes(cbName)) {
+              const newTotal = Math.round((cb.volume || 1) * newHarga);
+              return {
+                ...cb,
+                harga: newHarga,
+                total: newTotal,
+              };
+            }
+            return cb;
+          });
+
+          return {
+            transactions: updatedTransactions,
+            customBahanList: updatedCustomBahan,
+          };
+        });
+
+        return updatedCount;
+      },
     }),
     {
       name: 'ah-beres-lpj-storage-v2',
@@ -1397,10 +1494,20 @@ export const useLpjStore = create<LpjState>()(
             }
           }
           if (Array.isArray(state.transactions)) {
-            state.transactions = state.transactions.map((tx) => ({
-              ...tx,
-              tanggal: formatToSlashDate(tx.tanggal || ''),
-            }));
+            state.transactions = state.transactions.map((tx) => {
+              let updatedNo = tx.nomorBukti;
+              if (updatedNo && /^BKU\s*(\d+)$/i.test(updatedNo.trim())) {
+                const match = updatedNo.trim().match(/^BKU\s*(\d+)$/i);
+                if (match) {
+                  updatedNo = `KW-${String(parseInt(match[1], 10)).padStart(3, '0')}`;
+                }
+              }
+              return {
+                ...tx,
+                tanggal: formatToSlashDate(tx.tanggal || ''),
+                nomorBukti: updatedNo,
+              };
+            });
           }
           if (!Array.isArray(state.pajakRows) || state.pajakRows.length === 0) {
             state.pajakRows = SAMPLE_IMAGE_PAJAK_ROWS;

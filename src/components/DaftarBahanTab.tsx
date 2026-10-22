@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useLpjStore } from '../store/lpjStore';
-import { extractDaftarBahan } from '../utils/bahanTukangUtils';
+import { extractDaftarBahan, cleanMaterialName } from '../utils/bahanTukangUtils';
 import { formatRupiah } from '../utils/calculations';
 import { triggerPrint } from '../utils/printHelper';
 import {
@@ -13,12 +13,25 @@ import {
   Info,
   CheckCircle2,
   FileSpreadsheet,
+  Edit3,
+  AlertTriangle,
+  Calendar,
+  Layers,
+  ArrowRight,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { CustomBahanItem } from '../types';
 
 export const DaftarBahanTab: React.FC = () => {
-  const { transactions, customBahanList, addCustomBahan, deleteCustomBahan, profile } =
-    useLpjStore();
+  const {
+    transactions,
+    customBahanList,
+    addCustomBahan,
+    deleteCustomBahan,
+    batchUpdateMaterialPrice,
+    profile,
+    showToast,
+  } = useLpjStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [aggregateMode, setAggregateMode] = useState<boolean>(true);
@@ -29,6 +42,12 @@ export const DaftarBahanTab: React.FC = () => {
   const [newVolume, setNewVolume] = useState<number>(1);
   const [newSatuan, setNewSatuan] = useState('Sak');
   const [newHarga, setNewHarga] = useState<number>(0);
+
+  // State for Edit Harga Material modal
+  const [editModalItem, setEditModalItem] = useState<CustomBahanItem | null>(null);
+  const [editNewHarga, setEditNewHarga] = useState<number>(0);
+  const [editScope, setEditScope] = useState<'all' | 'specific_month'>('all');
+  const [editMonthKey, setEditMonthKey] = useState<string>('');
 
   // Auto extracted bahan from transactions
   const autoBahan = useMemo(() => {
@@ -51,6 +70,166 @@ export const DaftarBahanTab: React.FC = () => {
   const totalBiayaBahan = useMemo(() => {
     return allBahan.reduce((acc, item) => acc + item.total, 0);
   }, [allBahan]);
+
+  // Calculate affected transactions when editing material price
+  const affectedTransactions = useMemo(() => {
+    if (!editModalItem) return [];
+    const targetClean = cleanMaterialName(editModalItem.namaBarang).toLowerCase();
+
+    const results: {
+      txId: string;
+      nomorBukti: string;
+      tanggal: string;
+      monthKey: string;
+      uraian: string;
+      isSubItem: boolean;
+      volume: number;
+      satuan: string;
+      oldHarga: number;
+      oldTotal: number;
+      newTotal: number;
+    }[] = [];
+
+    transactions.forEach((tx) => {
+      if (tx.subItems && tx.subItems.length > 0) {
+        tx.subItems.forEach((sub) => {
+          const subClean = cleanMaterialName(sub.nama).toLowerCase();
+          if (
+            subClean === targetClean ||
+            subClean.includes(targetClean) ||
+            targetClean.includes(subClean)
+          ) {
+            const vol = Number(sub.volume) || 1;
+            const oldH = Number(sub.hargaSatuan) || 0;
+            const mKey = tx.tanggal && tx.tanggal.length >= 7 ? tx.tanggal.slice(0, 7) : '';
+            results.push({
+              txId: tx.id,
+              nomorBukti: tx.nomorBukti,
+              tanggal: tx.tanggal,
+              monthKey: mKey,
+              uraian: sub.nama,
+              isSubItem: true,
+              volume: vol,
+              satuan: sub.satuan || 'Satuan',
+              oldHarga: oldH,
+              oldTotal: vol * oldH,
+              newTotal: vol * (editNewHarga || 0),
+            });
+          }
+        });
+      } else {
+        const uraianClean = cleanMaterialName(tx.uraian).toLowerCase();
+        if (
+          uraianClean === targetClean ||
+          uraianClean.includes(targetClean) ||
+          targetClean.includes(uraianClean)
+        ) {
+          const mKey = tx.tanggal && tx.tanggal.length >= 7 ? tx.tanggal.slice(0, 7) : '';
+          results.push({
+            txId: tx.id,
+            nomorBukti: tx.nomorBukti,
+            tanggal: tx.tanggal,
+            monthKey: mKey,
+            uraian: tx.uraian,
+            isSubItem: false,
+            volume: 1,
+            satuan: 'Item',
+            oldHarga: tx.pengeluaran,
+            oldTotal: tx.pengeluaran,
+            newTotal: editNewHarga || 0,
+          });
+        }
+      }
+    });
+
+    return results;
+  }, [editModalItem, transactions, editNewHarga]);
+
+  // List of distinct months in affected transactions
+  const availableMonths = useMemo(() => {
+    const setM = new Set<string>();
+    affectedTransactions.forEach((t) => {
+      if (t.monthKey) setM.add(t.monthKey);
+    });
+    if (setM.size === 0) {
+      transactions.forEach((tx) => {
+        if (tx.tanggal && tx.tanggal.length >= 7) {
+          setM.add(tx.tanggal.slice(0, 7));
+        }
+      });
+    }
+    return Array.from(setM).sort();
+  }, [affectedTransactions, transactions]);
+
+  const formatMonthName = (mKey: string) => {
+    if (!mKey) return 'Bulan Tidak Terdefinisi';
+    const parts = mKey.split('-');
+    if (parts.length < 2) return mKey;
+    const y = parts[0];
+    const m = parts[1];
+    const monthNames = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    const idx = parseInt(m, 10) - 1;
+    return `${monthNames[idx] || m} ${y}`;
+  };
+
+  const handleOpenEditModal = (item: CustomBahanItem) => {
+    setEditModalItem(item);
+    setEditNewHarga(item.harga || 0);
+    setEditScope('all');
+    // Default selected month to the latest available or profile
+    const latestMonth =
+      availableMonths.length > 0 ? availableMonths[availableMonths.length - 1] : '';
+    setEditMonthKey(latestMonth);
+  };
+
+  const handleApplyPriceChange = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editModalItem) return;
+
+    if (editNewHarga <= 0) {
+      showToast({
+        title: 'Input Tidak Valid',
+        message: 'Masukkan harga satuan yang valid (lebih dari 0).',
+        type: 'warning',
+      });
+      return;
+    }
+
+    const affectedCount = batchUpdateMaterialPrice({
+      namaBarang: editModalItem.namaBarang,
+      newHarga: editNewHarga,
+      scope: editScope,
+      monthKey: editScope === 'specific_month' ? editMonthKey : undefined,
+    });
+
+    const scopeLabel =
+      editScope === 'specific_month'
+        ? `di bulan ${formatMonthName(editMonthKey)}`
+        : 'di seluruh transaksi (BKU Umum, Kas Tunai & Kwitansi)';
+
+    showToast({
+      title: 'Harga Berhasil Diperbarui',
+      message: `Berhasil memperbarui harga "${editModalItem.namaBarang}" menjadi ${formatRupiah(
+        editNewHarga
+      )} ${scopeLabel}! (${affectedCount} transaksi disesuaikan)`,
+      type: 'success',
+    });
+
+    setEditModalItem(null);
+  };
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,7 +414,7 @@ export const DaftarBahanTab: React.FC = () => {
                     <span className="text-[10px] opacity-70">▼</span>
                   </div>
                 </th>
-                <th className="py-2.5 px-2 text-center w-12 font-medium border-b border-cyan-800 print:hidden">
+                <th className="py-2.5 px-3 text-center w-36 font-extrabold border-b border-cyan-800 print:hidden">
                   Aksi
                 </th>
               </tr>
@@ -276,16 +455,26 @@ export const DaftarBahanTab: React.FC = () => {
                       <td className="py-2 px-4 text-right font-mono font-bold text-slate-950">
                         {formatRupiah(item.total)}
                       </td>
-                      <td className="py-2 px-2 text-center print:hidden">
-                        {item.id.startsWith('custom-') && (
+                      <td className="py-2 px-3 text-center print:hidden">
+                        <div className="flex items-center justify-center space-x-1.5">
                           <button
-                            onClick={() => deleteCustomBahan(item.id)}
-                            title="Hapus bahan manual"
-                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                            onClick={() => handleOpenEditModal(item)}
+                            title={`Ubah harga ${item.namaBarang} di semua transaksi BKU/Kas Tunai`}
+                            className="px-2.5 py-1 text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded flex items-center space-x-1 shadow-sm transition active:scale-95"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Edit3 className="w-3.5 h-3.5 text-slate-950" />
+                            <span>Ubah Harga</span>
                           </button>
-                        )}
+                          {item.id.startsWith('custom-') && (
+                            <button
+                              onClick={() => deleteCustomBahan(item.id)}
+                              title="Hapus bahan manual"
+                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-100 rounded transition"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -454,6 +643,270 @@ export const DaftarBahanTab: React.FC = () => {
                   className="px-5 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-purple-950 font-bold text-xs shadow-md"
                 >
                   Simpan Bahan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edit / Sesuaikan Harga Material */}
+      {editModalItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#210633] border border-amber-400/50 rounded-2xl w-full max-w-2xl p-6 text-white shadow-2xl relative my-8">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-purple-800/60 mb-4">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-amber-300 flex items-center space-x-2">
+                  <Edit3 className="w-5 h-5 text-amber-400" />
+                  <span>Ubah / Sesuaikan Harga Material</span>
+                </h3>
+                <p className="text-xs text-purple-300 mt-1">
+                  Menyesuaikan harga satuan <strong className="text-white underline">{editModalItem.namaBarang}</strong> pada transaksi BKU Umum, Buku Kas Tunai, Kwitansi, dan Daftar Bahan.
+                </p>
+              </div>
+              <button
+                onClick={() => setEditModalItem(null)}
+                className="text-purple-400 hover:text-white p-1 rounded-lg text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleApplyPriceChange} className="space-y-4 text-xs">
+              {/* Saran Akuntansi / SPJ DAK Fisik (Box Info) */}
+              <div className="bg-amber-400/10 border border-amber-400/30 rounded-xl p-3.5 space-y-2 text-amber-200">
+                <div className="flex items-center space-x-2 text-amber-300 font-bold text-xs">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span>Saran Penting Pemeriksaan SPJ / DAK Fisik:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed text-amber-100/90 pl-1">
+                  <li>
+                    <strong className="text-amber-300">Nota Bulan Lalu (Agustus):</strong> Bukti fisik kuitansi & faktur toko riil di bulan Agustus tertera <strong>Rp 78.000</strong>. Secara aturan pemeriksaan SPJ, kuitansi bulan lalu sebaiknya <strong>tetap dipertahankan Rp 78.000</strong> agar nominal di pembukuan sama persis dengan bukti fisik kuitansi asli yang diarsip.
+                  </li>
+                  <li>
+                    <strong className="text-amber-300">Belanja Bulan Berjalan (Oktober):</strong> Kenaikan harga menjadi <strong>Rp 84.000</strong> sah diterapkan untuk transaksi belanja baru di bulan Oktober. Anda bisa memilih opsi <em>"Hanya Transaksi di Bulan Tertentu"</em> di bawah.
+                  </li>
+                  <li>
+                    <strong className="text-amber-300">Opsi Otomatis Semua Transaksi:</strong> Namun jika Anda dan tim sepakat ingin menyamakan seluruh harga semen di seluruh transaksi secara otomatis, Anda bisa memilih <em>"Semua Transaksi Sekaligus"</em>.
+                  </li>
+                </ul>
+              </div>
+
+              {/* Input Harga Baru */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#160424] p-4 rounded-xl border border-purple-800/60">
+                <div>
+                  <label className="block text-purple-300 font-medium mb-1">
+                    Harga Satuan Saat Ini
+                  </label>
+                  <div className="font-mono text-base font-bold text-slate-300 bg-purple-950/60 px-3 py-2 rounded-lg border border-purple-800/40">
+                    {formatRupiah(editModalItem.harga)}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-amber-300 font-bold mb-1">
+                    Harga Satuan Baru (Rp) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400 font-mono font-bold">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={editNewHarga}
+                      onChange={(e) => setEditNewHarga(parseInt(e.target.value) || 0)}
+                      className="w-full bg-[#11021b] border border-amber-400/80 rounded-lg pl-10 pr-3 py-2 text-white font-mono font-bold text-base focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      placeholder="Contoh: 84000"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Opsi Cakupan Pembaruan */}
+              <div className="space-y-2">
+                <label className="block text-purple-200 font-bold">
+                  Pilih Cakupan Pembaruan Transaksi:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Opsi A: Hanya Bulan Tertentu */}
+                  <label
+                    className={`flex items-start space-x-3 p-3 rounded-xl border cursor-pointer transition ${
+                      editScope === 'specific_month'
+                        ? 'bg-amber-400/15 border-amber-400 text-white'
+                        : 'bg-[#180526] border-purple-800/60 text-purple-200 hover:border-purple-600'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="editScope"
+                      checked={editScope === 'specific_month'}
+                      onChange={() => setEditScope('specific_month')}
+                      className="mt-1 accent-amber-400"
+                    />
+                    <div className="space-y-1 text-xs">
+                      <div className="font-bold flex items-center space-x-1.5 text-amber-300">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>Hanya Bulan Tertentu (Disarankan)</span>
+                      </div>
+                      <p className="text-[11px] text-purple-300 leading-normal">
+                        Hanya mengubah harga transaksi di bulan yang dipilih (misal: belanja Oktober). Nota bulan Agustus tetap aman dengan harga Rp 78.000.
+                      </p>
+
+                      {editScope === 'specific_month' && (
+                        <div className="pt-2">
+                          <label className="block text-[11px] font-semibold text-amber-200 mb-1">
+                            Pilih Bulan Transaksi:
+                          </label>
+                          <select
+                            value={editMonthKey}
+                            onChange={(e) => setEditMonthKey(e.target.value)}
+                            className="w-full bg-[#11021b] border border-amber-400 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                          >
+                            {availableMonths.map((mKey) => (
+                              <option key={mKey} value={mKey}>
+                                {formatMonthName(mKey)} ({mKey})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+
+                  {/* Opsi B: Semua Transaksi Sekaligus */}
+                  <label
+                    className={`flex items-start space-x-3 p-3 rounded-xl border cursor-pointer transition ${
+                      editScope === 'all'
+                        ? 'bg-amber-400/15 border-amber-400 text-white'
+                        : 'bg-[#180526] border-purple-800/60 text-purple-200 hover:border-purple-600'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="editScope"
+                      checked={editScope === 'all'}
+                      onChange={() => setEditScope('all')}
+                      className="mt-1 accent-amber-400"
+                    />
+                    <div className="space-y-1 text-xs">
+                      <div className="font-bold flex items-center space-x-1.5 text-amber-300">
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Semua Transaksi Sekaligus (Massal)</span>
+                      </div>
+                      <p className="text-[11px] text-purple-300 leading-normal">
+                        Otomatis mengubah harga di <strong>seluruh bulan</strong> (Agustus, September, Oktober, dll.) di BKU Umum, Kas Tunai & Kwitansi.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Pratinjau Transaksi Terkena Dampak */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-purple-300">
+                  <span className="font-semibold text-purple-200">
+                    Pratinjau Transaksi Terkena Dampak ({
+                      editScope === 'specific_month'
+                        ? affectedTransactions.filter((t) => t.monthKey === editMonthKey).length
+                        : affectedTransactions.length
+                    } Transaksi):
+                  </span>
+                  <span className="text-[11px] text-amber-300">
+                    {editScope === 'specific_month' ? `Filter: ${formatMonthName(editMonthKey)}` : 'Semua Bulan'}
+                  </span>
+                </div>
+
+                <div className="max-h-40 overflow-y-auto rounded-lg border border-purple-800/50 bg-[#160424]">
+                  {affectedTransactions.length === 0 ? (
+                    <div className="p-4 text-center text-purple-400 italic text-xs">
+                      Tidak ditemukan transaksi belanja material terkait di BKU/Kas Tunai (atau hanya terdaftar manual).
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-[11px] divide-y divide-purple-900/60">
+                      <thead className="bg-[#12021d] text-purple-300 font-semibold sticky top-0">
+                        <tr>
+                          <th className="py-1.5 px-2">No. Bukti / Tgl</th>
+                          <th className="py-1.5 px-2">Uraian / Qty</th>
+                          <th className="py-1.5 px-2 text-right">Harga Lama</th>
+                          <th className="py-1.5 px-2 text-right">Harga Baru</th>
+                          <th className="py-1.5 px-2 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-purple-900/40">
+                        {affectedTransactions.map((tx, idx) => {
+                          const isIncluded =
+                            editScope === 'all' || tx.monthKey === editMonthKey;
+                          return (
+                            <tr
+                              key={`${tx.txId}-${idx}`}
+                              className={`transition ${
+                                isIncluded
+                                  ? 'bg-amber-400/5 text-purple-100 font-medium'
+                                  : 'opacity-40 text-purple-400 bg-transparent'
+                              }`}
+                            >
+                              <td className="py-1.5 px-2 font-mono whitespace-nowrap">
+                                <div className="text-white font-bold">{tx.nomorBukti}</div>
+                                <div className="text-[10px] text-purple-400">{tx.tanggal}</div>
+                              </td>
+                              <td className="py-1.5 px-2">
+                                <div className="truncate max-w-[160px] text-purple-200">
+                                  {tx.uraian}
+                                </div>
+                                <div className="text-[10px] text-amber-300 font-semibold">
+                                  {tx.volume} {tx.satuan}
+                                </div>
+                              </td>
+                              <td className="py-1.5 px-2 text-right font-mono text-purple-300">
+                                <div>{formatRupiah(tx.oldHarga)}</div>
+                                <div className="text-[10px] text-purple-400">
+                                  Total: {formatRupiah(tx.oldTotal)}
+                                </div>
+                              </td>
+                              <td className="py-1.5 px-2 text-right font-mono text-emerald-400 font-bold">
+                                <div>{formatRupiah(editNewHarga)}</div>
+                                <div className="text-[10px] text-emerald-300">
+                                  Total: {formatRupiah(tx.volume * editNewHarga)}
+                                </div>
+                              </td>
+                              <td className="py-1.5 px-2 text-center whitespace-nowrap">
+                                {isIncluded ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-emerald-900/60 text-emerald-300 border border-emerald-500/40">
+                                    Diupdate
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-purple-900/30 text-purple-400">
+                                    Dilewati
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* Tombol Aksi */}
+              <div className="flex items-center justify-end space-x-3 pt-3 border-t border-purple-800/60">
+                <button
+                  type="button"
+                  onClick={() => setEditModalItem(null)}
+                  className="px-4 py-2 rounded-lg bg-purple-900/50 hover:bg-purple-800/60 text-purple-300 font-medium transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-purple-950 font-bold shadow-lg flex items-center space-x-2 transition active:scale-95"
+                >
+                  <CheckCircle2 className="w-4 h-4 text-purple-950" />
+                  <span>Terapkan Perubahan Harga</span>
                 </button>
               </div>
             </form>

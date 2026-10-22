@@ -708,7 +708,7 @@ export function calculateTotalHariForWeek(h: HariKerjaRecord | undefined, weekSu
 /**
  * Helper to clean and format material names cleanly
  */
-function cleanMaterialName(str: string): string {
+export function cleanMaterialName(str: string): string {
   let cleaned = str
     .replace(/^(?:belanja|beli|pembelian|pengadaan|material|biaya|ongkos)\s+/i, '')
     .replace(/\b(?:lagi|tambahan|tahap\s*\d+|tahap\s*satu|tahap\s*dua)\b/gi, '')

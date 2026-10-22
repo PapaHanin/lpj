@@ -52,26 +52,29 @@ export const TransactionModal: React.FC = () => {
   const [shiftSubsequentBku, setShiftSubsequentBku] = useState(false);
   const [bkuSuggestionNotice, setBkuSuggestionNotice] = useState<string | null>(null);
 
-  // Recommend BKU number based on transaction date (great for missed August transactions!)
-  const handleRecommendBkuFromDate = () => {
+  // Recommend Kwitansi number based on transaction date
+  const handleRecommendKwFromDate = () => {
     if (!tanggal) return;
     const sugg = suggestBkuForDate(transactions, tanggal, transactionToEdit?.id);
-    setNomorBukti(sugg.suggestedNo);
+    const kwNumStr = `KW-${String(sugg.suggestedNum).padStart(3, '0')}`;
+    setNomorBukti(kwNumStr);
     if (sugg.conflictsWithExisting) {
       setShiftSubsequentBku(true);
     }
-    setBkuSuggestionNotice(sugg.explanation);
+    setBkuSuggestionNotice(
+      `Nomor kwitansi disesuaikan mengikuti urutan tanggal: ${kwNumStr}`
+    );
   };
 
-  // Harmonize transaction date to match BKU sequence
-  const handleRecommendDateFromBku = () => {
+  // Harmonize transaction date to match KW sequence
+  const handleRecommendDateFromKw = () => {
     if (!nomorBukti.trim()) {
-      setBkuSuggestionNotice('Ketikkan nomor BKU terlebih dahulu (contoh: BKU 06).');
+      setBkuSuggestionNotice('Ketikkan nomor bukti/kwitansi terlebih dahulu (contoh: KW-001).');
       return;
     }
     const parsed = parseBkuNumber(nomorBukti);
     if (!parsed) {
-      setBkuSuggestionNotice(`Format ${nomorBukti} tidak valid. Gunakan format seperti BKU 06.`);
+      setBkuSuggestionNotice(`Format ${nomorBukti} tidak valid. Gunakan format seperti KW-001.`);
       return;
     }
     const harmonizedDate = getHarmonizedDateForBku(
@@ -82,7 +85,7 @@ export const TransactionModal: React.FC = () => {
     setTanggal(harmonizedDate);
     setIsoDate(indonesianDateToIso(harmonizedDate));
     setBkuSuggestionNotice(
-      `Tanggal transaksi berhasil diselaraskan menjadi ${harmonizedDate} mengikuti urutan ${nomorBukti}.`
+      `Tanggal transaksi berhasil diselaraskan menjadi ${harmonizedDate} mengikuti urutan kwitansi ${nomorBukti}.`
     );
   };
 
@@ -92,18 +95,53 @@ export const TransactionModal: React.FC = () => {
     [transactions, transactionToEdit?.id]
   );
 
-  // Suggest next BKU number
-  const getNextBkuSuggestion = () => {
-    const bkuNumbers = transactions
+  // Suggest next Kwitansi number (KW-001, KW-002, etc.) matching running kwitansi
+  const getNextKwSuggestion = () => {
+    const kwNumbers = transactions
       .map((t) => {
-        const match = t.nomorBukti.match(/BKU\s*(\d+)/i);
+        const match = (t.nomorBukti || '').match(/(?:KW|BKU)[-\s]*(\d+)/i);
         return match ? parseInt(match[1], 10) : 0;
       })
       .filter((n) => !isNaN(n) && n > 0);
 
-    const maxBku = bkuNumbers.length > 0 ? Math.max(...bkuNumbers) : 0;
-    const nextNum = maxBku + 1;
-    return `BKU ${nextNum < 10 ? '0' + nextNum : nextNum}`;
+    const maxKw = kwNumbers.length > 0 ? Math.max(...kwNumbers) : 0;
+    const nextNum = maxKw + 1;
+    return `KW-${String(nextNum).padStart(3, '0')}`;
+  };
+
+  // Tanggal otomatis mengikuti tanggal bulan berjalan
+  const getDefaultDateForRunningMonth = () => {
+    const now = new Date();
+    const todayDay = now.getDate();
+    const todayMonth = now.getMonth() + 1;
+    const todayYear = now.getFullYear();
+
+    const fromProfile = extractMonthAndYear(profile.bulanLaporan);
+    if (!fromProfile) {
+      const padDay = String(todayDay).padStart(2, '0');
+      const padMonth = String(todayMonth).padStart(2, '0');
+      return {
+        slashDate: `${padDay}/${padMonth}/${todayYear}`,
+        isoDate: `${todayYear}-${padMonth}-${padDay}`,
+      };
+    }
+
+    const monthIdx = BULAN_LIST.findIndex(
+      (m) => m.toLowerCase() === fromProfile.month.toLowerCase()
+    );
+    const targetMonthNum = monthIdx >= 0 ? monthIdx + 1 : todayMonth;
+    const targetYear = fromProfile.year || todayYear;
+
+    const daysInMonth = new Date(targetYear, targetMonthNum, 0).getDate();
+    const safeDay = Math.min(todayDay, daysInMonth);
+
+    const padDay = String(safeDay).padStart(2, '0');
+    const padMonth = String(targetMonthNum).padStart(2, '0');
+
+    return {
+      slashDate: `${padDay}/${padMonth}/${targetYear}`,
+      isoDate: `${targetYear}-${padMonth}-${padDay}`,
+    };
   };
 
   // Derive active month & year for quick date suggestions
@@ -142,13 +180,15 @@ export const TransactionModal: React.FC = () => {
       setShiftSubsequentBku(false);
       setBkuSuggestionNotice(null);
     } else {
-      // Default new transaction based on active reporting month and optional modalPreset
-      const info = activeMonthInfo();
-      const defaultDateStr = formatToIndonesianDate(`15 ${info.month} ${info.year}`);
+      // Default new transaction: tanggal otomatis mengikuti tanggal bulan berjalan, nomor bukti KW-xxx berjalan
+      const { slashDate, isoDate: defaultIso } = getDefaultDateForRunningMonth();
+      const defaultDateStr = modalPreset?.tanggal
+        ? formatToIndonesianDate(modalPreset.tanggal)
+        : slashDate;
       setTanggal(defaultDateStr);
-      setIsoDate(indonesianDateToIso(defaultDateStr));
+      setIsoDate(modalPreset?.tanggal ? indonesianDateToIso(modalPreset.tanggal) : defaultIso);
       setUraian(modalPreset?.uraian || '');
-      setNomorBukti(getNextBkuSuggestion());
+      setNomorBukti(modalPreset?.nomorBukti || getNextKwSuggestion());
       setMetode(modalPreset?.metode || 'TUNAI');
       setJenis(modalPreset?.jenis || 'PENGELUARAN');
       setJenisBiaya('Bahan');
@@ -578,14 +618,14 @@ export const TransactionModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const now = new Date();
-                    const d = formatToIndonesianDate(now);
-                    setTanggal(d);
-                    setIsoDate(indonesianDateToIso(d));
+                    const { slashDate, isoDate: defaultIso } = getDefaultDateForRunningMonth();
+                    setTanggal(slashDate);
+                    setIsoDate(defaultIso);
                   }}
-                  className="text-[11px] font-black text-purple-950 bg-amber-300 hover:bg-amber-400 px-2 py-0.5 rounded-md transition"
+                  className="text-[11px] font-black text-purple-950 bg-amber-300 hover:bg-amber-400 px-2 py-0.5 rounded-md transition cursor-pointer"
+                  title="Otomatis mengikuti tanggal hari ini pada bulan berjalan"
                 >
-                  Hari Ini
+                  Hari Ini ({getDefaultDateForRunningMonth().slashDate})
                 </button>
               </div>
             </div>
@@ -593,27 +633,27 @@ export const TransactionModal: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-black text-purple-950 uppercase tracking-wide">
-                  Nomor Bukti (BKU / KW / SP2D / BB)
+                  Nomor Bukti (KWITANSI / SP2D / BB)
                 </label>
                 <div className="flex items-center gap-2.5">
                   <button
                     type="button"
-                    onClick={handleRecommendBkuFromDate}
+                    onClick={handleRecommendKwFromDate}
                     className="text-[11px] font-bold text-purple-800 hover:text-purple-950 hover:underline flex items-center gap-1 cursor-pointer"
-                    title="Hitung nomor BKU berdasarkan urutan tanggal nota"
+                    title="Hitung nomor urut kwitansi berdasarkan urutan tanggal transaksi"
                   >
                     <Sparkles className="w-3 h-3 text-amber-500" />
-                    <span>BKU dr Tanggal</span>
+                    <span>KW dr Tanggal</span>
                   </button>
                   <span className="text-slate-300">|</span>
                   <button
                     type="button"
-                    onClick={handleRecommendDateFromBku}
+                    onClick={handleRecommendDateFromKw}
                     className="text-[11px] font-bold text-amber-700 hover:text-amber-900 hover:underline flex items-center gap-1 cursor-pointer"
-                    title="Sesuaikan tanggal nota mengikuti posisi nomor BKU"
+                    title="Sesuaikan tanggal nota mengikuti posisi nomor kwitansi"
                   >
                     <Calendar className="w-3 h-3 text-amber-600" />
-                    <span>Tanggal dr BKU</span>
+                    <span>Tanggal dr KW</span>
                   </button>
                 </div>
               </div>
@@ -625,22 +665,22 @@ export const TransactionModal: React.FC = () => {
                     setNomorBukti(e.target.value);
                     setBkuSuggestionNotice(null);
                   }}
-                  placeholder="Contoh: BKU 01, KW-001, SP2D-001, BB-002"
+                  placeholder="Contoh: KW-001, KW-002, SP2D-001, BB-001"
                   className="w-full text-sm font-black text-slate-950 bg-white border-2 border-purple-900/40 rounded-xl px-3.5 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden font-mono placeholder:text-slate-400"
                 />
                 <button
                   type="button"
-                  onClick={() => setNomorBukti(getNextBkuSuggestion())}
+                  onClick={() => setNomorBukti(getNextKwSuggestion())}
                   className="shrink-0 text-xs font-black text-purple-950 bg-amber-400 hover:bg-amber-300 border border-amber-500 px-3.5 py-2.5 rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1"
-                  title="Gunakan nomor urut BKU terakhir + 1"
+                  title="Gunakan nomor urut kwitansi berjalan terakhir + 1"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Auto BKU</span>
+                  <span>Auto KW</span>
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                 <span className="text-[10px] font-bold text-slate-500">Format Bukti:</span>
-                {['BKU 01', 'KW-001', 'SP2D-001', 'BB-002'].map((fmt) => (
+                {['KW-001', 'KW-002', 'SP2D-001', 'BB-001'].map((fmt) => (
                   <button
                     key={fmt}
                     type="button"
@@ -670,10 +710,10 @@ export const TransactionModal: React.FC = () => {
                   />
                   <div>
                     <span className="font-bold text-purple-950">
-                      Sisipkan BKU ini & otomatis geser nomor setelahnya (+1)
+                      Sisipkan nomor KW ini & otomatis geser nomor setelahnya (+1)
                     </span>
                     <p className="text-[11px] text-slate-600 leading-tight mt-0.5">
-                      Sangat berguna jika ada nota bulan lalu (seperti Agustus) yang terlewat setelah Anda menginput September. Nomor transaksi berikutnya akan otomatis dimajukan +1 secara rapi.
+                      Sangat berguna jika ada kuitansi bulan lalu yang terlewat setelah Anda menginput kuitansi berikutnya. Nomor kwitansi berikutnya akan otomatis dimajukan +1 secara rapi.
                     </p>
                   </div>
                 </label>
