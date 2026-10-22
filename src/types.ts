@@ -66,11 +66,16 @@ export type JenisPajak =
   | 'PPN'
   | 'PPh 22'
   | 'PPN + PPh 22'
+  | 'PPN + PPh 4%'
+  | 'PPN + PPh 23'
+  | 'PPN + PPh 21'
   | 'PPh 21'
   | 'PPh 23'
   | 'PPh 4%'
   | 'PPh Pasal 4(2)'
-  | 'Pajak Daerah';
+  | 'Pajak Daerah'
+  | 'Custom'
+  | string;
 
 export interface PajakRowItem {
   id: string;
