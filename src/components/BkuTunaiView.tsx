@@ -45,6 +45,7 @@ export const BkuTunaiView: React.FC = () => {
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
   const [showSubDetails, setShowSubDetails] = useState<boolean>(false);
+  const [printWithSubDetails, setPrintWithSubDetails] = useState<boolean>(true);
   const [expandedTxIds, setExpandedTxIds] = useState<Set<string>>(new Set());
   const [signatureFormat, setSignatureFormat] = useState<'3_pihak' | '2_pihak'>('3_pihak');
 
@@ -169,10 +170,36 @@ export const BkuTunaiView: React.FC = () => {
                 ? 'bg-amber-400 text-purple-950 border-amber-300 shadow-sm'
                 : 'bg-purple-900/80 hover:bg-purple-800 text-purple-200 border-purple-700'
             }`}
-            title="Tampilkan atau sembunyikan semua rincian barang nota belanja di tabel"
+            title="Tampilkan atau sembunyikan semua rincian barang nota belanja di tabel layar"
           >
             <Eye className="w-3.5 h-3.5 text-amber-400" />
-            <span>{showSubDetails ? 'Sembunyikan Semua Item' : 'Tampilkan Semua Item Nota'}</span>
+            <span>{showSubDetails ? 'Sembunyikan Item Layar' : 'Lihat Semua Item Layar'}</span>
+          </button>
+          <button
+            onClick={() => {
+              setPrintWithSubDetails((prev) => {
+                const next = !prev;
+                showToast({
+                  type: 'info',
+                  title: next ? 'Cetak Nota Aktif' : 'Cetak Nota Ringkas',
+                  message: next
+                    ? 'Khusus BKU Tunai: Semua rincian nota belanja akan otomatis tercetak di kertas/PDF.'
+                    : 'Rincian nota belanja tidak akan disertakan saat dicetak (format ringkas).',
+                });
+                return next;
+              });
+            }}
+            className={`flex items-center space-x-1.5 text-xs font-bold px-3 py-2 rounded-xl transition cursor-pointer border ${
+              printWithSubDetails
+                ? 'bg-emerald-400 text-emerald-950 border-emerald-300 shadow-sm ring-1 ring-emerald-300'
+                : 'bg-purple-900/80 hover:bg-purple-800 text-purple-200 border-purple-700'
+            }`}
+            title="Khusus BKU Tunai: Otomatis mencetak semua nota belanja material saat diprint"
+          >
+            <ShoppingBag className="w-3.5 h-3.5" />
+            <span>
+              Cetak Nota Belanja: {printWithSubDetails ? 'AKTIF (Tercetak)' : 'NON-AKTIF'}
+            </span>
           </button>
           <button
             onClick={() => exportLpjToExcel(profile, transactions)}
@@ -183,11 +210,34 @@ export const BkuTunaiView: React.FC = () => {
           </button>
           <button
             onClick={handlePrint}
-            className="flex items-center space-x-1.5 bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-700 text-xs font-medium px-3 py-2 rounded-xl transition active:scale-95 cursor-pointer"
+            className="flex items-center space-x-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-purple-950 text-xs font-black px-4 py-2 rounded-xl shadow-md transition active:scale-95 cursor-pointer border border-amber-300"
           >
-            <Printer className="w-4 h-4 text-sky-400" />
+            <Printer className="w-4 h-4 text-purple-950" />
             <span>Cetak BKU Tunai</span>
           </button>
+        </div>
+      </div>
+
+      {/* Banner Khusus BKU Tunai: Seluruh Nota Belanja Otomatis Tercetak */}
+      <div className="bg-amber-400/15 border-2 border-amber-400/50 rounded-2xl p-3.5 text-purple-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md print:hidden">
+        <div className="flex items-center gap-2.5 text-xs">
+          <div className="w-8 h-8 rounded-xl bg-amber-400 text-purple-950 flex items-center justify-center shrink-0 font-bold shadow-xs">
+            <ShoppingBag className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="font-extrabold text-amber-300">
+              Khusus BKU Tunai (Semua Nota Belanja Tercetak Lengkap):
+            </span>{' '}
+            <span className="text-purple-100 leading-relaxed">
+              Ketika BKU Tunai diprint, seluruh rincian belanja material pada nota (nama barang, volume, satuan, harga satuan, dan subtotal) otomatis tampil rapi di kolom Uraian lembar cetak. BKU Umum tetap ringkas sesuai aturan.
+            </span>
+          </div>
+        </div>
+        <div className="shrink-0 flex items-center gap-2 self-end sm:self-auto">
+          <span className="px-2.5 py-1 bg-amber-400 text-purple-950 font-black rounded-lg text-[11px] shadow-xs flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-purple-950" />
+            <span>Otomatis di Lembar Print</span>
+          </span>
         </div>
       </div>
 
@@ -488,7 +538,7 @@ export const BkuTunaiView: React.FC = () => {
                                       </button>
                                     </div>
 
-                                    {/* Tabel Rincian Barang Belanja (Inline Table) */}
+                                    {/* Tabel Rincian Barang Belanja (Inline Table untuk Layar Monitor) */}
                                     {(showSubDetails || expandedTxIds.has(row.transaction.id)) &&
                                       row.transaction.subItems && (
                                         <div className="mt-1.5 text-[11px] font-normal text-slate-900 bg-white p-2 rounded-xl border border-amber-300 shadow-xs print:hidden">
@@ -543,6 +593,70 @@ export const BkuTunaiView: React.FC = () => {
                                           </table>
                                         </div>
                                       )}
+
+                                    {/* Tabel Rincian Nota Belanja KHUSUS CETAK / PRINT (Sesuai Permintaan User: Terlihat Semua Saat Diprint) */}
+                                    {printWithSubDetails && row.transaction.subItems && (
+                                      <div className="hidden print:block mt-1.5 pt-1 border-t border-slate-700">
+                                        <div className="flex items-center justify-between text-[8.5px] font-black uppercase tracking-wider mb-0.5 text-black">
+                                          <span>Rincian Nota Belanja ({row.transaction.subItems.length} Macam Barang):</span>
+                                          {row.nomorBukti && (
+                                            <span className="font-mono text-[8px]">No. Bukti: {row.nomorBukti}</span>
+                                          )}
+                                        </div>
+                                        <table className="w-full text-[8.5px] border-collapse border border-black text-black">
+                                          <thead>
+                                            <tr className="bg-slate-200/90 font-bold text-black border-b border-black">
+                                              <th className="border border-black py-0.5 px-1 text-center w-5 font-black">
+                                                No
+                                              </th>
+                                              <th className="border border-black py-0.5 px-1.5 text-left font-black">
+                                                Nama Barang / Material
+                                              </th>
+                                              <th className="border border-black py-0.5 px-1 text-center w-16 font-black whitespace-nowrap">
+                                                Vol & Satuan
+                                              </th>
+                                              <th className="border border-black py-0.5 px-1.5 text-right w-20 font-black whitespace-nowrap">
+                                                Harga Satuan
+                                              </th>
+                                              <th className="border border-black py-0.5 px-1.5 text-right w-24 font-black whitespace-nowrap">
+                                                Subtotal
+                                              </th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {row.transaction.subItems.map((sub, sIdx) => (
+                                              <tr key={`print-sub-${sub.id || sIdx}`} className="border-b border-slate-400">
+                                                <td className="border border-black py-0.5 px-1 text-center font-mono font-medium">
+                                                  {sIdx + 1}
+                                                </td>
+                                                <td className="border border-black py-0.5 px-1.5 font-bold text-black">
+                                                  {sub.nama}
+                                                </td>
+                                                <td className="border border-black py-0.5 px-1 text-center whitespace-nowrap font-medium">
+                                                  {sub.volume} {sub.satuan}
+                                                </td>
+                                                <td className="border border-black py-0.5 px-1.5 text-right font-mono">
+                                                  {formatRupiah(sub.hargaSatuan, false)}
+                                                </td>
+                                                <td className="border border-black py-0.5 px-1.5 text-right font-mono font-bold">
+                                                  {formatRupiah(sub.subtotal, false)}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                          <tfoot>
+                                            <tr className="bg-slate-100 font-bold border-t border-black">
+                                              <td colSpan={4} className="border border-black py-0.5 px-1.5 text-right font-bold text-[8px]">
+                                                Total Nota Belanja:
+                                              </td>
+                                              <td className="border border-black py-0.5 px-1.5 text-right font-mono font-black text-[8.5px]">
+                                                {formatRupiah(row.pengeluaran, false)}
+                                              </td>
+                                            </tr>
+                                          </tfoot>
+                                        </table>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
