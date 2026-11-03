@@ -32,7 +32,7 @@ export default function App() {
       <SidebarNav />
 
       {/* Main Content Area (Offset for lg:w-64 fixed sidebar) */}
-      <div className="lg:pl-64 print:pl-0 flex flex-col min-h-screen relative z-10 print:m-0 print:p-0">
+      <div className="lg:pl-64 print:pl-0 flex flex-col min-h-screen relative print:m-0 print:p-0">
         <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 print:p-0 print:m-0 print:max-w-none">
           {activeTab === 'dashboard' && <DashboardView />}
           {activeTab === 'bku' && <BkuGeneralView />}

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useLpjStore } from '../store/lpjStore';
 import {
   calculateTotalHari,
@@ -3253,26 +3254,32 @@ export const DaftarTukangTab: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Rekapan Semua Tukang & Pekerja Proyek */}
-      {isRekapTukangModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm print:hidden">
-          <div className="bg-[#1f052e] border-2 border-indigo-400/60 rounded-2xl w-full max-w-5xl text-white shadow-2xl relative max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      {/* Modal Rekapan Semua Tukang & Pekerja Proyek (Rendered via Portal to escape any sidebar/stacking context) */}
+      {isRekapTukangModalOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          onClick={() => setIsRekapTukangModalOpen(false)}
+          className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-sm print:hidden animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#1e042b] border-2 border-indigo-400/60 rounded-2xl w-full max-w-6xl text-white shadow-2xl relative max-h-[94vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+          >
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-purple-800/80 bg-gradient-to-r from-[#2a073f] via-[#210532] to-[#1a0328] flex items-center justify-between gap-3 shrink-0">
-              <div className="flex items-center space-x-3">
+            <div className="p-4 sm:p-5 border-b border-purple-800/80 bg-gradient-to-r from-[#2c0842] via-[#210532] to-[#1a0328] flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center space-x-3 min-w-0">
                 <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner">
                   <Users className="w-6 h-6 text-indigo-300" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center space-x-2.5 flex-wrap">
-                    <h3 className="text-base sm:text-lg font-extrabold text-white tracking-wide">
+                    <h3 className="text-base sm:text-lg font-extrabold text-white tracking-wide truncate">
                       Rekapan Nama Tukang & Pekerja Proyek
                     </h3>
-                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/25 text-indigo-300 text-[11px] font-bold border border-indigo-400/40">
+                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/25 text-indigo-300 text-[11px] font-bold border border-indigo-400/40 shrink-0">
                       {rekapSemuaTukang.length} Tenaga Kerja Terdaftar
                     </span>
                   </div>
-                  <p className="text-xs text-purple-300 mt-0.5">
+                  <p className="text-xs text-purple-300 mt-0.5 truncate">
                     Daftar rekapitulasi seluruh tukang & pekerja yang Anda gunakan, peran jabatan (K/T/P), domisili, dan total upah.
                   </p>
                 </div>
@@ -3282,7 +3289,7 @@ export const DaftarTukangTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleExportExcelRekapTukang}
-                  className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-700/80 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl border border-emerald-500/50 transition cursor-pointer shadow-sm"
+                  className="hidden sm:flex items-center space-x-1.5 px-3.5 py-1.5 bg-emerald-700/90 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl border border-emerald-500/50 transition cursor-pointer shadow-sm active:scale-95"
                   title="Export file Excel rekapan semua nama tukang"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
@@ -3291,47 +3298,47 @@ export const DaftarTukangTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsRekapTukangModalOpen(false)}
-                  className="w-8 h-8 rounded-xl bg-purple-900/60 hover:bg-purple-800 text-purple-200 hover:text-white flex items-center justify-center transition cursor-pointer"
-                  title="Tutup"
+                  className="w-9 h-9 rounded-xl bg-purple-900/60 hover:bg-purple-800 text-purple-200 hover:text-white flex items-center justify-center transition cursor-pointer shadow-sm active:scale-95"
+                  title="Tutup (Esc)"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Modal Scrollable Content */}
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+            {/* Modal Scrollable Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 overscroll-contain">
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 text-xs">
-                <div className="bg-[#140220] border border-purple-800/80 rounded-xl p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                <div className="bg-[#140220] border border-purple-800/80 rounded-xl p-3 shadow-inner">
                   <span className="text-[11px] text-purple-300 block">Total Tukang</span>
                   <div className="text-lg font-black text-white mt-0.5">
                     {rekapStats.totalWorkers} <span className="text-xs font-normal text-purple-400">Orang</span>
                   </div>
                 </div>
 
-                <div className="bg-[#140220] border border-amber-500/30 rounded-xl p-3">
+                <div className="bg-[#140220] border border-amber-500/30 rounded-xl p-3 shadow-inner">
                   <span className="text-[11px] text-amber-300 block font-semibold">Kepala Tukang (K)</span>
                   <div className="text-lg font-black text-amber-400 mt-0.5">
                     {rekapStats.totalKepalaTukang} <span className="text-xs font-normal text-amber-200/70">Orang</span>
                   </div>
                 </div>
 
-                <div className="bg-[#140220] border border-blue-500/30 rounded-xl p-3">
+                <div className="bg-[#140220] border border-blue-500/30 rounded-xl p-3 shadow-inner">
                   <span className="text-[11px] text-blue-300 block font-semibold">Tukang (T)</span>
                   <div className="text-lg font-black text-blue-400 mt-0.5">
                     {rekapStats.totalTukang} <span className="text-xs font-normal text-blue-200/70">Orang</span>
                   </div>
                 </div>
 
-                <div className="bg-[#140220] border border-emerald-500/30 rounded-xl p-3">
+                <div className="bg-[#140220] border border-emerald-500/30 rounded-xl p-3 shadow-inner">
                   <span className="text-[11px] text-emerald-300 block font-semibold">Pekerja (P)</span>
                   <div className="text-lg font-black text-emerald-400 mt-0.5">
                     {rekapStats.totalPekerja} <span className="text-xs font-normal text-emerald-200/70">Orang</span>
                   </div>
                 </div>
 
-                <div className="bg-[#140220] border border-cyan-500/30 rounded-xl p-3">
+                <div className="bg-[#140220] border border-cyan-500/30 rounded-xl p-3 shadow-inner">
                   <span className="text-[11px] text-cyan-300 block font-semibold">Tempat Tinggal</span>
                   <div className="text-sm font-bold text-white mt-1">
                     <span className="text-cyan-400">{rekapStats.totalDalamDesa}</span> Dlm /{' '}
@@ -3339,7 +3346,7 @@ export const DaftarTukangTab: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-[#140220] border border-indigo-500/30 rounded-xl p-3">
+                <div className="bg-[#140220] border border-indigo-500/30 rounded-xl p-3 shadow-inner">
                   <span className="text-[11px] text-indigo-300 block font-semibold">Total Upah Terserap</span>
                   <div className="text-sm font-bold text-emerald-400 mt-1 truncate" title={`Rp ${rekapStats.grandTotalWages.toLocaleString('id-ID')}`}>
                     Rp {rekapStats.grandTotalWages.toLocaleString('id-ID')}
@@ -3350,7 +3357,7 @@ export const DaftarTukangTab: React.FC = () => {
               {/* Filters & Search Toolbar */}
               <div className="bg-[#170324] border border-purple-800/80 rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
                 {/* Search */}
-                <div className="relative flex-1 min-w-[200px]">
+                <div className="relative flex-1 min-w-[220px]">
                   <Search className="w-4 h-4 text-purple-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
@@ -3364,6 +3371,7 @@ export const DaftarTukangTab: React.FC = () => {
                       type="button"
                       onClick={() => setRekapSearch('')}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-purple-400 hover:text-white"
+                      title="Hapus pencarian"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -3420,47 +3428,50 @@ export const DaftarTukangTab: React.FC = () => {
                 </div>
               </div>
 
-              {/* Table of Workers */}
-              <div className="border border-purple-800/80 rounded-xl overflow-x-auto shadow-inner bg-[#12011f]">
-                <table className="w-full border-collapse text-xs text-left">
-                  <thead>
-                    <tr className="bg-[#1a0329] border-b border-purple-800/80 text-purple-300 uppercase tracking-wider font-bold">
-                      <th className="py-2.5 px-3 w-10 text-center">No</th>
-                      <th className="py-2.5 px-3 min-w-[160px]">Nama Tukang / Pekerja</th>
+              {/* Table of Workers with Independent Scroll and Sticky Headers & Left Columns */}
+              <div className="border border-purple-800/80 rounded-xl overflow-auto max-h-[52vh] shadow-inner bg-[#12011f] relative">
+                <table className="w-full border-collapse text-xs text-left min-w-[980px]">
+                  <thead className="sticky top-0 z-20 bg-[#1b0329] shadow-sm">
+                    <tr className="border-b-2 border-purple-700 text-purple-300 uppercase tracking-wider font-bold">
+                      <th className="py-2.5 px-3 w-12 text-center sticky left-0 z-30 bg-[#1b0329]">No</th>
+                      <th className="py-2.5 px-3 min-w-[170px] sticky left-12 z-30 bg-[#1b0329] border-r border-purple-800/70">
+                        Nama Tukang / Pekerja
+                      </th>
                       <th className="py-2.5 px-3 w-36">Jabatan / Peran</th>
-                      <th className="py-2.5 px-2 w-14 text-center">Kode</th>
+                      <th className="py-2.5 px-2 w-16 text-center">Kode</th>
                       <th className="py-2.5 px-3 w-28">Tempat Tinggal</th>
-                      <th className="py-2.5 px-3 min-w-[200px]">Penugasan Bangunan</th>
+                      <th className="py-2.5 px-3 min-w-[220px]">Penugasan Bangunan</th>
                       <th className="py-2.5 px-3 w-28 text-right">Upah / Hari</th>
                       <th className="py-2.5 px-3 w-24 text-center">Hari Kerja</th>
-                      <th className="py-2.5 px-3 w-32 text-right">Total Upah</th>
+                      <th className="py-2.5 px-3 w-36 text-right">Total Upah</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-purple-900/40 text-purple-100">
                     {filteredRekapTukang.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-8 text-center text-purple-400">
-                          Tidak ditemukan pekerja dengan filter yang dipilih.
+                        <td colSpan={9} className="py-12 text-center text-purple-400">
+                          Tidak ditemukan pekerja dengan kata kunci atau filter yang dipilih.
                         </td>
                       </tr>
                     ) : (
                       filteredRekapTukang.map((w, idx) => {
                         const isK = w.kodeMtp === 'K';
                         const isT = w.kodeMtp === 'T';
-                        const isP = w.kodeMtp === 'P';
+                        const isEven = idx % 2 === 1;
+                        const rowBg = isEven ? 'bg-[#150223]' : 'bg-[#12011f]';
 
                         return (
                           <tr
                             key={w.nama}
-                            className="hover:bg-purple-900/30 transition-colors"
+                            className={`${rowBg} hover:bg-purple-900/30 transition-colors`}
                           >
-                            {/* No */}
-                            <td className="py-2.5 px-3 text-center text-purple-400 font-medium">
+                            {/* No (Sticky left) */}
+                            <td className={`py-2.5 px-3 text-center text-purple-400 font-medium sticky left-0 z-10 ${rowBg}`}>
                               {idx + 1}
                             </td>
 
-                            {/* Nama */}
-                            <td className="py-2.5 px-3 font-bold text-white uppercase tracking-wide">
+                            {/* Nama (Sticky left-12) */}
+                            <td className={`py-2.5 px-3 font-bold text-white uppercase tracking-wide sticky left-12 z-10 ${rowBg} border-r border-purple-800/60`}>
                               {w.nama}
                             </td>
 
@@ -3543,10 +3554,13 @@ export const DaftarTukangTab: React.FC = () => {
                   </tbody>
 
                   {filteredRekapTukang.length > 0 && (
-                    <tfoot>
-                      <tr className="bg-[#1a0329] font-bold text-white border-t-2 border-purple-700">
-                        <td colSpan={7} className="py-2.5 px-3 text-center uppercase tracking-wide text-purple-300">
-                          Total ({filteredRekapTukang.length} Orang Terfilter)
+                    <tfoot className="sticky bottom-0 z-20 bg-[#1b0329] shadow-md border-t-2 border-purple-700">
+                      <tr className="font-bold text-white">
+                        <td colSpan={2} className="py-2.5 px-3 text-left uppercase tracking-wide text-purple-300 sticky left-0 z-30 bg-[#1b0329] border-r border-purple-800/70">
+                          Total ({filteredRekapTukang.length} Orang)
+                        </td>
+                        <td colSpan={5} className="py-2.5 px-3 text-right text-purple-400">
+                          Akumulasi Terfilter:
                         </td>
                         <td className="py-2.5 px-3 text-center font-mono text-amber-300">
                           {formatDecimal(
@@ -3575,7 +3589,7 @@ export const DaftarTukangTab: React.FC = () => {
                   </span>
                 </div>
                 <div className="text-[11px] text-purple-400">
-                  Data otomatis teragregasi dari seluruh jadwal periode pengerjaan DAK Fisik 2026.
+                  Data otomatis teragregasi dari seluruh jadwal periode pengerjaan DAK Fisik 2026. Tabel dapat digeser horizontal & vertikal.
                 </div>
               </div>
             </div>
@@ -3584,14 +3598,14 @@ export const DaftarTukangTab: React.FC = () => {
             <div className="p-4 border-t border-purple-800/80 bg-[#160222] flex flex-wrap items-center justify-between gap-2.5 shrink-0">
               <div className="text-xs text-purple-300">
                 Menampilkan <strong>{filteredRekapTukang.length}</strong> dari{' '}
-                <strong>{rekapSemuaTukang.length}</strong> tukang & pekerja.
+                <strong>{rekapSemuaTukang.length}</strong> tukang & pekerja terdaftar.
               </div>
 
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
                   onClick={handleExportExcelRekapTukang}
-                  className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer active:scale-95"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   <span>Export Excel (.xlsx)</span>
@@ -3600,14 +3614,15 @@ export const DaftarTukangTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsRekapTukangModalOpen(false)}
-                  className="px-5 py-2 bg-purple-900/60 hover:bg-purple-800 text-purple-200 font-medium text-xs rounded-xl transition cursor-pointer"
+                  className="px-5 py-2 bg-purple-900/60 hover:bg-purple-800 text-purple-200 font-medium text-xs rounded-xl transition cursor-pointer active:scale-95"
                 >
                   Tutup
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
