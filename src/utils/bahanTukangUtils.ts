@@ -323,15 +323,18 @@ export function getScheduleForWeekNum(weekNum: number): IndividualWeekSchedule |
 }
 
 /**
- * Helper to derive M / T / P code (M = Mandor, T = Tukang, P = Pekerja)
+ * Helper to derive K / T / P code (K = Kepala Tukang, T = Tukang, P = Pekerja)
  */
-export function getKodeMtp(worker: Partial<PekerjaTukang>): 'M' | 'T' | 'P' {
-  if (worker.kodeMtp === 'M' || worker.kodeMtp === 'T' || worker.kodeMtp === 'P') {
+export function getKodeMtp(worker: Partial<PekerjaTukang>): 'K' | 'T' | 'P' {
+  if (worker.kodeMtp === 'K' || worker.kodeMtp === 'T' || worker.kodeMtp === 'P') {
     return worker.kodeMtp;
   }
+  if ((worker.kodeMtp as any) === 'M') {
+    return 'K';
+  }
   const role = (worker.tenagaKerja || worker.kategori || '').toLowerCase();
-  if (role.includes('mandor') || role.includes('kepala') || role === 'm') {
-    return 'M';
+  if (role.includes('kepala') || role.includes('mandor') || role === 'k' || role === 'm') {
+    return 'K';
   }
   if (role.includes('tukang') || role === 't') {
     return 'T';
@@ -345,9 +348,9 @@ export function getKodeMtp(worker: Partial<PekerjaTukang>): 'M' | 'T' | 'P' {
 export const DEFAULT_WORKERS_BANGUNAN_1: PekerjaTukang[] = [
   {
     id: 'tk-b1-1',
-    kategori: 'Mandor',
-    tenagaKerja: 'Mandor',
-    kodeMtp: 'M',
+    kategori: 'Kepala Tukang',
+    tenagaKerja: 'Kepala Tukang',
+    kodeMtp: 'K',
     tempatTinggal: 'dalam_desa',
     nama: 'JONI',
     hariKerja: {
@@ -404,9 +407,9 @@ export const DEFAULT_WORKERS_BANGUNAN_1: PekerjaTukang[] = [
 export const DEFAULT_WORKERS_BANGUNAN_2: PekerjaTukang[] = [
   {
     id: 'tk-b2-1',
-    kategori: 'Mandor',
-    tenagaKerja: 'Mandor',
-    kodeMtp: 'M',
+    kategori: 'Kepala Tukang',
+    tenagaKerja: 'Kepala Tukang',
+    kodeMtp: 'K',
     tempatTinggal: 'dalam_desa',
     nama: 'BAHARUDDIN',
     hariKerja: {
@@ -463,9 +466,9 @@ export const DEFAULT_WORKERS_BANGUNAN_2: PekerjaTukang[] = [
 export const DEFAULT_WORKERS_BANGUNAN_3: PekerjaTukang[] = [
   {
     id: 'tk-b3-1',
-    kategori: 'Mandor',
-    tenagaKerja: 'Mandor',
-    kodeMtp: 'M',
+    kategori: 'Kepala Tukang',
+    tenagaKerja: 'Kepala Tukang',
+    kodeMtp: 'K',
     tempatTinggal: 'dalam_desa',
     nama: 'WAHYUDI',
     hariKerja: {

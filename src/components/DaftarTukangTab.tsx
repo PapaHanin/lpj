@@ -38,6 +38,11 @@ import {
   FolderPlus,
   CheckCheck,
   Settings,
+  Search,
+  X,
+  FileText,
+  Filter,
+  CheckCircle2,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { HariKerjaRecord, PekerjaTukang, BangunanProyek } from '../types';
@@ -86,6 +91,47 @@ export const DaftarTukangTab: React.FC = () => {
       }
     );
   }, [bangunanList, selectedBangunanId, profile]);
+
+  // Current building sequential index (e.g. Bangunan 1, Bangunan 2, dst.)
+  const currentBangunanIndex = useMemo(() => {
+    const idx = bangunanList.findIndex((b) => b.id === currentBangunan.id);
+    return idx >= 0 ? idx + 1 : 1;
+  }, [bangunanList, currentBangunan.id]);
+
+  const bangunanLabel = useMemo(() => {
+    return `Bangunan ${currentBangunanIndex}`;
+  }, [currentBangunanIndex]);
+
+  // Format angka ke teks terbilang minggu: 1 (Satu), 2 (Dua), dll.
+  const getAngkaTerbilangMinggu = (n: number): string => {
+    const kata = [
+      '',
+      'Satu',
+      'Dua',
+      'Tiga',
+      'Empat',
+      'Lima',
+      'Enam',
+      'Tujuh',
+      'Delapan',
+      'Sembilan',
+      'Sepuluh',
+      'Sebelas',
+      'Dua Belas',
+      'Tiga Belas',
+      'Empat Belas',
+      'Lima Belas',
+      'Enam Belas',
+      'Tujuh Belas',
+      'Delapan Belas',
+      'Sembilan Belas',
+      'Dua Puluh',
+    ];
+    if (n >= 1 && n <= 20) {
+      return `${n} (${kata[n]})`;
+    }
+    return `${n}`;
+  };
 
   // Ensure strictly unique weeks list by ID
   const uniqueAbsenTukangList = useMemo(() => {
@@ -180,11 +226,18 @@ export const DaftarTukangTab: React.FC = () => {
   const [isAddWorkerOpen, setIsAddWorkerOpen] = useState(false);
   const [newWorkerNama, setNewWorkerNama] = useState('');
   const [newWorkerTenagaKerja, setNewWorkerTenagaKerja] = useState('Pekerja');
-  const [newWorkerKodeMtp, setNewWorkerKodeMtp] = useState<'M' | 'T' | 'P'>('P');
+  const [newWorkerKodeMtp, setNewWorkerKodeMtp] = useState<'K' | 'T' | 'P'>('P');
   const [newWorkerTempatTinggal, setNewWorkerTempatTinggal] = useState<'dalam_desa' | 'luar_desa'>('dalam_desa');
   const [newWorkerUpah, setNewWorkerUpah] = useState<number>(100000);
   const [showJumlahUpahCol, setShowJumlahUpahCol] = useState<boolean>(false);
-  const [showKopIdentitas, setShowKopIdentitas] = useState<boolean>(false);
+  const [showKopIdentitas, setShowKopIdentitas] = useState<boolean>(true);
+
+  // Rekapan Nama Tukang Modal State
+  const [isRekapTukangModalOpen, setIsRekapTukangModalOpen] = useState(false);
+  const [rekapSearch, setRekapSearch] = useState('');
+  const [rekapBangunanFilter, setRekapBangunanFilter] = useState<string>('ALL');
+  const [rekapJabatanFilter, setRekapJabatanFilter] = useState<string>('ALL');
+  const [rekapAsalFilter, setRekapAsalFilter] = useState<string>('ALL');
 
   // Modal Bangunan Baru State
   const [isAddBangunanOpen, setIsAddBangunanOpen] = useState(false);
@@ -205,7 +258,7 @@ export const DaftarTukangTab: React.FC = () => {
     id: string;
     nama: string;
     tenagaKerja: string;
-    kodeMtp: 'M' | 'T' | 'P';
+    kodeMtp: 'K' | 'T' | 'P';
     tempatTinggal: 'dalam_desa' | 'luar_desa';
     upahHarian: number;
     paraf?: string;
@@ -304,6 +357,238 @@ export const DaftarTukangTab: React.FC = () => {
     const lastPart = parts[parts.length - 1] || pertanggal1Week;
     return formatToSlashDate(lastPart);
   }, [pertanggal1Week]);
+
+  // --- REKAPAN SEMUA NAMA TUKANG & PEKERJA PROYEK ---
+  const rekapSemuaTukang = useMemo(() => {
+    const workerMap = new Map<
+      string,
+      {
+        nama: string;
+        tenagaKerja: string;
+        kodeMtp: 'K' | 'T' | 'P';
+        tempatTinggal: 'dalam_desa' | 'luar_desa';
+        upahHarian: number;
+        bangunanMap: Map<string, { id: string; nama: string; kode?: string; days: number; upah: number }>;
+        totalHariKerja: number;
+        totalUpahNominal: number;
+        activePeriodsCount: number;
+      }
+    >();
+
+    for (const week of uniqueAbsenTukangList) {
+      const bId = week.bangunanId || 'bangunan-1';
+      const bObj = bangunanList.find((b) => b.id === bId) || {
+        id: bId,
+        nama: week.proyek || 'Bangunan 1',
+        kode: 'BG',
+      };
+
+      for (const p of week.pekerja || []) {
+        const key = p.nama.trim().toUpperCase();
+        if (!key) continue;
+
+        let role = p.tenagaKerja || p.kategori || 'Pekerja';
+        if (role.toLowerCase().includes('mandor')) role = 'Kepala Tukang';
+        const kode = getKodeMtp(p);
+        const daysInWeek = calculateTotalHari(p.hariKerja);
+        const upahInWeek = daysInWeek * (p.upahHarian || 0);
+
+        if (!workerMap.has(key)) {
+          workerMap.set(key, {
+            nama: key,
+            tenagaKerja: role,
+            kodeMtp: kode,
+            tempatTinggal: p.tempatTinggal || 'dalam_desa',
+            upahHarian: p.upahHarian || 100000,
+            bangunanMap: new Map(),
+            totalHariKerja: 0,
+            totalUpahNominal: 0,
+            activePeriodsCount: 0,
+          });
+        }
+
+        const workerEntry = workerMap.get(key)!;
+        if (p.upahHarian && p.upahHarian > workerEntry.upahHarian) {
+          workerEntry.upahHarian = p.upahHarian;
+        }
+        if (kode === 'K' || (kode === 'T' && workerEntry.kodeMtp === 'P')) {
+          workerEntry.kodeMtp = kode;
+          workerEntry.tenagaKerja = role;
+        }
+        if (p.tempatTinggal) {
+          workerEntry.tempatTinggal = p.tempatTinggal;
+        }
+
+        if (!workerEntry.bangunanMap.has(bId)) {
+          workerEntry.bangunanMap.set(bId, {
+            id: bId,
+            nama: bObj.nama,
+            kode: bObj.kode,
+            days: 0,
+            upah: 0,
+          });
+        }
+        const bEntry = workerEntry.bangunanMap.get(bId)!;
+        bEntry.days += daysInWeek;
+        bEntry.upah += upahInWeek;
+
+        workerEntry.totalHariKerja += daysInWeek;
+        workerEntry.totalUpahNominal += upahInWeek;
+        if (daysInWeek > 0) {
+          workerEntry.activePeriodsCount += 1;
+        }
+      }
+    }
+
+    return Array.from(workerMap.values()).map((w) => ({
+      ...w,
+      bangunanList: Array.from(w.bangunanMap.values()),
+    }));
+  }, [uniqueAbsenTukangList, bangunanList]);
+
+  // Filtered workers for the modal
+  const filteredRekapTukang = useMemo(() => {
+    return rekapSemuaTukang.filter((worker) => {
+      // Search
+      if (rekapSearch.trim()) {
+        const query = rekapSearch.toLowerCase();
+        const matchesName = worker.nama.toLowerCase().includes(query);
+        const matchesRole = worker.tenagaKerja.toLowerCase().includes(query);
+        const matchesBuilding = worker.bangunanList.some((b) => b.nama.toLowerCase().includes(query));
+        if (!matchesName && !matchesRole && !matchesBuilding) return false;
+      }
+      // Building filter
+      if (rekapBangunanFilter !== 'ALL') {
+        const worksInSelected = worker.bangunanList.some((b) => b.id === rekapBangunanFilter);
+        if (!worksInSelected) return false;
+      }
+      // Jabatan filter
+      if (rekapJabatanFilter !== 'ALL') {
+        if (worker.kodeMtp !== rekapJabatanFilter) return false;
+      }
+      // Asal filter
+      if (rekapAsalFilter !== 'ALL') {
+        if (worker.tempatTinggal !== rekapAsalFilter) return false;
+      }
+      return true;
+    });
+  }, [rekapSemuaTukang, rekapSearch, rekapBangunanFilter, rekapJabatanFilter, rekapAsalFilter]);
+
+  // Statistics for Rekapan
+  const rekapStats = useMemo(() => {
+    const totalWorkers = rekapSemuaTukang.length;
+    const totalKepalaTukang = rekapSemuaTukang.filter((w) => w.kodeMtp === 'K').length;
+    const totalTukang = rekapSemuaTukang.filter((w) => w.kodeMtp === 'T').length;
+    const totalPekerja = rekapSemuaTukang.filter((w) => w.kodeMtp === 'P').length;
+    const totalDalamDesa = rekapSemuaTukang.filter((w) => w.tempatTinggal === 'dalam_desa').length;
+    const totalLuarDesa = rekapSemuaTukang.filter((w) => w.tempatTinggal === 'luar_desa').length;
+    const grandTotalDays = rekapSemuaTukang.reduce((sum, w) => sum + w.totalHariKerja, 0);
+    const grandTotalWages = rekapSemuaTukang.reduce((sum, w) => sum + w.totalUpahNominal, 0);
+
+    return {
+      totalWorkers,
+      totalKepalaTukang,
+      totalTukang,
+      totalPekerja,
+      totalDalamDesa,
+      totalLuarDesa,
+      grandTotalDays,
+      grandTotalWages,
+    };
+  }, [rekapSemuaTukang]);
+
+  const handleExportExcelRekapTukang = () => {
+    const rowsToExport = filteredRekapTukang.length > 0 ? filteredRekapTukang : rekapSemuaTukang;
+    const todayStr = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const dataRows: (string | number)[][] = [
+      ['REKAPITULASI DAFTAR NAMA TUKANG & TENAGA KERJA'],
+      ['KEGIATAN PEMBANGUNAN / REHABILITASI GEDUNG SEKOLAH'],
+      [],
+      ['NAMA SEKOLAH', `:\t${namaSekolah}`],
+      ['ALAMAT', `:\t${alamat}`],
+      ['JUMLAH BANGUNAN', `:\t${bangunanList.length} Bangunan Proyek`],
+      ['PERIODE DATA', `:\tAgustus - Desember 2026 (DAK Fisik)`],
+      [],
+      [
+        'NO.',
+        'NAMA TUKANG / PEKERJA',
+        'JABATAN',
+        'KODE',
+        'TEMPAT TINGGAL',
+        'PENUGASAN BANGUNAN',
+        'UPAH / HARI',
+        'TOTAL HARI KERJA',
+        'TOTAL UPAH DITERIMA',
+        'STATUS',
+      ],
+      ...rowsToExport.map((w, idx) => {
+        const buildingsStr = w.bangunanList.map((b) => b.nama).join('; ');
+        const roleLabel = w.kodeMtp === 'K' ? 'Kepala Tukang' : w.kodeMtp === 'T' ? 'Tukang' : 'Pekerja';
+        const asalLabel = w.tempatTinggal === 'dalam_desa' ? 'Dalam Desa' : 'Luar Desa';
+        return [
+          idx + 1,
+          w.nama,
+          roleLabel,
+          w.kodeMtp,
+          asalLabel,
+          buildingsStr,
+          `Rp ${w.upahHarian.toLocaleString('id-ID')}`,
+          formatDecimal(w.totalHariKerja),
+          `Rp ${w.totalUpahNominal.toLocaleString('id-ID')}`,
+          w.totalHariKerja > 0 ? 'Aktif Bekerja' : 'Terdaftar',
+        ];
+      }),
+      [
+        'TOTAL',
+        `${rowsToExport.length} Orang Tenaga Kerja`,
+        '',
+        '',
+        '',
+        '',
+        '',
+        formatDecimal(rowsToExport.reduce((s, w) => s + w.totalHariKerja, 0)),
+        `Rp ${rowsToExport.reduce((s, w) => s + w.totalUpahNominal, 0).toLocaleString('id-ID')}`,
+        '',
+      ],
+      [],
+      ['Catatan: K = Kepala Tukang, T = Tukang, P = Pekerja'],
+      [],
+      ['', '', '', '', 'Mengetahui;', '', '', '', 'Tanggal : ' + todayStr],
+      ['Ketua P2SP', '', '', '', 'Pelaksana Proyek', '', '', '', 'Bendahara'],
+      [],
+      [],
+      [],
+      [namaKetuaP2SP, '', '', '', namaPelaksana, '', '', '', namaBendahara],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(dataRows);
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
+      { s: { r: 8 + rowsToExport.length + 1, c: 0 }, e: { r: 8 + rowsToExport.length + 1, c: 0 } },
+    ];
+    ws['!cols'] = [
+      { wch: 6 },  // NO.
+      { wch: 24 }, // NAMA
+      { wch: 16 }, // JABATAN
+      { wch: 8 },  // KODE
+      { wch: 14 }, // ASAL
+      { wch: 38 }, // BANGUNAN
+      { wch: 16 }, // UPAH/HARI
+      { wch: 16 }, // TOTAL HARI
+      { wch: 20 }, // TOTAL UPAH
+      { wch: 14 }, // STATUS
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Rekap Semua Tukang');
+    XLSX.writeFile(wb, 'REKAPITULASI_DAFTAR_TUKANG_PROYEK.xlsx');
+  };
 
   // Cycle Attendance: 1,00 -> 0,50 -> 0 (-) -> 1,00
   const handleToggleAttendance = (
@@ -596,8 +881,14 @@ export const DaftarTukangTab: React.FC = () => {
 
     if (is1Week) {
       const dataRows: (string | number)[][] = [
-        ['UPAH MINGGUAN'],
-        [`${namaSekolah} - ${pekerjaan} (Minggu ke-${activeWeekNum}: ${pertanggal1Week})`],
+        ['REKAPITULASI UPAH KERJA MINGGUAN'],
+        [],
+        ['BANGUNAN', `:\t${bangunanLabel} - ${currentBangunan.nama}`],
+        ['PEKERJAAN', `:\t${currentBangunan.keterangan || currentBangunan.nama || pekerjaan}`],
+        ['NAMA SEKOLAH', `:\t${namaSekolah}`],
+        ['ALAMAT', `:\t${alamat}`],
+        ['MINGGU KE', `:\t${getAngkaTerbilangMinggu(activeWeekNum)}`],
+        ['PERTANGGAL', `:\t${pertanggal1Week}`],
         [],
         ['', '', 'Tempat Tinggal', '', '', '', '', ''],
         [
@@ -605,7 +896,7 @@ export const DaftarTukangTab: React.FC = () => {
           'Nama',
           'Dalam Desa',
           'Luar Desa',
-          'M/T/P',
+          'K/T/P',
           'Hari Kerja',
           'Upah Perhari',
           'Tanda Tangan/Cap jempol',
@@ -637,7 +928,7 @@ export const DaftarTukangTab: React.FC = () => {
         ],
         [],
         ['Catatan', ''],
-        ['M', 'Mandor'],
+        ['K', 'Kepala Tukang'],
         ['T', 'Tukang'],
         ['P', 'Pekerja', '', '', '', '', `Tanggal : ${tanggalTtdMingguan}`, ''],
         [],
@@ -652,18 +943,17 @@ export const DaftarTukangTab: React.FC = () => {
       const ws = XLSX.utils.aoa_to_sheet(dataRows);
       ws['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } },
-        // Tempat Tinggal merge over Dalam Desa & Luar Desa
-        { s: { r: 3, c: 2 }, e: { r: 3, c: 3 } },
-        // Jumlah row merge cols 0..4
+        // Tempat Tinggal merge over Dalam Desa & Luar Desa (baris index 9)
+        { s: { r: 9, c: 2 }, e: { r: 9, c: 3 } },
+        // Jumlah row merge cols 0..4 (baris index 11 + jumlah pekerja)
         {
-          s: { r: 5 + currentAbsen.pekerja.length, c: 0 },
-          e: { r: 5 + currentAbsen.pekerja.length, c: 4 },
+          s: { r: 11 + currentAbsen.pekerja.length, c: 0 },
+          e: { r: 11 + currentAbsen.pekerja.length, c: 4 },
         },
         // Catatan header merge
         {
-          s: { r: 7 + currentAbsen.pekerja.length, c: 0 },
-          e: { r: 7 + currentAbsen.pekerja.length, c: 1 },
+          s: { r: 13 + currentAbsen.pekerja.length, c: 0 },
+          e: { r: 13 + currentAbsen.pekerja.length, c: 1 },
         },
       ];
       ws['!cols'] = [
@@ -671,7 +961,7 @@ export const DaftarTukangTab: React.FC = () => {
         { wch: 24 }, // Nama
         { wch: 13 }, // Dalam Desa
         { wch: 13 }, // Luar Desa
-        { wch: 9 },  // M/T/P
+        { wch: 9 },  // K/T/P
         { wch: 12 }, // Hari Kerja
         { wch: 18 }, // Upah Perhari
         { wch: 26 }, // Tanda Tangan/Cap jempol
@@ -692,7 +982,8 @@ export const DaftarTukangTab: React.FC = () => {
     const dataRows: (string | number)[][] = [
       ['REKAPITULASI UPAH KERJA DUA MINGGUAN'],
       [],
-      ['PEKERJAAN', `:\t${pekerjaan}`],
+      ['BANGUNAN', `:\t${bangunanLabel} - ${currentBangunan.nama}`],
+      ['PEKERJAAN', `:\t${currentBangunan.keterangan || currentBangunan.nama || pekerjaan}`],
       ['NAMA SEKOLAH', `:\t${namaSekolah}`],
       ['ALAMAT', `:\t${alamat}`],
       ['PERIODE (2 MINGGU) KE', `:\t${periodeKe} (Minggu ke-${mggStart} s.d ${mggEnd})`],
@@ -916,6 +1207,15 @@ export const DaftarTukangTab: React.FC = () => {
               <SlidersHorizontal className="w-3.5 h-3.5 text-purple-300" />
               <span>Kelola Bangunan ({bangunanList.length})</span>
             </button>
+
+            <button
+              onClick={() => setIsRekapTukangModalOpen(true)}
+              className="flex items-center space-x-2 px-3.5 py-2 text-xs bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-extrabold rounded-xl shadow-md transition transform active:scale-95 cursor-pointer border border-indigo-400/40"
+              title="Rekapan seluruh nama tukang & pekerja yang digunakan di semua bangunan proyek"
+            >
+              <Users className="w-4 h-4 text-amber-300" />
+              <span>📋 Rekapan Nama Tukang ({rekapSemuaTukang.length})</span>
+            </button>
           </div>
         </div>
 
@@ -1094,6 +1394,15 @@ export const DaftarTukangTab: React.FC = () => {
           >
             <Edit2 className="w-3.5 h-3.5 text-amber-400" />
             <span>Edit Header & TTD</span>
+          </button>
+
+          <button
+            onClick={() => setIsRekapTukangModalOpen(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition font-bold shadow-sm cursor-pointer"
+            title="Buka Rekapan Nama Tukang & Pekerja Proyek"
+          >
+            <Users className="w-3.5 h-3.5 text-indigo-200" />
+            <span>📋 Rekapan Tukang ({rekapSemuaTukang.length})</span>
           </button>
 
           <button
@@ -1367,7 +1676,7 @@ export const DaftarTukangTab: React.FC = () => {
               Format Baru Upah Mingguan
             </span>
             <span>
-              Klik langsung pada sel <strong>Dalam Desa / Luar Desa</strong>, <strong>M/T/P</strong>, atau <strong>Hari Kerja</strong> di tabel untuk mengubah cepat.
+              Klik langsung pada sel <strong>Dalam Desa / Luar Desa</strong>, <strong>K/T/P</strong>, atau <strong>Hari Kerja</strong> di tabel untuk mengubah cepat.
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1400,24 +1709,35 @@ export const DaftarTukangTab: React.FC = () => {
       {/* Printable Sheet: 1-Week (NEW UPAH MINGGUAN FORMAT) or 2-Week Format */}
       {is1Week ? (
         <div className="sheet-paper bg-white text-black font-sans rounded-xl shadow-2xl p-6 sm:p-8 border border-slate-300 print:shadow-none print:border-none print:m-0 print:p-0">
-          {/* Title matching format_upah_tukang_e7129d51.png */}
-          <div className="text-center mb-4 print:mb-3">
-            <h2 className="text-lg sm:text-xl print:text-base font-bold uppercase tracking-wide text-black">
-              UPAH MINGGUAN
+          {/* Title matching Screenshot_2026-10-31_210819_5601634e.png */}
+          <div className="text-center mb-3.5 print:mb-2">
+            <h2 className="text-base sm:text-lg md:text-xl print:text-sm font-bold uppercase tracking-wider text-black underline underline-offset-4 decoration-2 inline-block">
+              REKAPITULASI UPAH KERJA MINGGUAN
             </h2>
           </div>
 
-          {/* Optional Project Metadata if toggled */}
+          {/* Project Metadata Section matching user screenshot */}
           {showKopIdentitas && (
-            <div className="text-xs sm:text-[13px] print:text-[11px] leading-snug print:leading-tight mb-3 print:mb-2 font-sans text-black">
+            <div className="text-xs sm:text-[13px] print:text-[11px] leading-snug print:leading-tight mb-3.5 print:mb-2 font-sans text-black">
               <table className="border-none text-left">
                 <tbody>
+                  <tr>
+                    <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black w-36">
+                      BANGUNAN
+                    </td>
+                    <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                    <td className="py-0.5 print:py-0 text-black font-bold uppercase">
+                      {bangunanLabel} {currentBangunan.kode ? `(${currentBangunan.kode})` : ''} - {currentBangunan.nama}
+                    </td>
+                  </tr>
                   <tr>
                     <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
                       PEKERJAAN
                     </td>
                     <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
-                    <td className="py-0.5 print:py-0 text-black font-normal">{pekerjaan}</td>
+                    <td className="py-0.5 print:py-0 text-black font-normal">
+                      {currentBangunan.keterangan || currentBangunan.nama || pekerjaan}
+                    </td>
                   </tr>
                   <tr>
                     <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
@@ -1430,11 +1750,29 @@ export const DaftarTukangTab: React.FC = () => {
                   </tr>
                   <tr>
                     <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
-                      MINGGU KE / TANGGAL
+                      ALAMAT
                     </td>
                     <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
-                    <td className="py-0.5 print:py-0 text-black font-semibold">
-                      Minggu Ke-{activeWeekNum} ({pertanggal1Week})
+                    <td className="py-0.5 print:py-0 text-black font-normal">
+                      {alamat}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                      MINGGU KE
+                    </td>
+                    <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                    <td className="py-0.5 print:py-0 text-black font-bold">
+                      {getAngkaTerbilangMinggu(activeWeekNum)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
+                      PERTANGGAL
+                    </td>
+                    <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                    <td className="py-0.5 print:py-0 text-black font-normal">
+                      {pertanggal1Week}
                     </td>
                   </tr>
                 </tbody>
@@ -1475,9 +1813,9 @@ export const DaftarTukangTab: React.FC = () => {
                   </th>
                   <th
                     className="border border-black py-2 px-2 w-20 align-middle"
-                    title="M = Mandor, T = Tukang, P = Pekerja"
+                    title="K = Kepala Tukang, T = Tukang, P = Pekerja"
                   >
-                    M/T/P
+                    K/T/P
                   </th>
                   <th className="border border-black py-2 px-2 w-24 align-middle">
                     Hari Kerja
@@ -1560,20 +1898,20 @@ export const DaftarTukangTab: React.FC = () => {
                         {isLuarDesa ? '✓' : ''}
                       </td>
 
-                      {/* M/T/P */}
+                      {/* K/T/P */}
                       <td
                         onClick={() => {
-                          const nextCode: 'M' | 'T' | 'P' =
-                            kodeMtp === 'M' ? 'T' : kodeMtp === 'T' ? 'P' : 'M';
+                          const nextCode: 'K' | 'T' | 'P' =
+                            kodeMtp === 'K' ? 'T' : kodeMtp === 'T' ? 'P' : 'K';
                           const nextRole =
-                            nextCode === 'M'
+                            nextCode === 'K'
                               ? 'Kepala Tukang'
                               : nextCode === 'T'
                               ? 'Tukang'
                               : 'Pekerja';
                           const nextKategori =
-                            nextCode === 'M'
-                              ? 'Mandor'
+                            nextCode === 'K'
+                              ? 'Kepala Tukang'
                               : nextCode === 'T'
                               ? 'Tukang'
                               : 'Pekerja';
@@ -1584,7 +1922,7 @@ export const DaftarTukangTab: React.FC = () => {
                           });
                         }}
                         className={`border border-black py-1.5 px-2 text-center font-bold cursor-pointer select-none hover:opacity-80 ${blueCellBg}`}
-                        title="Klik untuk mengganti kode M (Mandor) / T (Tukang) / P (Pekerja)"
+                        title="Klik untuk mengganti kode K (Kepala Tukang) / T (Tukang) / P (Pekerja)"
                       >
                         {kodeMtp}
                       </td>
@@ -1747,14 +2085,14 @@ export const DaftarTukangTab: React.FC = () => {
 
           {/* Bottom Section matching format_upah_tukang_e7129d51.png: Catatan M/T/P & Tanggal */}
           <div className="mt-4 print:mt-3 flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs sm:text-[13px] print:text-[11px] text-black font-sans break-inside-avoid">
-            {/* Left: Catatan M/T/P */}
+            {/* Left: Catatan K/T/P */}
             <div>
               <p className="font-bold mb-0.5">Catatan:</p>
               <table className="border-none text-left">
                 <tbody>
                   <tr>
-                    <td className="font-semibold pr-3 py-0">M</td>
-                    <td className="py-0">Mandor</td>
+                    <td className="font-semibold pr-3 py-0">K</td>
+                    <td className="py-0">Kepala Tukang</td>
                   </tr>
                   <tr>
                     <td className="font-semibold pr-3 py-0">T</td>
@@ -1825,11 +2163,20 @@ export const DaftarTukangTab: React.FC = () => {
             <table className="border-none text-left">
               <tbody>
                 <tr>
+                  <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black w-36">
+                    BANGUNAN
+                  </td>
+                  <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
+                  <td className="py-0.5 print:py-0 text-black font-bold uppercase">
+                    {bangunanLabel} {currentBangunan.kode ? `(${currentBangunan.kode})` : ''} - {currentBangunan.nama}
+                  </td>
+                </tr>
+                <tr>
                   <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
                     PEKERJAAN
                   </td>
                   <td className="pr-2 py-0.5 print:py-0 text-black">:</td>
-                  <td className="py-0.5 print:py-0 text-black font-normal">{pekerjaan}</td>
+                  <td className="py-0.5 print:py-0 text-black font-normal">{currentBangunan.keterangan || currentBangunan.nama || pekerjaan}</td>
                 </tr>
                 <tr>
                   <td className="font-semibold pr-2.5 py-0.5 print:py-0 whitespace-nowrap text-black">
@@ -2393,11 +2740,11 @@ export const DaftarTukangTab: React.FC = () => {
 
               <div>
                 <label className="block text-purple-200 font-medium mb-1">
-                  Jabatan & Kode M/T/P (M = Mandor, T = Tukang, P = Pekerja)
+                  Jabatan & Kode K/T/P (K = Kepala Tukang, T = Tukang, P = Pekerja)
                 </label>
                 <div className="grid grid-cols-3 gap-2 mb-2">
                   {[
-                    { role: 'Kepala Tukang', code: 'M' as const, label: 'M - Mandor / Ka. Tukang', wage: 150000 },
+                    { role: 'Kepala Tukang', code: 'K' as const, label: 'K - Kepala Tukang', wage: 150000 },
                     { role: 'Tukang', code: 'T' as const, label: 'T - Tukang', wage: 140000 },
                     { role: 'Pekerja', code: 'P' as const, label: 'P - Pekerja', wage: 100000 },
                   ].map((item) => (
@@ -2435,7 +2782,7 @@ export const DaftarTukangTab: React.FC = () => {
                   className="w-full bg-[#160424] border border-purple-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-400 font-mono"
                 />
                 <p className="text-[11px] text-purple-300 mt-1">
-                  Standar: Mandor (M) Rp 150.000, Tukang (T) Rp 140.000, Pekerja (P) Rp 100.000.
+                  Standar: Kepala Tukang (K) Rp 150.000, Tukang (T) Rp 140.000, Pekerja (P) Rp 100.000.
                 </p>
               </div>
 
@@ -2525,11 +2872,11 @@ export const DaftarTukangTab: React.FC = () => {
 
               <div>
                 <label className="block text-purple-200 font-medium mb-1">
-                  Kode M/T/P & Jabatan
+                  Kode K/T/P & Jabatan
                 </label>
                 <div className="grid grid-cols-3 gap-2 mb-2">
                   {[
-                    { code: 'M' as const, role: 'Kepala Tukang', label: 'M - Mandor' },
+                    { code: 'K' as const, role: 'Kepala Tukang', label: 'K - Kepala Tukang' },
                     { code: 'T' as const, role: 'Tukang', label: 'T - Tukang' },
                     { code: 'P' as const, role: 'Pekerja', label: 'P - Pekerja' },
                   ].map((item) => (
@@ -2683,7 +3030,7 @@ export const DaftarTukangTab: React.FC = () => {
                   Opsi Cepat: Salin Daftar Tukang & Upah Awal
                 </label>
                 <p className="text-[11px] text-purple-300">
-                  Secara otomatis menyalin nama mandor, kepala tukang, tukang, dan upah harian dari bangunan yang sudah ada:
+                  Secara otomatis menyalin nama kepala tukang, tukang, pekerja, dan upah harian dari bangunan yang sudah ada:
                 </p>
                 <div className="relative">
                   <select
@@ -2901,6 +3248,363 @@ export const DaftarTukangTab: React.FC = () => {
               >
                 Tutup
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Rekapan Semua Tukang & Pekerja Proyek */}
+      {isRekapTukangModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm print:hidden">
+          <div className="bg-[#1f052e] border-2 border-indigo-400/60 rounded-2xl w-full max-w-5xl text-white shadow-2xl relative max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-purple-800/80 bg-gradient-to-r from-[#2a073f] via-[#210532] to-[#1a0328] flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center space-x-3">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                  <Users className="w-6 h-6 text-indigo-300" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2.5 flex-wrap">
+                    <h3 className="text-base sm:text-lg font-extrabold text-white tracking-wide">
+                      Rekapan Nama Tukang & Pekerja Proyek
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/25 text-indigo-300 text-[11px] font-bold border border-indigo-400/40">
+                      {rekapSemuaTukang.length} Tenaga Kerja Terdaftar
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-300 mt-0.5">
+                    Daftar rekapitulasi seluruh tukang & pekerja yang Anda gunakan, peran jabatan (K/T/P), domisili, dan total upah.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleExportExcelRekapTukang}
+                  className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-700/80 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl border border-emerald-500/50 transition cursor-pointer shadow-sm"
+                  title="Export file Excel rekapan semua nama tukang"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Export Excel</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsRekapTukangModalOpen(false)}
+                  className="w-8 h-8 rounded-xl bg-purple-900/60 hover:bg-purple-800 text-purple-200 hover:text-white flex items-center justify-center transition cursor-pointer"
+                  title="Tutup"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Scrollable Content */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 text-xs">
+                <div className="bg-[#140220] border border-purple-800/80 rounded-xl p-3">
+                  <span className="text-[11px] text-purple-300 block">Total Tukang</span>
+                  <div className="text-lg font-black text-white mt-0.5">
+                    {rekapStats.totalWorkers} <span className="text-xs font-normal text-purple-400">Orang</span>
+                  </div>
+                </div>
+
+                <div className="bg-[#140220] border border-amber-500/30 rounded-xl p-3">
+                  <span className="text-[11px] text-amber-300 block font-semibold">Kepala Tukang (K)</span>
+                  <div className="text-lg font-black text-amber-400 mt-0.5">
+                    {rekapStats.totalKepalaTukang} <span className="text-xs font-normal text-amber-200/70">Orang</span>
+                  </div>
+                </div>
+
+                <div className="bg-[#140220] border border-blue-500/30 rounded-xl p-3">
+                  <span className="text-[11px] text-blue-300 block font-semibold">Tukang (T)</span>
+                  <div className="text-lg font-black text-blue-400 mt-0.5">
+                    {rekapStats.totalTukang} <span className="text-xs font-normal text-blue-200/70">Orang</span>
+                  </div>
+                </div>
+
+                <div className="bg-[#140220] border border-emerald-500/30 rounded-xl p-3">
+                  <span className="text-[11px] text-emerald-300 block font-semibold">Pekerja (P)</span>
+                  <div className="text-lg font-black text-emerald-400 mt-0.5">
+                    {rekapStats.totalPekerja} <span className="text-xs font-normal text-emerald-200/70">Orang</span>
+                  </div>
+                </div>
+
+                <div className="bg-[#140220] border border-cyan-500/30 rounded-xl p-3">
+                  <span className="text-[11px] text-cyan-300 block font-semibold">Tempat Tinggal</span>
+                  <div className="text-sm font-bold text-white mt-1">
+                    <span className="text-cyan-400">{rekapStats.totalDalamDesa}</span> Dlm /{' '}
+                    <span className="text-purple-300">{rekapStats.totalLuarDesa}</span> Luar
+                  </div>
+                </div>
+
+                <div className="bg-[#140220] border border-indigo-500/30 rounded-xl p-3">
+                  <span className="text-[11px] text-indigo-300 block font-semibold">Total Upah Terserap</span>
+                  <div className="text-sm font-bold text-emerald-400 mt-1 truncate" title={`Rp ${rekapStats.grandTotalWages.toLocaleString('id-ID')}`}>
+                    Rp {rekapStats.grandTotalWages.toLocaleString('id-ID')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters & Search Toolbar */}
+              <div className="bg-[#170324] border border-purple-800/80 rounded-xl p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                {/* Search */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-4 h-4 text-purple-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={rekapSearch}
+                    onChange={(e) => setRekapSearch(e.target.value)}
+                    placeholder="Cari nama tukang, jabatan, atau nama bangunan..."
+                    className="w-full bg-[#10011c] border border-purple-700/80 rounded-lg pl-9 pr-8 py-2 text-white placeholder-purple-400/60 focus:outline-none focus:border-indigo-400 font-medium"
+                  />
+                  {rekapSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setRekapSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-purple-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Filter Bangunan */}
+                  <div className="relative">
+                    <select
+                      value={rekapBangunanFilter}
+                      onChange={(e) => setRekapBangunanFilter(e.target.value)}
+                      className="appearance-none bg-[#10011c] border border-purple-700/80 rounded-lg px-3 py-2 pr-8 text-xs font-medium text-white focus:outline-none focus:border-indigo-400 cursor-pointer"
+                    >
+                      <option value="ALL">Semua Bangunan ({bangunanList.length})</option>
+                      {bangunanList.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.nama}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-purple-300 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
+                  {/* Filter Jabatan */}
+                  <div className="relative">
+                    <select
+                      value={rekapJabatanFilter}
+                      onChange={(e) => setRekapJabatanFilter(e.target.value)}
+                      className="appearance-none bg-[#10011c] border border-purple-700/80 rounded-lg px-3 py-2 pr-8 text-xs font-medium text-white focus:outline-none focus:border-indigo-400 cursor-pointer"
+                    >
+                      <option value="ALL">Semua Jabatan</option>
+                      <option value="K">Kepala Tukang (K)</option>
+                      <option value="T">Tukang (T)</option>
+                      <option value="P">Pekerja (P)</option>
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-purple-300 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
+                  {/* Filter Tempat Tinggal */}
+                  <div className="relative">
+                    <select
+                      value={rekapAsalFilter}
+                      onChange={(e) => setRekapAsalFilter(e.target.value)}
+                      className="appearance-none bg-[#10011c] border border-purple-700/80 rounded-lg px-3 py-2 pr-8 text-xs font-medium text-white focus:outline-none focus:border-indigo-400 cursor-pointer"
+                    >
+                      <option value="ALL">Semua Tempat Tinggal</option>
+                      <option value="dalam_desa">Dalam Desa</option>
+                      <option value="luar_desa">Luar Desa</option>
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-purple-300 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Table of Workers */}
+              <div className="border border-purple-800/80 rounded-xl overflow-x-auto shadow-inner bg-[#12011f]">
+                <table className="w-full border-collapse text-xs text-left">
+                  <thead>
+                    <tr className="bg-[#1a0329] border-b border-purple-800/80 text-purple-300 uppercase tracking-wider font-bold">
+                      <th className="py-2.5 px-3 w-10 text-center">No</th>
+                      <th className="py-2.5 px-3 min-w-[160px]">Nama Tukang / Pekerja</th>
+                      <th className="py-2.5 px-3 w-36">Jabatan / Peran</th>
+                      <th className="py-2.5 px-2 w-14 text-center">Kode</th>
+                      <th className="py-2.5 px-3 w-28">Tempat Tinggal</th>
+                      <th className="py-2.5 px-3 min-w-[200px]">Penugasan Bangunan</th>
+                      <th className="py-2.5 px-3 w-28 text-right">Upah / Hari</th>
+                      <th className="py-2.5 px-3 w-24 text-center">Hari Kerja</th>
+                      <th className="py-2.5 px-3 w-32 text-right">Total Upah</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-purple-900/40 text-purple-100">
+                    {filteredRekapTukang.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-8 text-center text-purple-400">
+                          Tidak ditemukan pekerja dengan filter yang dipilih.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRekapTukang.map((w, idx) => {
+                        const isK = w.kodeMtp === 'K';
+                        const isT = w.kodeMtp === 'T';
+                        const isP = w.kodeMtp === 'P';
+
+                        return (
+                          <tr
+                            key={w.nama}
+                            className="hover:bg-purple-900/30 transition-colors"
+                          >
+                            {/* No */}
+                            <td className="py-2.5 px-3 text-center text-purple-400 font-medium">
+                              {idx + 1}
+                            </td>
+
+                            {/* Nama */}
+                            <td className="py-2.5 px-3 font-bold text-white uppercase tracking-wide">
+                              {w.nama}
+                            </td>
+
+                            {/* Jabatan */}
+                            <td className="py-2.5 px-3">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border ${
+                                  isK
+                                    ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                                    : isT
+                                    ? 'bg-blue-400/20 text-blue-300 border-blue-400/40'
+                                    : 'bg-emerald-400/20 text-emerald-300 border-emerald-400/40'
+                                }`}
+                              >
+                                {isK ? 'Kepala Tukang' : isT ? 'Tukang' : 'Pekerja'}
+                              </span>
+                            </td>
+
+                            {/* Kode K / T / P */}
+                            <td className="py-2.5 px-2 text-center font-mono font-extrabold">
+                              <span
+                                className={`px-2 py-0.5 rounded ${
+                                  isK
+                                    ? 'bg-amber-400 text-purple-950'
+                                    : isT
+                                    ? 'bg-blue-500 text-white'
+                                    : 'bg-emerald-600 text-white'
+                                }`}
+                              >
+                                {w.kodeMtp}
+                              </span>
+                            </td>
+
+                            {/* Tempat Tinggal */}
+                            <td className="py-2.5 px-3">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[11px] font-medium ${
+                                  w.tempatTinggal === 'dalam_desa'
+                                    ? 'bg-cyan-950 text-cyan-300 border border-cyan-800/60'
+                                    : 'bg-purple-950 text-purple-300 border border-purple-800/60'
+                                }`}
+                              >
+                                {w.tempatTinggal === 'dalam_desa' ? 'Dalam Desa' : 'Luar Desa'}
+                              </span>
+                            </td>
+
+                            {/* Bangunan */}
+                            <td className="py-2.5 px-3">
+                              <div className="flex flex-wrap gap-1">
+                                {w.bangunanList.map((b) => (
+                                  <span
+                                    key={b.id}
+                                    className="px-2 py-0.5 rounded bg-purple-900/60 text-purple-200 border border-purple-800 text-[11px] truncate max-w-[220px]"
+                                    title={b.nama}
+                                  >
+                                    {b.nama}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+
+                            {/* Upah Perhari */}
+                            <td className="py-2.5 px-3 text-right font-mono font-semibold text-white whitespace-nowrap">
+                              Rp {w.upahHarian.toLocaleString('id-ID')}
+                            </td>
+
+                            {/* Hari Kerja Kumulatif */}
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-amber-300">
+                              {formatDecimal(w.totalHariKerja)}
+                            </td>
+
+                            {/* Total Upah Nominal */}
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400 whitespace-nowrap">
+                              Rp {w.totalUpahNominal.toLocaleString('id-ID')}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+
+                  {filteredRekapTukang.length > 0 && (
+                    <tfoot>
+                      <tr className="bg-[#1a0329] font-bold text-white border-t-2 border-purple-700">
+                        <td colSpan={7} className="py-2.5 px-3 text-center uppercase tracking-wide text-purple-300">
+                          Total ({filteredRekapTukang.length} Orang Terfilter)
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono text-amber-300">
+                          {formatDecimal(
+                            filteredRekapTukang.reduce((s, w) => s + w.totalHariKerja, 0)
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-emerald-300 whitespace-nowrap">
+                          Rp{' '}
+                          {filteredRekapTukang
+                            .reduce((s, w) => s + w.totalUpahNominal, 0)
+                            .toLocaleString('id-ID')}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+
+              {/* Note / Info at bottom */}
+              <div className="bg-[#160224] border border-purple-800/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-purple-300">
+                <div className="flex items-center space-x-2">
+                  <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    Kode Jabatan: <strong>K: Kepala Tukang</strong> (upah Rp 150.000),{' '}
+                    <strong>T: Tukang</strong> (upah Rp 140.000), <strong>P: Pekerja</strong> (upah Rp 100.000).
+                  </span>
+                </div>
+                <div className="text-[11px] text-purple-400">
+                  Data otomatis teragregasi dari seluruh jadwal periode pengerjaan DAK Fisik 2026.
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-purple-800/80 bg-[#160222] flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+              <div className="text-xs text-purple-300">
+                Menampilkan <strong>{filteredRekapTukang.length}</strong> dari{' '}
+                <strong>{rekapSemuaTukang.length}</strong> tukang & pekerja.
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={handleExportExcelRekapTukang}
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Export Excel (.xlsx)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsRekapTukangModalOpen(false)}
+                  className="px-5 py-2 bg-purple-900/60 hover:bg-purple-800 text-purple-200 font-medium text-xs rounded-xl transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>

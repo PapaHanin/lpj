@@ -99,7 +99,7 @@ export interface CustomBahanItem {
   total: number;
 }
 
-export type KategoriPekerja = 'Mandor' | 'Kepala Tukang' | 'Tukang' | 'Pekerja' | 'Knek' | 'TUKANG' | 'KNEK' | string;
+export type KategoriPekerja = 'Kepala Tukang' | 'Tukang' | 'Pekerja' | 'Mandor' | 'Knek' | 'TUKANG' | 'KNEK' | string;
 
 export interface HariKerjaRecord {
   // Minggu I (Hari 1 s.d 7)
@@ -133,8 +133,8 @@ export interface HariKerjaRecord {
 export interface PekerjaTukang {
   id: string;
   kategori: KategoriPekerja;
-  tenagaKerja?: string; // e.g. "Mandor", "Kepala Tukang", "Tukang", "Pekerja"
-  kodeMtp?: 'M' | 'T' | 'P'; // M = Mandor, T = Tukang, P = Pekerja
+  tenagaKerja?: string; // e.g. "Kepala Tukang", "Tukang", "Pekerja"
+  kodeMtp?: 'K' | 'T' | 'P' | 'M'; // K = Kepala Tukang, T = Tukang, P = Pekerja
   tempatTinggal?: 'dalam_desa' | 'luar_desa'; // Tempat tinggal: Dalam Desa / Luar Desa
   nama: string;
   hariKerja: HariKerjaRecord;

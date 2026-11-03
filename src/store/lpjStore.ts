@@ -209,7 +209,7 @@ interface LpjState {
     nama: string,
     upahHarian: number,
     tenagaKerja?: string,
-    kodeMtp?: 'M' | 'T' | 'P',
+    kodeMtp?: 'K' | 'T' | 'P' | 'M',
     tempatTinggal?: 'dalam_desa' | 'luar_desa'
   ) => void;
   setWorkerTotalHariKerja: (
@@ -1108,9 +1108,14 @@ export const useLpjStore = create<LpjState>()(
           const nextIndex = (currentWeek?.pekerja.length || 0) + 1;
           const cleanName = (nama.trim() || `Pekerja ${nextIndex}`).toUpperCase();
           const baseId = `pkr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-          const resolvedMtp =
-            kodeMtp ||
-            getKodeMtp({ kategori, tenagaKerja: tenagaKerja || kategori });
+          let resolvedTenagaKerja = tenagaKerja || kategori;
+          let resolvedKategori = kategori;
+          let resolvedMtp: 'K' | 'T' | 'P' = (kodeMtp as any) === 'M' ? 'K' : (kodeMtp as any) || getKodeMtp({ kategori, tenagaKerja: resolvedTenagaKerja });
+          if ((resolvedTenagaKerja || '').toLowerCase().includes('mandor') || (resolvedKategori || '').toLowerCase().includes('mandor')) {
+            resolvedTenagaKerja = 'Kepala Tukang';
+            resolvedKategori = 'Kepala Tukang';
+            resolvedMtp = 'K';
+          }
 
           // Tambahkan ke SEMUA periode pada bangunan yang sama agar seragam
           return {
@@ -1124,8 +1129,8 @@ export const useLpjStore = create<LpjState>()(
 
               const newPekerja: PekerjaTukang = {
                 id: `${baseId}-p${week.periodeKe || week.mingguKe || 1}`,
-                kategori,
-                tenagaKerja: tenagaKerja || kategori,
+                kategori: resolvedKategori,
+                tenagaKerja: resolvedTenagaKerja,
                 kodeMtp: resolvedMtp,
                 tempatTinggal: tempatTinggal || 'dalam_desa',
                 nama: cleanName,
@@ -1463,11 +1468,23 @@ export const useLpjStore = create<LpjState>()(
                   ...week,
                   hariTanggal: formatToSlashDate(week.hariTanggal || ''),
                   pekerja: Array.isArray(week.pekerja)
-                    ? week.pekerja.map((p: PekerjaTukang) => ({
-                        ...p,
-                        kodeMtp: p.kodeMtp || getKodeMtp(p),
-                        tempatTinggal: p.tempatTinggal || 'dalam_desa',
-                      }))
+                    ? week.pekerja.map((p: PekerjaTukang) => {
+                        let role = p.tenagaKerja || p.kategori || '';
+                        let kat = p.kategori;
+                        let kode = p.kodeMtp;
+                        if (role.toLowerCase().includes('mandor') || (kode as any) === 'M' || kat === 'Mandor') {
+                          role = 'Kepala Tukang';
+                          kat = 'Kepala Tukang';
+                          kode = 'K';
+                        }
+                        return {
+                          ...p,
+                          kategori: kat,
+                          tenagaKerja: role,
+                          kodeMtp: kode || getKodeMtp(p),
+                          tempatTinggal: p.tempatTinggal || 'dalam_desa',
+                        };
+                      })
                     : [],
                 });
               }
@@ -1553,11 +1570,23 @@ export const useLpjStore = create<LpjState>()(
                     ...week,
                     hariTanggal: harmonizedTanggal,
                     pekerja: Array.isArray(week.pekerja)
-                      ? week.pekerja.map((p) => ({
-                          ...p,
-                          kodeMtp: p.kodeMtp || getKodeMtp(p),
-                          tempatTinggal: p.tempatTinggal || 'dalam_desa',
-                        }))
+                      ? week.pekerja.map((p) => {
+                          let role = p.tenagaKerja || p.kategori || '';
+                          let kat = p.kategori;
+                          let kode = p.kodeMtp;
+                          if (role.toLowerCase().includes('mandor') || (kode as any) === 'M' || kat === 'Mandor') {
+                            role = 'Kepala Tukang';
+                            kat = 'Kepala Tukang';
+                            kode = 'K';
+                          }
+                          return {
+                            ...p,
+                            kategori: kat,
+                            tenagaKerja: role,
+                            kodeMtp: kode || getKodeMtp(p),
+                            tempatTinggal: p.tempatTinggal || 'dalam_desa',
+                          };
+                        })
                       : [],
                   });
                 }
