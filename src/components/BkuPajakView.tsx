@@ -17,12 +17,26 @@ import {
   Square,
   Plus,
   Settings2,
+  Info,
+  ShieldCheck,
+  Filter,
+  CheckCircle2,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useLpjStore } from '../store/lpjStore';
 import { PajakRowItem, JenisPajak } from '../types';
 import { formatToSlashDate } from '../utils/dateUtils';
-import { hitungPajakDariBruto } from '../utils/pajakUtils';
+import {
+  hitungPajakDariBruto,
+  filterOnlyTaxableRows,
+  detectTaxForTransaction,
+  generatePajakRowsFromTransactions,
+  OFFICIAL_P2SP_TAX_PRESETS,
+  DetectedTaxItem,
+} from '../utils/pajakUtils';
 import { triggerPrint } from '../utils/printHelper';
 import { terbilangRupiah } from '../utils/terbilang';
 
@@ -42,12 +56,16 @@ export interface CustomTaxPreset {
 const CUSTOM_PAJAK_STORAGE_KEY = 'lpj_custom_jenis_pajak_v1';
 
 const DEFAULT_SINGLE_TAX_OPTIONS: { label: string; persen: number }[] = [
-  { label: 'PPN', persen: 11 },
-  { label: 'PPh 22', persen: 1.5 },
-  { label: 'PPh 4%', persen: 4 },
-  { label: 'PPh 23', persen: 2 },
-  { label: 'PPh 21', persen: 5 },
-  { label: 'Pajak Daerah', persen: 10 },
+  { label: 'PPh Pasal 4(2) (4%)', persen: 4 },
+  { label: 'PPh Pasal 4(2) Kualifikasi Kecil (1,75%)', persen: 1.75 },
+  { label: 'PPh Pasal 23 Sewa Alat (2%)', persen: 2 },
+  { label: 'PPh 21 Tenaga Ahli (2,5%)', persen: 2.5 },
+  { label: 'PPh 21 PNS Gol III (5%)', persen: 5 },
+  { label: 'PPh 21 PNS Gol IV (15%)', persen: 15 },
+  { label: 'PPh 21 Upah Tukang > 450rb (0,5%)', persen: 0.5 },
+  { label: 'PPN (11%)', persen: 11 },
+  { label: 'PPh 22 (1,5%)', persen: 1.5 },
+  { label: 'Pajak Daerah (10%)', persen: 10 },
 ];
 
 export const BkuPajakView: React.FC = () => {
@@ -55,15 +73,25 @@ export const BkuPajakView: React.FC = () => {
     profile,
     transactions,
     pajakRows,
+    setPajakRows,
     addPajakRow,
     updatePajakRow,
     deletePajakRow,
     movePajakRow,
     syncPajakFromTransactions,
+    cleanUntaxedPajakRows,
     loadSamplePajakRows,
     openProfileModal,
     showToast,
   } = useLpjStore();
+
+  // Filter HANYA Belanja yang Ada Pajaknya (Sesuai Permintaan User & Aturan P2SP KPP Pratama)
+  const [onlyTaxableFilter, setOnlyTaxableFilter] = useState<boolean>(true);
+  const [showTaxRulesGuide, setShowTaxRulesGuide] = useState<boolean>(false);
+
+  // Modal Pilih Belanja Berpajak dari BKU
+  const [isBatchSyncModalOpen, setIsBatchSyncModalOpen] = useState<boolean>(false);
+  const [batchSelectedTxIds, setBatchSelectedTxIds] = useState<string[]>([]);
 
   // Daftar transaksi dari BKU Tunai (pengeluaran tunai) untuk dipilih langsung
   const bkuTunaiTransactions = useMemo(() => {
@@ -122,15 +150,16 @@ export const BkuPajakView: React.FC = () => {
   const [formNomorBukti, setFormNomorBukti] = useState('');
   const [formUraian, setFormUraian] = useState('Pembelian Bahan matrial Bangunan (Nota Terlampir)');
   const [formNominalBelanja, setFormNominalBelanja] = useState<number>(3000000);
-  const [formJenisPajak, setFormJenisPajak] = useState<JenisPajak>('PPN');
+  const [formJenisPajak, setFormJenisPajak] = useState<JenisPajak>('PPh Pasal 4(2)');
+  const [detectedTaxHint, setDetectedTaxHint] = useState<string | null>(null);
 
   // Daftar Pajak yang dikenakan pada transaksi ini (bisa 1 pajak, 2 pajak sekaligus misal PPN + PPh 4%, atau lebih)
   const [taxItems, setTaxItems] = useState<TaxEntryDraft[]>([
     {
       id: 'tax-init-1',
-      label: 'PPN',
-      persen: 11,
-      nominal: hitungPajakDariBruto(3000000, 'PPN'),
+      label: 'PPh Pasal 4(2) (4%)',
+      persen: 4,
+      nominal: hitungPajakDariBruto(3000000, 'PPh 4%'),
     },
   ]);
 
@@ -146,13 +175,19 @@ export const BkuPajakView: React.FC = () => {
   const [editingRow, setEditingRow] = useState<PajakRowItem | null>(null);
 
   // Calculate rows with running tax balance matching format_bku_pajak_d1c829d3.png
+  // KRUSIAL: Jika onlyTaxableFilter aktif, hanya baris belanja yang berpajak yang dihitung & ditampilkan!
   const computedRows = useMemo(() => {
     let runningSaldoPajak = 0;
     let totalPenerimaanPajak = 0;
     let totalPengeluaranPajak = 0;
     let totalBelanjaBruto = 0;
 
-    const list = pajakRows.map((row, idx) => {
+    // Filter sumber baris: Singkirkan transaksi belanja tanpa pajak jika filter aktif
+    const sourceRows = onlyTaxableFilter
+      ? filterOnlyTaxableRows(pajakRows)
+      : pajakRows;
+
+    const list = sourceRows.map((row, idx) => {
       const tanggalFormatted = formatToSlashDate(row.tanggal);
       const isTax =
         row.isTaxRow !== undefined
@@ -183,7 +218,7 @@ export const BkuPajakView: React.FC = () => {
       totalBelanjaBruto,
       saldoAkhirPajak: runningSaldoPajak,
     };
-  }, [pajakRows]);
+  }, [pajakRows, onlyTaxableFilter]);
 
   // Helper membuat daftar taxItems dari pilihan dropdown JenisPajak
   const buildTaxItemsFromJenis = (jenis: JenisPajak, nilaiBelanja: number): TaxEntryDraft[] => {
@@ -204,69 +239,154 @@ export const BkuPajakView: React.FC = () => {
       }
     }
 
-    switch (jenis) {
-      case 'PPN':
-        return [
-          { id: `tax-${ts}-1`, label: 'PPN', persen: 11, nominal: Math.round(base * 0.11) },
-        ];
-      case 'PPh 22':
-        return [
-          { id: `tax-${ts}-1`, label: 'PPh 22', persen: 1.5, nominal: Math.round(base * 0.015) },
-        ];
-      case 'PPh 4%':
-      case 'PPh Pasal 4(2)':
-        return [
-          { id: `tax-${ts}-1`, label: 'PPh 4%', persen: 4, nominal: Math.round(base * 0.04) },
-        ];
-      case 'PPh 23':
-        return [
-          { id: `tax-${ts}-1`, label: 'PPh 23', persen: 2, nominal: Math.round(base * 0.02) },
-        ];
-      case 'PPh 21':
-        return [
-          { id: `tax-${ts}-1`, label: 'PPh 21', persen: 5, nominal: Math.round(base * 0.05) },
-        ];
-      case 'Pajak Daerah':
-        return [
-          {
-            id: `tax-${ts}-1`,
-            label: 'Pajak Daerah',
-            persen: 10,
-            nominal: Math.round(base * 0.1),
-          },
-        ];
-      case 'PPN + PPh 22':
-        return [
-          { id: `tax-${ts}-1`, label: 'PPN', persen: 11, nominal: Math.round(base * 0.11) },
-          { id: `tax-${ts}-2`, label: 'PPh 22', persen: 1.5, nominal: Math.round(base * 0.015) },
-        ];
-      case 'PPN + PPh 4%':
-        return [
-          { id: `tax-${ts}-1`, label: 'PPN', persen: 11, nominal: Math.round(base * 0.11) },
-          { id: `tax-${ts}-2`, label: 'PPh 4%', persen: 4, nominal: Math.round(base * 0.04) },
-        ];
-      case 'PPN + PPh 23':
-        return [
-          { id: `tax-${ts}-1`, label: 'PPN', persen: 11, nominal: Math.round(base * 0.11) },
-          { id: `tax-${ts}-2`, label: 'PPh 23', persen: 2, nominal: Math.round(base * 0.02) },
-        ];
-      case 'PPN + PPh 21':
-        return [
-          { id: `tax-${ts}-1`, label: 'PPN', persen: 11, nominal: Math.round(base * 0.11) },
-          { id: `tax-${ts}-2`, label: 'PPh 21', persen: 5, nominal: Math.round(base * 0.05) },
-        ];
-      default:
-        // Custom: pertahankan item yang sudah ada tapi hitung ulang nominalnya
-        if (taxItems.length > 0) {
-          return taxItems.map((item) => ({
-            ...item,
-            nominal: Math.round(base * (item.persen / 100)),
-          }));
-        }
-        return [
-          { id: `tax-${ts}-1`, label: 'Pajak Custom', persen: 4, nominal: Math.round(base * 0.04) },
-        ];
+    const jLower = jenis.toLowerCase();
+
+    if (jLower.includes('ppn + pph 22')) {
+      return [
+        { id: `tax-${ts}-1`, label: 'PPN', persen: 11, nominal: Math.round(base * 0.11) },
+        { id: `tax-${ts}-2`, label: 'PPh 22', persen: 1.5, nominal: Math.round(base * 0.015) },
+      ];
     }
+    if (jLower.includes('ppn + pph 4%') || jLower.includes('ppn + pph 4')) {
+      return [
+        { id: `tax-${ts}-1`, label: 'PPN', persen: 11, nominal: Math.round(base * 0.11) },
+        { id: `tax-${ts}-2`, label: 'PPh 4%', persen: 4, nominal: Math.round(base * 0.04) },
+      ];
+    }
+    if (jLower.includes('ppn + pph 23')) {
+      return [
+        { id: `tax-${ts}-1`, label: 'PPN', persen: 11, nominal: Math.round(base * 0.11) },
+        { id: `tax-${ts}-2`, label: 'PPh 23', persen: 2, nominal: Math.round(base * 0.02) },
+      ];
+    }
+    if (jLower.includes('ppn + pph 21')) {
+      return [
+        { id: `tax-${ts}-1`, label: 'PPN', persen: 11, nominal: Math.round(base * 0.11) },
+        { id: `tax-${ts}-2`, label: 'PPh 21', persen: 5, nominal: Math.round(base * 0.05) },
+      ];
+    }
+    if (jLower.includes('1,75') || jLower.includes('1.75')) {
+      return [
+        {
+          id: `tax-${ts}-1`,
+          label: 'PPh Pasal 4(2) Kualifikasi Kecil',
+          persen: 1.75,
+          nominal: Math.round(base * 0.0175),
+        },
+      ];
+    }
+    if (
+      jLower.includes('4%') ||
+      jLower.includes('pasal 4(2)') ||
+      jLower.includes('perencana') ||
+      jLower.includes('pengawas') ||
+      jLower.includes('konstruksi')
+    ) {
+      return [
+        {
+          id: `tax-${ts}-1`,
+          label: 'PPh Pasal 4(2) (4%)',
+          persen: 4,
+          nominal: Math.round(base * 0.04),
+        },
+      ];
+    }
+    if (jLower.includes('pph 23') || jLower.includes('sewa')) {
+      return [
+        {
+          id: `tax-${ts}-1`,
+          label: 'PPh Pasal 23 Sewa Alat (2%)',
+          persen: 2,
+          nominal: Math.round(base * 0.02),
+        },
+      ];
+    }
+    if (
+      jLower.includes('2,5') ||
+      jLower.includes('2.5') ||
+      jLower.includes('tenaga ahli') ||
+      jLower.includes('bukan pegawai')
+    ) {
+      return [
+        {
+          id: `tax-${ts}-1`,
+          label: 'PPh 21 Tenaga Ahli (2,5%)',
+          persen: 2.5,
+          nominal: Math.round(base * 0.025),
+        },
+      ];
+    }
+    if (jLower.includes('gol iv') || jLower.includes('golongan iv') || jLower.includes('15%')) {
+      return [
+        {
+          id: `tax-${ts}-1`,
+          label: 'PPh 21 PNS Gol IV (15%)',
+          persen: 15,
+          nominal: Math.round(base * 0.15),
+        },
+      ];
+    }
+    if (jLower.includes('gol iii') || jLower.includes('golongan iii')) {
+      return [
+        {
+          id: `tax-${ts}-1`,
+          label: 'PPh 21 PNS Gol III (5%)',
+          persen: 5,
+          nominal: Math.round(base * 0.05),
+        },
+      ];
+    }
+    if (jLower.includes('0,5') || jLower.includes('0.5') || jLower.includes('tukang')) {
+      return [
+        {
+          id: `tax-${ts}-1`,
+          label: 'PPh 21 Upah Tukang > 450rb (0,5%)',
+          persen: 0.5,
+          nominal: Math.round(base * 0.005),
+        },
+      ];
+    }
+    if (jLower.includes('pph 21')) {
+      return [
+        {
+          id: `tax-${ts}-1`,
+          label: 'PPh 21 (5%)',
+          persen: 5,
+          nominal: Math.round(base * 0.05),
+        },
+      ];
+    }
+    if (jLower.includes('ppn')) {
+      return [
+        { id: `tax-${ts}-1`, label: 'PPN (11%)', persen: 11, nominal: Math.round(base * 0.11) },
+      ];
+    }
+    if (jLower.includes('pph 22')) {
+      return [
+        { id: `tax-${ts}-1`, label: 'PPh 22 (1,5%)', persen: 1.5, nominal: Math.round(base * 0.015) },
+      ];
+    }
+    if (jLower.includes('daerah')) {
+      return [
+        {
+          id: `tax-${ts}-1`,
+          label: 'Pajak Daerah (10%)',
+          persen: 10,
+          nominal: Math.round(base * 0.1),
+        },
+      ];
+    }
+
+    // Custom: pertahankan item yang sudah ada tapi hitung ulang nominalnya
+    if (taxItems.length > 0) {
+      return taxItems.map((item) => ({
+        ...item,
+        nominal: Math.round(base * (item.persen / 100)),
+      }));
+    }
+    return [
+      { id: `tax-${ts}-1`, label: 'Pajak Custom', persen: 4, nominal: Math.round(base * 0.04) },
+    ];
   };
 
   const handleNominalBelanjaChange = (val: number) => {
@@ -369,28 +489,47 @@ export const BkuPajakView: React.FC = () => {
   // Saat user memilih transaksi dari BKU Tunai
   const handleSelectBkuTunaiTransaction = (txId: string) => {
     setSelectedBkuTunaiTxId(txId);
-    if (!txId) return;
+    if (!txId) {
+      setDetectedTaxHint(null);
+      return;
+    }
     const found = transactions.find((t) => t.id === txId);
     if (!found) return;
 
     const cleanTgl = formatToSlashDate(found.tanggal);
     const nilai = found.pengeluaran || found.penerimaan || 0;
-    const uLower = found.uraian.toLowerCase();
 
-    // Deteksi otomatis jenis pajak yang cocok berdasarkan uraian BKU Tunai
-    let suggestedJenis: JenisPajak = formJenisPajak;
-    if (uLower.includes('perencana') || uLower.includes('pengawas') || uLower.includes('konsultan')) {
-      suggestedJenis = 'PPh 4%';
-    } else if (uLower.includes('upah') || uLower.includes('tukang') || uLower.includes('fasilitator')) {
-      suggestedJenis = 'PPh 21';
+    // Deteksi otomatis kewajiban pajak berdasarkan aturan resmi P2SP KPP Pratama
+    const detected = detectTaxForTransaction(found);
+
+    if (detected.length > 0) {
+      const first = detected[0];
+      setFormTanggal(cleanTgl);
+      setFormNomorBukti(found.nomorBukti || '');
+      setFormUraian(found.uraian);
+      setFormNominalBelanja(nilai);
+      setFormJenisPajak(first.jenisPajak);
+      setTaxItems(
+        detected.map((d, idx) => ({
+          id: `tax-dt-${Date.now()}-${idx}`,
+          label: d.label,
+          persen: d.persen,
+          nominal: d.nominal,
+        }))
+      );
+      setDetectedTaxHint(`✓ Transaksi Berpajak: ${first.keterangan}`);
+    } else {
+      // Transaksi bebas pajak (material toko biasa / upah harian <= 450rb)
+      setFormTanggal(cleanTgl);
+      setFormNomorBukti(found.nomorBukti || '');
+      setFormUraian(found.uraian);
+      setFormNominalBelanja(nilai);
+      setDetectedTaxHint(
+        'Perhatian Aturan P2SP: Pembelian material toko oleh P2SP swakelola bukan pemungut PPh 22 & PPN (Pajak = Rp 0). Upah tukang <= Rp 450rb/hari juga bebas PPh 21 (TER 0%). Transaksi tanpa pajak tidak perlu dicatat di BKU Pajak kecuali toko rekanan merupakan PKP.'
+      );
+      setFormJenisPajak('PPh Pasal 4(2)');
+      setTaxItems(buildTaxItemsFromJenis('PPh Pasal 4(2)', nilai));
     }
-
-    setFormTanggal(cleanTgl);
-    setFormNomorBukti(found.nomorBukti || '');
-    setFormUraian(found.uraian);
-    setFormNominalBelanja(nilai);
-    setFormJenisPajak(suggestedJenis);
-    setTaxItems(buildTaxItemsFromJenis(suggestedJenis, nilai));
   };
 
   // Jika user memilih uraian dari datalist ketik cepat
@@ -412,6 +551,46 @@ export const BkuPajakView: React.FC = () => {
         }))
       );
     }
+  };
+
+  // Handler Modal Pilih Belanja Berpajak dari BKU
+  const handleOpenBatchSyncModal = () => {
+    const expenseList = transactions.filter(
+      (t) => t.metode !== 'TARIK_TUNAI' && t.jenis === 'PENGELUARAN' && t.pengeluaran > 0
+    );
+    // Pre-centang HANYA transaksi yang secara aturan P2SP memiliki kewajiban pajak
+    const preselectedIds = expenseList
+      .filter((t) => detectTaxForTransaction(t).length > 0)
+      .map((t) => t.id);
+
+    setBatchSelectedTxIds(preselectedIds);
+    setIsBatchSyncModalOpen(true);
+  };
+
+  const handleToggleBatchTx = (txId: string) => {
+    setBatchSelectedTxIds((prev) =>
+      prev.includes(txId) ? prev.filter((id) => id !== txId) : [...prev, txId]
+    );
+  };
+
+  const handleApplyBatchSync = () => {
+    const selectedTxs = transactions.filter((t) => batchSelectedTxIds.includes(t.id));
+    if (selectedTxs.length === 0) {
+      showToast({
+        type: 'warning',
+        title: 'Tidak Ada Transaksi Dipilih',
+        message: 'Pilih setidaknya 1 transaksi belanja yang berpajak untuk dimasukkan ke BKU Pajak.',
+      });
+      return;
+    }
+    const newRows = generatePajakRowsFromTransactions(selectedTxs);
+    setPajakRows(newRows);
+    setIsBatchSyncModalOpen(false);
+    showToast({
+      type: 'success',
+      title: 'Belanja Berpajak Disinkronkan',
+      message: `${selectedTxs.length} transaksi belanja berpajak berhasil dimasukkan ke Buku Pembantu Pajak.`,
+    });
   };
 
   const handleAddSubmit = (e: React.FormEvent) => {
@@ -729,16 +908,41 @@ export const BkuPajakView: React.FC = () => {
               syncPajakFromTransactions();
               showToast({
                 type: 'success',
-                title: 'BKU Pajak Disinkronkan',
+                title: 'Belanja Berpajak Disinkronkan',
                 message:
-                  'Data Buku Pembantu Pajak berhasil dibuat otomatis dari transaksi belanja BKU.',
+                  'Hanya transaksi belanja yang dikenai pajak (sesuai aturan P2SP) yang dimasukkan ke Buku Pembantu Pajak.',
               });
             }}
             className="flex items-center space-x-1.5 bg-purple-900/80 hover:bg-purple-800 text-amber-300 border border-amber-400/30 text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 cursor-pointer"
-            title="Hitung otomatis PPN dari transaksi belanja material di BKU"
+            title="Otomatis masukkan belanja berpajak (Perencana/Pengawas, Sewa Alat, Fasilitator, dll.)"
           >
             <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-            <span>Sinkron dari BKU</span>
+            <span>Sinkron Belanja Berpajak</span>
+          </button>
+
+          <button
+            onClick={handleOpenBatchSyncModal}
+            className="flex items-center space-x-1.5 bg-purple-900/80 hover:bg-purple-800 text-amber-300 border border-amber-400/30 text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 cursor-pointer"
+            title="Pilih langsung transaksi belanja dari BKU Tunai untuk dimasukkan ke BKU Pajak"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Pilih Belanja dari BKU</span>
+          </button>
+
+          <button
+            onClick={() => {
+              cleanUntaxedPajakRows();
+              showToast({
+                type: 'info',
+                title: 'Belanja Tanpa Pajak Disingkirkan',
+                message: 'Semua transaksi belanja yang tidak memiliki potongan pajak telah dibersihkan dari BKU Pajak.',
+              });
+            }}
+            className="flex items-center space-x-1.5 bg-purple-900/80 hover:bg-purple-800 text-rose-300 border border-rose-500/40 text-xs font-bold px-3 py-2 rounded-xl transition active:scale-95 cursor-pointer"
+            title="Singkirkan transaksi belanja yang pajaknya Rp 0"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            <span>Bersihkan Tanpa Pajak</span>
           </button>
 
           <button
@@ -747,13 +951,13 @@ export const BkuPajakView: React.FC = () => {
               showToast({
                 type: 'info',
                 title: 'Contoh Gambar Dimuat',
-                message: 'Tabel BKU Pajak diatur sesuai contoh gambar yang diupload.',
+                message: 'Tabel BKU Pajak diatur sesuai contoh format resmi.',
               });
             }}
             className="flex items-center space-x-1.5 bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-700 text-xs font-semibold px-3 py-2 rounded-xl transition active:scale-95 cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Contoh Gambar</span>
+            <span>Contoh Resmi</span>
           </button>
 
           <button
@@ -780,6 +984,91 @@ export const BkuPajakView: React.FC = () => {
             <span>Cetak BKU Pajak</span>
           </button>
         </div>
+      </div>
+
+      {/* Panduan Perpajakan P2SP Swakelola Revitalisasi Sekolah - Materi KPP Pratama Palu */}
+      <div className="bg-gradient-to-r from-purple-950/95 via-purple-900/85 to-[#240638] border border-amber-400/40 rounded-2xl p-4 text-white shadow-md print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-400 text-purple-950 flex items-center justify-center font-black shrink-0 shadow-sm">
+              <ShieldCheck className="w-5 h-5 text-purple-950" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs sm:text-sm font-black text-amber-300">
+                  Penerapan Pajak P2SP (Materi KPP Pratama Palu)
+                </span>
+                <span className="bg-emerald-400/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  Hanya Belanja yang Ada Pajak
+                </span>
+              </div>
+              <p className="text-[11.5px] text-purple-200/90 mt-0.5">
+                P2SP <strong>Bukan Pemungut PPh 22 &amp; PPN</strong> belanja material toko swakelola. Upah tukang &le; Rp 450rb/hari <strong>Bebas PPh 21 (TER 0%)</strong>. Hanya transaksi kena pajak yang dicatat di Buku Pembantu Pajak.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setOnlyTaxableFilter((v) => !v)}
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition cursor-pointer ${
+                onlyTaxableFilter
+                  ? 'bg-amber-400 text-purple-950 border-amber-500 font-black shadow-xs'
+                  : 'bg-purple-900/80 text-purple-200 border-purple-700'
+              }`}
+              title="Aktifkan untuk menyembunyikan semua transaksi yang pajaknya Rp 0"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>{onlyTaxableFilter ? '✓ Filter: Hanya Belanja Berpajak' : 'Tampilkan Semua Baris'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowTaxRulesGuide((v) => !v)}
+              className="flex items-center gap-1 text-xs font-bold text-amber-300 hover:text-amber-200 bg-purple-950/80 border border-amber-400/30 px-3 py-1.5 rounded-xl transition cursor-pointer"
+            >
+              <Info className="w-3.5 h-3.5 text-amber-400" />
+              <span>{showTaxRulesGuide ? 'Tutup Rincian' : 'Rincian Aturan Pajak'}</span>
+              {showTaxRulesGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        {showTaxRulesGuide && (
+          <div className="mt-3.5 pt-3.5 border-t border-purple-800/80 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="bg-purple-950/70 border border-purple-800 rounded-xl p-3">
+              <p className="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                1. Belanja Material Swakelola (Slide 15 &amp; 32)
+              </p>
+              <p className="text-purple-200/90 text-[11px] leading-relaxed">
+                P2SP Swakelola <strong>BUKAN Pemungut PPh 22 dan BUKAN Pemungut PPN</strong>. Pembelian semen, pasir, batu kali, kayu, APD, dll. tidak dipungut pajak oleh P2SP (Pajak = Rp 0). Maka <strong>TIDAK DIMASUKKAN</strong> ke Buku Pembantu Pajak.
+              </p>
+            </div>
+            <div className="bg-purple-950/70 border border-purple-800 rounded-xl p-3">
+              <p className="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                2. Upah Tukang Harian (Slide 21 &amp; 26)
+              </p>
+              <p className="text-purple-200/90 text-[11px] leading-relaxed">
+                Upah harian &le; Rp 450.000/hari dikenakan <strong>TER Harian 0% (PPh 21 = Rp 0 / Nihil)</strong>. Upah tukang swakelola sekolah rata-rata Rp 120rb - Rp 250rb/hari sehingga <strong>BEBAS PAJAK</strong> dan tidak dicatat di Buku Pembantu Pajak.
+              </p>
+            </div>
+            <div className="bg-purple-950/70 border border-purple-800 rounded-xl p-3">
+              <p className="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                3. Belanja yang WAJIB Masuk BKU Pajak
+              </p>
+              <ul className="text-purple-200/90 text-[11px] space-y-1 list-disc list-inside">
+                <li><strong>PPh Final 4(2) (4%):</strong> Jasa Perencana, Pengawas &amp; Borongan Fisik (Slide 45).</li>
+                <li><strong>PPh 23 (2%):</strong> Sewa Alat / Molen / Angkutan (Slide 33-35).</li>
+                <li><strong>PPh 21 (2,5%):</strong> Tenaga Ahli / Fasilitator Non-PNS (Slide 27).</li>
+                <li><strong>PPh 21 (5% / 15%):</strong> Honorarium PNS Gol III / Gol IV (Slide 28).</li>
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Toolbar Aksi Kotak Centang (Checkbox) - Membantu Edit atau Hapus Transaksi */}
@@ -1224,6 +1513,18 @@ export const BkuPajakView: React.FC = () => {
                 <p className="text-[11px] text-purple-800 mt-1 font-medium">
                   Pilih transaksi di atas agar Tanggal, No. Bukti, Uraian, dan Nilai Belanja terisi otomatis tanpa mengetik ulang.
                 </p>
+                {detectedTaxHint && (
+                  <div
+                    className={`mt-2 p-2.5 rounded-xl text-xs font-semibold flex items-start gap-2 border ${
+                      detectedTaxHint.startsWith('✓')
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                        : 'bg-amber-50 text-amber-900 border-amber-300'
+                    }`}
+                  >
+                    <Info className="w-4 h-4 shrink-0 mt-0.5 text-purple-900" />
+                    <span>{detectedTaxHint}</span>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1317,12 +1618,19 @@ export const BkuPajakView: React.FC = () => {
                         }
                         className="w-full border-2 border-purple-900/30 rounded-xl px-3 py-2 font-bold text-slate-900 bg-white cursor-pointer"
                       >
-                        <optgroup label="Pajak Tunggal Standar">
-                          <option value="PPN">PPN (11%)</option>
-                          <option value="PPh 22">PPh Pasal 22 (1,5%)</option>
-                          <option value="PPh 4%">PPh 4% / Pasal 4 Ayat 2 (4%)</option>
-                          <option value="PPh 23">PPh Pasal 23 (2%)</option>
-                          <option value="PPh 21">PPh Pasal 21 (5%)</option>
+                        <optgroup label="Kewajiban Pajak P2SP Resmi (KPP Pratama Palu)">
+                          <option value="PPh Pasal 4(2)">PPh Final Ps 4(2) (4%) - Jasa Perencana / Pengawas</option>
+                          <option value="PPh Final Konstruksi">PPh Final Ps 4(2) (4%) - Pelaksanaan Borongan Konstruksi</option>
+                          <option value="PPh 4(2) Kecil">PPh Final Ps 4(2) (1,75%) - Kualifikasi Usaha Kecil</option>
+                          <option value="PPh 23">PPh Pasal 23 (2%) - Sewa Alat / Molen / Angkutan</option>
+                          <option value="PPh 21 Tenaga Ahli">PPh 21 Tenaga Ahli / Fasilitator Non-PNS (2,5%)</option>
+                          <option value="PPh 21 PNS Gol III">PPh 21 Honorarium PNS Golongan III (5%)</option>
+                          <option value="PPh 21 PNS Gol IV">PPh 21 Honorarium PNS Golongan IV (15%)</option>
+                          <option value="PPh 21 Tukang Tinggi">PPh 21 Upah Tukang &gt; Rp 450rb/hari (TER 0,5%)</option>
+                        </optgroup>
+                        <optgroup label="Pajak Belanja Rekanan Toko (Khusus PKP)">
+                          <option value="PPN">PPN (11%) - Toko Rekanan PKP</option>
+                          <option value="PPh 22">PPh 22 (1,5%) - Belanja Instansi &gt; Rp 2 Jt</option>
                           <option value="Pajak Daerah">Pajak Daerah (10%)</option>
                         </optgroup>
                         <optgroup label="Paket Kombinasi 2 Pajak Sekaligus">
@@ -2026,6 +2334,165 @@ export const BkuPajakView: React.FC = () => {
                 <Trash2 className="w-4 h-4" />
                 <span>Ya, Hapus ({confirmDeleteIds.length})</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pilih Belanja Berpajak dari BKU */}
+      {isBatchSyncModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 shadow-2xl border-2 border-amber-400 text-slate-900 my-auto max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
+              <div>
+                <h3 className="text-base font-black text-purple-950 flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-purple-900" />
+                  <span>Pilih Belanja Berpajak dari BKU (Aturan P2SP KPP Pratama)</span>
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Hanya belanja yang memiliki kewajiban pajak yang otomatis dicentang untuk dimasukkan ke Buku Pembantu Pajak.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsBatchSyncModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Selection Quick Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-purple-50 p-2.5 rounded-2xl border border-purple-200 mb-3 text-xs">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const taxableIds = transactions
+                      .filter((t) => t.metode !== 'TARIK_TUNAI' && t.pengeluaran > 0 && detectTaxForTransaction(t).length > 0)
+                      .map((t) => t.id);
+                    setBatchSelectedTxIds(taxableIds);
+                  }}
+                  className="px-3 py-1 bg-purple-950 text-amber-300 font-bold rounded-lg hover:bg-purple-900 cursor-pointer"
+                >
+                  Pilih Hanya yang Kena Pajak ({transactions.filter((t) => t.pengeluaran > 0 && detectTaxForTransaction(t).length > 0).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allExpenseIds = transactions
+                      .filter((t) => t.metode !== 'TARIK_TUNAI' && t.pengeluaran > 0)
+                      .map((t) => t.id);
+                    setBatchSelectedTxIds(allExpenseIds);
+                  }}
+                  className="px-3 py-1 bg-white text-purple-950 font-bold border border-purple-300 rounded-lg hover:bg-purple-100 cursor-pointer"
+                >
+                  Pilih Semua Belanja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBatchSelectedTxIds([])}
+                  className="px-3 py-1 text-slate-600 hover:text-slate-900 font-bold cursor-pointer"
+                >
+                  Hapus Pilihan
+                </button>
+              </div>
+
+              <span className="font-bold text-purple-950">
+                <strong>{batchSelectedTxIds.length}</strong> transaksi terpilih
+              </span>
+            </div>
+
+            {/* List Transaksi */}
+            <div className="flex-1 overflow-y-auto border border-slate-200 rounded-2xl divide-y divide-slate-100 text-xs">
+              {transactions
+                .filter((t) => t.metode !== 'TARIK_TUNAI' && t.jenis === 'PENGELUARAN' && t.pengeluaran > 0)
+                .map((tx) => {
+                  const detected = detectTaxForTransaction(tx);
+                  const isTaxable = detected.length > 0;
+                  const isChecked = batchSelectedTxIds.includes(tx.id);
+
+                  return (
+                    <div
+                      key={tx.id}
+                      onClick={() => handleToggleBatchTx(tx.id)}
+                      className={`p-3 flex items-start gap-3 transition cursor-pointer ${
+                        isChecked ? 'bg-amber-50/70' : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => handleToggleBatchTx(tx.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 mt-0.5 accent-purple-900 rounded cursor-pointer shrink-0"
+                      />
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-bold text-slate-600">
+                            {formatToSlashDate(tx.tanggal)}
+                          </span>
+                          {tx.nomorBukti && (
+                            <span className="font-mono bg-purple-100 text-purple-950 px-1.5 py-0.5 rounded text-[10px] font-black">
+                              {tx.nomorBukti}
+                            </span>
+                          )}
+                          <span className="font-bold text-slate-900 text-sm">
+                            {tx.uraian}
+                          </span>
+                        </div>
+
+                        {tx.penerima && (
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Penerima: <strong>{tx.penerima}</strong>
+                          </p>
+                        )}
+
+                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                          {isTaxable ? (
+                            <span className="inline-flex items-center gap-1 bg-emerald-100 border border-emerald-300 text-emerald-950 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>{detected.map((d) => `${d.label} (Rp ${d.nominal.toLocaleString('id-ID')})`).join(' + ')}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-300 text-slate-600 px-2 py-0.5 rounded-md text-[11px]">
+                              <span>Bebas Pemotongan Pajak (Material Swakelola / Upah &le; 450rb)</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="block font-mono font-black text-sm text-purple-950">
+                          Rp {tx.pengeluaran.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="flex items-center justify-between pt-4 mt-3 border-t border-slate-200 text-xs">
+              <p className="text-slate-600 font-medium">
+                Hanya transaksi yang dicentang di atas yang akan dimasukkan ke Buku Pembantu Pajak.
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchSyncModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyBatchSync}
+                  className="px-5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-purple-950 font-black shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Terapkan ke BKU Pajak ({batchSelectedTxIds.length})</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

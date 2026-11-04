@@ -44,6 +44,7 @@ import {
 import {
   SAMPLE_IMAGE_PAJAK_ROWS,
   generatePajakRowsFromTransactions,
+  filterOnlyTaxableRows,
 } from '../utils/pajakUtils';
 
 export interface ModalPreset {
@@ -119,6 +120,7 @@ interface LpjState {
   deletePajakRow: (id: string) => void;
   movePajakRow: (id: string, direction: 'up' | 'down') => void;
   syncPajakFromTransactions: () => void;
+  cleanUntaxedPajakRows: () => void;
   loadSamplePajakRows: () => void;
   addTransaction: (
     tx: Omit<Transaction, 'id' | 'createdAt'>,
@@ -433,6 +435,11 @@ export const useLpjStore = create<LpjState>()(
           pajakRows: generatePajakRowsFromTransactions(state.transactions),
         })),
 
+      cleanUntaxedPajakRows: () =>
+        set((state) => ({
+          pajakRows: filterOnlyTaxableRows(state.pajakRows),
+        })),
+
       loadSamplePajakRows: () =>
         set({
           pajakRows: SAMPLE_IMAGE_PAJAK_ROWS,
@@ -452,8 +459,8 @@ export const useLpjStore = create<LpjState>()(
             const parsed = parseBkuNumber(newTx.nomorBukti);
             if (parsed) {
               const targetNum = parsed.num;
-              const prefix = parsed.prefix || 'BKU ';
-              const padLength = Math.max(parsed.padLength, 2);
+              const prefix = parsed.prefix || 'KW-';
+              const padLength = Math.max(parsed.padLength, 3);
 
               currentTxs = currentTxs.map((t) => {
                 const p = parseBkuNumber(t.nomorBukti || '');
@@ -489,8 +496,8 @@ export const useLpjStore = create<LpjState>()(
             const parsed = parseBkuNumber(updatedData.nomorBukti);
             if (parsed) {
               const targetNum = parsed.num;
-              const prefix = parsed.prefix || 'BKU ';
-              const padLength = Math.max(parsed.padLength, 2);
+              const prefix = parsed.prefix || 'KW-';
+              const padLength = Math.max(parsed.padLength, 3);
 
               currentTxs = currentTxs.map((t) => {
                 if (t.id === id) return t;

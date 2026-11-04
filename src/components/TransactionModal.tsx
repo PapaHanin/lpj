@@ -218,12 +218,29 @@ export const TransactionModal: React.FC = () => {
     }
   }, [transactionToEdit, isTransactionModalOpen, modalPreset]);
 
+  // Otomatis sinkronisasi nomor KW dengan tanggal & aktifkan auto-geser bila tanggal yang dipilih disisipkan di antara kuitansi yang sudah ada
+  const syncKwWithDate = (dateStr: string) => {
+    if (!dateStr || transactionToEdit || metode === 'TARIK_TUNAI') return;
+    const sugg = suggestBkuForDate(transactions, dateStr);
+    setNomorBukti(sugg.suggestedNo);
+    if (sugg.conflictsWithExisting) {
+      setShiftSubsequentBku(true);
+      setBkuSuggestionNotice(
+        `💡 Tanggal ${dateStr} disisipkan sebagai ${sugg.suggestedNo}. Kuitansi setelahnya (yang tadinya bernomor ${sugg.suggestedNo}, dst) otomatis digeser maju (+1) menjadi kuitansi berikutnya saat disimpan.`
+      );
+    } else {
+      setShiftSubsequentBku(false);
+      setBkuSuggestionNotice(null);
+    }
+  };
+
   // Handle native HTML date picker change
   const handleIsoDateChange = (isoVal: string) => {
     setIsoDate(isoVal);
     if (isoVal) {
       const formatted = formatToIndonesianDate(isoVal);
       setTanggal(formatted);
+      syncKwWithDate(formatted);
     }
   };
 
@@ -233,6 +250,7 @@ export const TransactionModal: React.FC = () => {
     const convertedIso = indonesianDateToIso(textVal);
     if (convertedIso) {
       setIsoDate(convertedIso);
+      syncKwWithDate(textVal);
     }
   };
 
@@ -599,8 +617,9 @@ export const TransactionModal: React.FC = () => {
                     const d = formatToIndonesianDate(`01 ${currentMonthInfo.month} ${currentMonthInfo.year}`);
                     setTanggal(d);
                     setIsoDate(indonesianDateToIso(d));
+                    syncKwWithDate(d);
                   }}
-                  className="text-[11px] font-bold text-purple-900 bg-purple-100 hover:bg-amber-300 hover:text-purple-950 px-2 py-0.5 rounded-md transition"
+                  className="text-[11px] font-bold text-purple-900 bg-purple-100 hover:bg-amber-300 hover:text-purple-950 px-2 py-0.5 rounded-md transition cursor-pointer"
                 >
                   Awal Bulan
                 </button>
@@ -610,8 +629,9 @@ export const TransactionModal: React.FC = () => {
                     const d = formatToIndonesianDate(`15 ${currentMonthInfo.month} ${currentMonthInfo.year}`);
                     setTanggal(d);
                     setIsoDate(indonesianDateToIso(d));
+                    syncKwWithDate(d);
                   }}
-                  className="text-[11px] font-bold text-purple-900 bg-purple-100 hover:bg-amber-300 hover:text-purple-950 px-2 py-0.5 rounded-md transition"
+                  className="text-[11px] font-bold text-purple-900 bg-purple-100 hover:bg-amber-300 hover:text-purple-950 px-2 py-0.5 rounded-md transition cursor-pointer"
                 >
                   Tengah Bulan
                 </button>
@@ -621,6 +641,7 @@ export const TransactionModal: React.FC = () => {
                     const { slashDate, isoDate: defaultIso } = getDefaultDateForRunningMonth();
                     setTanggal(slashDate);
                     setIsoDate(defaultIso);
+                    syncKwWithDate(slashDate);
                   }}
                   className="text-[11px] font-black text-purple-950 bg-amber-300 hover:bg-amber-400 px-2 py-0.5 rounded-md transition cursor-pointer"
                   title="Otomatis mengikuti tanggal hari ini pada bulan berjalan"
@@ -662,8 +683,26 @@ export const TransactionModal: React.FC = () => {
                   type="text"
                   value={nomorBukti}
                   onChange={(e) => {
-                    setNomorBukti(e.target.value);
-                    setBkuSuggestionNotice(null);
+                    const val = e.target.value;
+                    setNomorBukti(val);
+                    const parsed = parseBkuNumber(val);
+                    if (parsed) {
+                      const isUsed = transactions.some(
+                        (t) =>
+                          t.id !== transactionToEdit?.id &&
+                          parseBkuNumber(t.nomorBukti || '')?.num === parsed.num
+                      );
+                      if (isUsed) {
+                        setShiftSubsequentBku(true);
+                        setBkuSuggestionNotice(
+                          `💡 Nomor ${val} sudah dipakai oleh transaksi lain. Auto-Geser aktif: nomor ${val} dan kuitansi setelahnya otomatis digeser naik (+1) saat disimpan.`
+                        );
+                      } else {
+                        setBkuSuggestionNotice(null);
+                      }
+                    } else {
+                      setBkuSuggestionNotice(null);
+                    }
                   }}
                   placeholder="Contoh: KW-001, KW-002, SP2D-001, BB-001"
                   className="w-full text-sm font-black text-slate-950 bg-white border-2 border-purple-900/40 rounded-xl px-3.5 py-2.5 focus:border-amber-500 focus:ring-2 focus:ring-amber-400 focus:outline-hidden font-mono placeholder:text-slate-400"
