@@ -563,64 +563,48 @@ export function calculateSummary(transactions: Transaction[]): SummaryStats {
 }
 
 /**
- * Compares two transactions such that:
- * 1. Transactions with valid BKU numbers are sorted strictly by BKU number.
- * 2. Non-BKU transactions (such as initial funding, Tarik Tunai) are ordered by their date/month
- *    and placed logically before expenditure receipts.
- * 3. Any change in BKU number immediately reorders the transaction to its exact numerical place.
+ * Compares two transactions chronologically according to "susunan tanggal berjalan":
+ * 1. Primary rule: Strict chronological date order (susunan tanggal berjalan).
+ *    Transactions with earlier dates ALWAYS precede transactions with later dates.
+ *    (e.g. 01/10/2026 comes before 04/10/2026, which comes before 13/10/2026, including for penarikan tunai).
+ * 2. Secondary rule (on the exact same date):
+ *    Inflow / Tarik Tunai comes before expenditures so that incoming funds are recorded before being disbursed.
+ * 3. Tertiary rule (on the same date with same funding status):
+ *    Sort by receipt number / BKU number if present.
+ * 4. Fallback:
+ *    Stable tie-breaker by transaction ID.
  */
 export function compareTransactionsByBkuAndDate(a: Transaction, b: Transaction): number {
+  const isoA = indonesianDateToIso(a.tanggal) || '9999-99-99';
+  const isoB = indonesianDateToIso(b.tanggal) || '9999-99-99';
+
+  // 1. Primary rule: Strict chronological date order (susunan tanggal berjalan)
+  if (isoA !== isoB) {
+    return isoA.localeCompare(isoB);
+  }
+
+  // 2. On the same date: Inflow / Tarik Tunai comes before expenditure
+  const isFundingA = a.jenis === 'PENERIMAAN' || a.metode === 'TARIK_TUNAI';
+  const isFundingB = b.jenis === 'PENERIMAAN' || b.metode === 'TARIK_TUNAI';
+  if (isFundingA && !isFundingB) return -1;
+  if (!isFundingA && isFundingB) return 1;
+
+  // 3. On the same date with same funding status:
+  // Sort by receipt number (BKU / KW number) if present
   const parsedA = parseBkuNumber(a.nomorBukti || '');
   const parsedB = parseBkuNumber(b.nomorBukti || '');
 
-  // 1. Both transactions have BKU numbers: ALWAYS sort by BKU number!
   if (parsedA && parsedB) {
     if (parsedA.num !== parsedB.num) {
       return parsedA.num - parsedB.num;
     }
-    // If exact same BKU number, fallback to date
-    const isoA = indonesianDateToIso(a.tanggal) || '9999-99-99';
-    const isoB = indonesianDateToIso(b.tanggal) || '9999-99-99';
-    if (isoA !== isoB) {
-      return isoA.localeCompare(isoB);
-    }
-    return (a.id || '').localeCompare(b.id || '');
-  }
-
-  const isoA = indonesianDateToIso(a.tanggal) || '9999-99-99';
-  const isoB = indonesianDateToIso(b.tanggal) || '9999-99-99';
-  const monthKeyA = isoA.substring(0, 7);
-  const monthKeyB = isoB.substring(0, 7);
-
-  // If different months, sort by month first
-  if (monthKeyA !== monthKeyB) {
-    return monthKeyA.localeCompare(monthKeyB);
-  }
-
-  // Same month, but only one has BKU:
-  if (!parsedA && parsedB) {
-    // Non-BKU transaction (e.g. Dana Masuk or Tarik Tunai) vs BKU expenditure
-    if (a.jenis === 'PENERIMAAN' || a.metode === 'TARIK_TUNAI') {
-      // Inflow/withdrawal at start of month comes before expenditure receipts
-      if (isoA <= isoB) return -1;
-      return -1;
-    }
-    if (isoA <= isoB) return -1;
+  } else if (parsedA && !parsedB) {
+    return -1;
+  } else if (!parsedA && parsedB) {
     return 1;
   }
 
-  if (parsedA && !parsedB) {
-    if (b.jenis === 'PENERIMAAN' || b.metode === 'TARIK_TUNAI') {
-      return 1;
-    }
-    if (isoB <= isoA) return 1;
-    return -1;
-  }
-
-  // Neither has BKU number: sort by date, then id
-  if (isoA !== isoB) {
-    return isoA.localeCompare(isoB);
-  }
+  // 4. Stable tie-breaker by transaction ID
   return (a.id || '').localeCompare(b.id || '');
 }
 

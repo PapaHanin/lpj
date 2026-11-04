@@ -28,6 +28,10 @@ import {
   CalendarCheck,
   Trash2,
   Edit2,
+  Pencil,
+  CheckSquare,
+  Square,
+  AlertTriangle,
   FileSpreadsheet,
   Info,
   ChevronDown,
@@ -74,6 +78,10 @@ export const DaftarTukangTab: React.FC = () => {
     addPekerjaToAbsen,
     updatePekerjaInfo,
     deletePekerjaFromAbsen,
+    updateWorkerGlobally,
+    deleteWorkersGlobally,
+    batchUpdateWorkersWage,
+    batchUpdateWorkersProperties,
     addNewAbsenWeek,
     syncDakFisikSchedule,
     showToast,
@@ -233,12 +241,23 @@ export const DaftarTukangTab: React.FC = () => {
   const [showJumlahUpahCol, setShowJumlahUpahCol] = useState<boolean>(false);
   const [showKopIdentitas, setShowKopIdentitas] = useState<boolean>(true);
 
-  // Rekapan Nama Tukang Modal State
+  // Rekapan Nama Tukang Modal State & Selection
   const [isRekapTukangModalOpen, setIsRekapTukangModalOpen] = useState(false);
   const [rekapSearch, setRekapSearch] = useState('');
   const [rekapBangunanFilter, setRekapBangunanFilter] = useState<string>('ALL');
   const [rekapJabatanFilter, setRekapJabatanFilter] = useState<string>('ALL');
   const [rekapAsalFilter, setRekapAsalFilter] = useState<string>('ALL');
+  const [selectedRekapWorkers, setSelectedRekapWorkers] = useState<string[]>([]);
+  const [editingRekapWorker, setEditingRekapWorker] = useState<{
+    originalName: string;
+    nama: string;
+    tenagaKerja: string;
+    kodeMtp: 'K' | 'T' | 'P';
+    tempatTinggal: 'dalam_desa' | 'luar_desa';
+    upahHarian: number;
+  } | null>(null);
+  const [isBatchWageOpen, setIsBatchWageOpen] = useState(false);
+  const [batchWageInput, setBatchWageInput] = useState<number>(150000);
 
   // Modal Bangunan Baru State
   const [isAddBangunanOpen, setIsAddBangunanOpen] = useState(false);
@@ -589,6 +608,135 @@ export const DaftarTukangTab: React.FC = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Rekap Semua Tukang');
     XLSX.writeFile(wb, 'REKAPITULASI_DAFTAR_TUKANG_PROYEK.xlsx');
+  };
+
+  // Checkbox Selection & Handlers for Rekapan Tukang
+  const isAllFilteredSelected = useMemo(() => {
+    if (filteredRekapTukang.length === 0) return false;
+    return filteredRekapTukang.every((w) => selectedRekapWorkers.includes(w.nama));
+  }, [filteredRekapTukang, selectedRekapWorkers]);
+
+  const handleToggleSelectWorker = (name: string) => {
+    setSelectedRekapWorkers((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  };
+
+  const handleToggleSelectAllRekap = () => {
+    if (isAllFilteredSelected) {
+      const visibleNames = new Set(filteredRekapTukang.map((w) => w.nama));
+      setSelectedRekapWorkers((prev) => prev.filter((n) => !visibleNames.has(n)));
+    } else {
+      const visibleNames = filteredRekapTukang.map((w) => w.nama);
+      setSelectedRekapWorkers((prev) => Array.from(new Set([...prev, ...visibleNames])));
+    }
+  };
+
+  const handleDeleteSelectedRekap = () => {
+    if (selectedRekapWorkers.length === 0) return;
+    if (
+      !confirm(
+        `Apakah Anda yakin ingin menghapus ${selectedRekapWorkers.length} pekerja terpilih dari seluruh jadwal periode dan bangunan proyek?`
+      )
+    ) {
+      return;
+    }
+    const count = selectedRekapWorkers.length;
+    deleteWorkersGlobally(selectedRekapWorkers);
+    setSelectedRekapWorkers([]);
+    showToast({
+      type: 'success',
+      title: 'Pekerja Berhasil Dihapus',
+      message: `${count} pekerja terpilih telah dihapus dari seluruh proyek.`,
+    });
+  };
+
+  const handleDeleteSingleRekapWorker = (workerName: string) => {
+    if (
+      !confirm(
+        `Apakah Anda yakin ingin menghapus pekerja "${workerName}" dari seluruh jadwal dan bangunan proyek?`
+      )
+    ) {
+      return;
+    }
+    deleteWorkersGlobally([workerName]);
+    setSelectedRekapWorkers((prev) => prev.filter((n) => n !== workerName));
+    showToast({
+      type: 'success',
+      title: 'Pekerja Dihapus',
+      message: `Pekerja "${workerName}" telah dihapus dari seluruh proyek.`,
+    });
+  };
+
+  const handleOpenEditRekapWorker = (w: (typeof filteredRekapTukang)[0]) => {
+    const roleLabel = w.kodeMtp === 'K' ? 'Kepala Tukang' : w.kodeMtp === 'T' ? 'Tukang' : 'Pekerja';
+    setEditingRekapWorker({
+      originalName: w.nama,
+      nama: w.nama,
+      tenagaKerja: roleLabel,
+      kodeMtp: w.kodeMtp,
+      tempatTinggal: w.tempatTinggal || 'dalam_desa',
+      upahHarian: w.upahHarian || 100000,
+    });
+  };
+
+  const handleSaveEditRekapWorker = () => {
+    if (!editingRekapWorker) return;
+    const cleanName = editingRekapWorker.nama.trim().toUpperCase();
+    if (!cleanName) {
+      alert('Nama tukang / pekerja tidak boleh kosong.');
+      return;
+    }
+    if (editingRekapWorker.upahHarian <= 0) {
+      alert('Upah harian harus lebih besar dari 0.');
+      return;
+    }
+
+    updateWorkerGlobally(editingRekapWorker.originalName, {
+      nama: cleanName,
+      upahHarian: editingRekapWorker.upahHarian,
+      tenagaKerja: editingRekapWorker.tenagaKerja,
+      kodeMtp: editingRekapWorker.kodeMtp,
+      tempatTinggal: editingRekapWorker.tempatTinggal,
+    });
+
+    if (editingRekapWorker.originalName !== cleanName) {
+      setSelectedRekapWorkers((prev) =>
+        prev.map((n) => (n === editingRekapWorker.originalName ? cleanName : n))
+      );
+    }
+
+    setEditingRekapWorker(null);
+    showToast({
+      type: 'success',
+      title: 'Data Pekerja Diperbarui',
+      message: `Perubahan pada "${cleanName}" telah disimpan ke seluruh jadwal dan bangunan.`,
+    });
+  };
+
+  const handleApplyBatchWage = () => {
+    if (selectedRekapWorkers.length === 0) return;
+    if (batchWageInput <= 0) {
+      alert('Masukkan nominal upah yang valid.');
+      return;
+    }
+    batchUpdateWorkersWage(selectedRekapWorkers, batchWageInput);
+    setIsBatchWageOpen(false);
+    showToast({
+      type: 'success',
+      title: 'Upah Massal Diperbarui',
+      message: `Upah untuk ${selectedRekapWorkers.length} pekerja terpilih diset ke Rp ${batchWageInput.toLocaleString('id-ID')}/hari di seluruh jadwal.`,
+    });
+  };
+
+  const handleBatchChangeDomisili = (domisili: 'dalam_desa' | 'luar_desa') => {
+    if (selectedRekapWorkers.length === 0) return;
+    batchUpdateWorkersProperties(selectedRekapWorkers, { tempatTinggal: domisili });
+    showToast({
+      type: 'success',
+      title: 'Domisili Diperbarui',
+      message: `${selectedRekapWorkers.length} pekerja terpilih diset ke ${domisili === 'dalam_desa' ? 'Dalam Desa' : 'Luar Desa'}.`,
+    });
   };
 
   // Cycle Attendance: 1,00 -> 0,50 -> 0 (-) -> 1,00
@@ -3428,13 +3576,100 @@ export const DaftarTukangTab: React.FC = () => {
                 </div>
               </div>
 
+              {/* Toolbar Aksi Massal saat ada Pekerja yang Dicentang */}
+              {selectedRekapWorkers.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-purple-950 border-2 border-amber-400/80 rounded-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-lg animate-in fade-in duration-200">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-amber-400 text-purple-950 font-black text-xs flex items-center justify-center shadow">
+                      {selectedRekapWorkers.length}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-white flex items-center space-x-1.5">
+                        <span>{selectedRekapWorkers.length} Pekerja Dicentang</span>
+                        <span className="text-[10px] px-1.5 py-0.2 bg-amber-400/20 text-amber-300 rounded border border-amber-400/30">
+                          Pilihan Aktif
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-purple-300">
+                        Terapkan perubahan serentak atau hapus pekerja terpilih dari seluruh jadwal
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Ubah Upah Massal */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBatchWageInput(150000);
+                        setIsBatchWageOpen(true);
+                      }}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold shadow transition cursor-pointer active:scale-95"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Ubah Upah Massal</span>
+                    </button>
+
+                    {/* Ubah Domisili Massal */}
+                    <div className="flex items-center space-x-1 bg-purple-900/60 p-0.5 rounded-lg border border-purple-700/60 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleBatchChangeDomisili('dalam_desa')}
+                        className="px-2.5 py-1 text-cyan-300 hover:bg-purple-800/80 rounded transition font-medium cursor-pointer"
+                        title="Set Domisili Dalam Desa untuk pekerja terpilih"
+                      >
+                        Set Dalam Desa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleBatchChangeDomisili('luar_desa')}
+                        className="px-2.5 py-1 text-purple-300 hover:bg-purple-800/80 rounded transition font-medium cursor-pointer"
+                        title="Set Domisili Luar Desa untuk pekerja terpilih"
+                      >
+                        Set Luar Desa
+                      </button>
+                    </div>
+
+                    {/* Hapus Terpilih */}
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelectedRekap}
+                      className="flex items-center space-x-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold shadow transition cursor-pointer active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus ({selectedRekapWorkers.length}) Terpilih</span>
+                    </button>
+
+                    {/* Batal Pilihan */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedRekapWorkers([])}
+                      className="p-1.5 text-purple-400 hover:text-white hover:bg-purple-800/60 rounded-lg transition cursor-pointer"
+                      title="Batal Pilihan"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Table of Workers with Independent Scroll and Sticky Headers & Left Columns */}
               <div className="border border-purple-800/80 rounded-xl overflow-auto max-h-[52vh] shadow-inner bg-[#12011f] relative">
-                <table className="w-full border-collapse text-xs text-left min-w-[980px]">
+                <table className="w-full border-collapse text-xs text-left min-w-[1080px]">
                   <thead className="sticky top-0 z-20 bg-[#1b0329] shadow-sm">
                     <tr className="border-b-2 border-purple-700 text-purple-300 uppercase tracking-wider font-bold">
-                      <th className="py-2.5 px-3 w-12 text-center sticky left-0 z-30 bg-[#1b0329]">No</th>
-                      <th className="py-2.5 px-3 min-w-[170px] sticky left-12 z-30 bg-[#1b0329] border-r border-purple-800/70">
+                      {/* Kolom Master Checkbox */}
+                      <th className="py-2.5 px-2 w-10 text-center sticky left-0 z-30 bg-[#1b0329]">
+                        <input
+                          type="checkbox"
+                          checked={isAllFilteredSelected}
+                          onChange={handleToggleSelectAllRekap}
+                          className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 bg-[#12011f] border-purple-600 cursor-pointer accent-amber-400"
+                          title={isAllFilteredSelected ? 'Batal Pilih Semua' : 'Pilih Semua'}
+                        />
+                      </th>
+                      <th className="py-2.5 px-2 w-12 text-center sticky left-10 z-30 bg-[#1b0329]">No</th>
+                      <th className="py-2.5 px-3 min-w-[170px] sticky left-[88px] z-30 bg-[#1b0329] border-r border-purple-800/70">
                         Nama Tukang / Pekerja
                       </th>
                       <th className="py-2.5 px-3 w-36">Jabatan / Peran</th>
@@ -3444,12 +3679,15 @@ export const DaftarTukangTab: React.FC = () => {
                       <th className="py-2.5 px-3 w-28 text-right">Upah / Hari</th>
                       <th className="py-2.5 px-3 w-24 text-center">Hari Kerja</th>
                       <th className="py-2.5 px-3 w-36 text-right">Total Upah</th>
+                      <th className="py-2.5 px-2 w-24 text-center sticky right-0 z-30 bg-[#1b0329] border-l border-purple-800/70">
+                        Aksi
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-purple-900/40 text-purple-100">
                     {filteredRekapTukang.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-12 text-center text-purple-400">
+                        <td colSpan={11} className="py-12 text-center text-purple-400">
                           Tidak ditemukan pekerja dengan kata kunci atau filter yang dipilih.
                         </td>
                       </tr>
@@ -3458,20 +3696,35 @@ export const DaftarTukangTab: React.FC = () => {
                         const isK = w.kodeMtp === 'K';
                         const isT = w.kodeMtp === 'T';
                         const isEven = idx % 2 === 1;
-                        const rowBg = isEven ? 'bg-[#150223]' : 'bg-[#12011f]';
+                        const isSelected = selectedRekapWorkers.includes(w.nama);
+                        const rowBg = isSelected
+                          ? 'bg-purple-900/40'
+                          : isEven
+                          ? 'bg-[#150223]'
+                          : 'bg-[#12011f]';
 
                         return (
                           <tr
                             key={w.nama}
                             className={`${rowBg} hover:bg-purple-900/30 transition-colors`}
                           >
-                            {/* No (Sticky left) */}
-                            <td className={`py-2.5 px-3 text-center text-purple-400 font-medium sticky left-0 z-10 ${rowBg}`}>
+                            {/* Checkbox per-baris (Sticky left-0) */}
+                            <td className={`py-2.5 px-2 text-center sticky left-0 z-10 ${rowBg}`}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleSelectWorker(w.nama)}
+                                className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 bg-[#12011f] border-purple-600 cursor-pointer accent-amber-400"
+                              />
+                            </td>
+
+                            {/* No (Sticky left-10) */}
+                            <td className={`py-2.5 px-2 text-center text-purple-400 font-medium sticky left-10 z-10 ${rowBg}`}>
                               {idx + 1}
                             </td>
 
-                            {/* Nama (Sticky left-12) */}
-                            <td className={`py-2.5 px-3 font-bold text-white uppercase tracking-wide sticky left-12 z-10 ${rowBg} border-r border-purple-800/60`}>
+                            {/* Nama (Sticky left-[88px]) */}
+                            <td className={`py-2.5 px-3 font-bold text-white uppercase tracking-wide sticky left-[88px] z-10 ${rowBg} border-r border-purple-800/60`}>
                               {w.nama}
                             </td>
 
@@ -3547,6 +3800,28 @@ export const DaftarTukangTab: React.FC = () => {
                             <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-400 whitespace-nowrap">
                               Rp {w.totalUpahNominal.toLocaleString('id-ID')}
                             </td>
+
+                            {/* Kolom Aksi Edit & Hapus (Sticky Right-0) */}
+                            <td className={`py-2 px-2 text-center sticky right-0 z-10 ${rowBg} border-l border-purple-800/60`}>
+                              <div className="flex items-center justify-center space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditRekapWorker(w)}
+                                  className="p-1.5 rounded-lg bg-amber-400/20 hover:bg-amber-400 text-amber-300 hover:text-purple-950 transition cursor-pointer"
+                                  title={`Edit data ${w.nama} (Nama, Upah, Jabatan, Domisili)`}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSingleRekapWorker(w.nama)}
+                                  className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white transition cursor-pointer"
+                                  title={`Hapus ${w.nama} dari seluruh proyek`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         );
                       })
@@ -3556,7 +3831,7 @@ export const DaftarTukangTab: React.FC = () => {
                   {filteredRekapTukang.length > 0 && (
                     <tfoot className="sticky bottom-0 z-20 bg-[#1b0329] shadow-md border-t-2 border-purple-700">
                       <tr className="font-bold text-white">
-                        <td colSpan={2} className="py-2.5 px-3 text-left uppercase tracking-wide text-purple-300 sticky left-0 z-30 bg-[#1b0329] border-r border-purple-800/70">
+                        <td colSpan={3} className="py-2.5 px-3 text-left uppercase tracking-wide text-purple-300 sticky left-0 z-30 bg-[#1b0329] border-r border-purple-800/70">
                           Total ({filteredRekapTukang.length} Orang)
                         </td>
                         <td colSpan={5} className="py-2.5 px-3 text-right text-purple-400">
@@ -3573,6 +3848,7 @@ export const DaftarTukangTab: React.FC = () => {
                             .reduce((s, w) => s + w.totalUpahNominal, 0)
                             .toLocaleString('id-ID')}
                         </td>
+                        <td className="sticky right-0 z-30 bg-[#1b0329] border-l border-purple-800/70"></td>
                       </tr>
                     </tfoot>
                   )}
@@ -3584,12 +3860,11 @@ export const DaftarTukangTab: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <Info className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>
-                    Kode Jabatan: <strong>K: Kepala Tukang</strong> (upah Rp 150.000),{' '}
-                    <strong>T: Tukang</strong> (upah Rp 140.000), <strong>P: Pekerja</strong> (upah Rp 100.000).
+                    Centang baris pekerja untuk hapus/ubah upah serentak, atau klik tombol <strong>Pensil</strong> untuk mengedit data individual.
                   </span>
                 </div>
                 <div className="text-[11px] text-purple-400">
-                  Data otomatis teragregasi dari seluruh jadwal periode pengerjaan DAK Fisik 2026. Tabel dapat digeser horizontal & vertikal.
+                  Data otomatis teragregasi dari seluruh jadwal periode pengerjaan DAK Fisik 2026.
                 </div>
               </div>
             </div>
@@ -3599,6 +3874,11 @@ export const DaftarTukangTab: React.FC = () => {
               <div className="text-xs text-purple-300">
                 Menampilkan <strong>{filteredRekapTukang.length}</strong> dari{' '}
                 <strong>{rekapSemuaTukang.length}</strong> tukang & pekerja terdaftar.
+                {selectedRekapWorkers.length > 0 && (
+                  <span className="ml-2 font-bold text-amber-400">
+                    ({selectedRekapWorkers.length} dipilih)
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center space-x-2">
@@ -3624,6 +3904,273 @@ export const DaftarTukangTab: React.FC = () => {
         </div>,
         document.body
       )}
+
+      {/* MODAL EDIT DATA TUKANG DARI REKAPAN */}
+      {editingRekapWorker &&
+        createPortal(
+          <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-[#1e032e] border-2 border-amber-400/90 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-4 border-b border-purple-800/80 bg-[#170224] flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-lg bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Edit Data Tukang / Pekerja</h3>
+                    <p className="text-[11px] text-purple-300">
+                      Otomatis tersinkronisasi ke semua periode & bangunan
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingRekapWorker(null)}
+                  className="p-1.5 text-purple-400 hover:text-white rounded-lg hover:bg-purple-900/50 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 text-xs">
+                {/* Input Nama */}
+                <div>
+                  <label className="block text-purple-300 font-bold mb-1 uppercase tracking-wider text-[11px]">
+                    Nama Lengkap Tukang / Pekerja
+                  </label>
+                  <input
+                    type="text"
+                    value={editingRekapWorker.nama}
+                    onChange={(e) =>
+                      setEditingRekapWorker({ ...editingRekapWorker, nama: e.target.value.toUpperCase() })
+                    }
+                    placeholder="Contoh: JOKO SUPRIYANTO"
+                    className="w-full bg-[#12011f] border border-purple-700 rounded-xl px-3.5 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 uppercase"
+                  />
+                </div>
+
+                {/* Jabatan & Kode */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-purple-300 font-bold mb-1 text-[11px]">
+                      Jabatan / Peran
+                    </label>
+                    <select
+                      value={editingRekapWorker.kodeMtp}
+                      onChange={(e) => {
+                        const kode = e.target.value as 'K' | 'T' | 'P';
+                        const role = kode === 'K' ? 'Kepala Tukang' : kode === 'T' ? 'Tukang' : 'Pekerja';
+                        const suggestedWage = kode === 'K' ? 200000 : kode === 'T' ? 150000 : 100000;
+                        setEditingRekapWorker({
+                          ...editingRekapWorker,
+                          kodeMtp: kode,
+                          tenagaKerja: role,
+                          upahHarian: suggestedWage,
+                        });
+                      }}
+                      className="w-full bg-[#12011f] border border-purple-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="K">Kepala Tukang (K)</option>
+                      <option value="T">Tukang (T)</option>
+                      <option value="P">Pekerja (P)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-purple-300 font-bold mb-1 text-[11px]">
+                      Domisili / Tempat Tinggal
+                    </label>
+                    <select
+                      value={editingRekapWorker.tempatTinggal}
+                      onChange={(e) =>
+                        setEditingRekapWorker({
+                          ...editingRekapWorker,
+                          tempatTinggal: e.target.value as 'dalam_desa' | 'luar_desa',
+                        })
+                      }
+                      className="w-full bg-[#12011f] border border-purple-700 rounded-xl px-3 py-2 text-white font-medium focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="dalam_desa">Dalam Desa</option>
+                      <option value="luar_desa">Luar Desa</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Upah Harian */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-purple-300 font-bold text-[11px]">
+                      Upah Harian (Rp / Hari)
+                    </label>
+                    <span className="text-amber-400 font-mono font-bold">
+                      Rp {editingRekapWorker.upahHarian.toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-purple-400 font-bold font-mono">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      step={5000}
+                      value={editingRekapWorker.upahHarian || ''}
+                      onChange={(e) =>
+                        setEditingRekapWorker({
+                          ...editingRekapWorker,
+                          upahHarian: Math.max(0, parseInt(e.target.value, 10) || 0),
+                        })
+                      }
+                      className="w-full bg-[#12011f] border border-purple-700 rounded-xl pl-10 pr-3.5 py-2.5 text-white font-mono font-bold text-sm focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="flex items-center gap-1.5 mt-2">
+                    {[100000, 140000, 150000, 200000].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() =>
+                          setEditingRekapWorker({
+                            ...editingRekapWorker,
+                            upahHarian: preset,
+                          })
+                        }
+                        className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition cursor-pointer ${
+                          editingRekapWorker.upahHarian === preset
+                            ? 'bg-amber-400 text-purple-950 shadow'
+                            : 'bg-purple-900/60 text-purple-300 hover:bg-purple-800'
+                        }`}
+                      >
+                        {preset / 1000}rb
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-purple-950/60 border border-purple-800/80 rounded-xl text-[11px] text-purple-300 flex items-start space-x-2">
+                  <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <span>
+                    Menyimpan perubahan ini akan mengupdate nama, jabatan, domisili, dan tarif upah pekerja ini di seluruh daftar absen dan bangunan proyek.
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-purple-800/80 bg-[#160222] flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingRekapWorker(null)}
+                  className="px-4 py-2 bg-purple-900/60 hover:bg-purple-800 text-purple-200 font-medium rounded-xl text-xs transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEditRekapWorker}
+                  className="px-5 py-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-purple-950 font-black rounded-xl text-xs shadow-lg transition cursor-pointer active:scale-95"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* MODAL UBAH UPAH MASSAL UNTUK PEKERJA YANG DICENTANG */}
+      {isBatchWageOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-[#1e032e] border-2 border-indigo-400/90 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-4 border-b border-purple-800/80 bg-[#170224] flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                    <Edit2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Ubah Upah Massal</h3>
+                    <p className="text-[11px] text-purple-300">
+                      {selectedRekapWorkers.length} pekerja terpilih
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBatchWageOpen(false)}
+                  className="p-1.5 text-purple-400 hover:text-white rounded-lg hover:bg-purple-900/50 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 text-xs">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-purple-300 font-bold text-[11px]">
+                      Nominal Upah Baru (Rp / Hari)
+                    </label>
+                    <span className="text-amber-400 font-mono font-bold">
+                      Rp {batchWageInput.toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-purple-400 font-bold font-mono">
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      step={5000}
+                      value={batchWageInput || ''}
+                      onChange={(e) =>
+                        setBatchWageInput(Math.max(0, parseInt(e.target.value, 10) || 0))
+                      }
+                      className="w-full bg-[#12011f] border border-purple-700 rounded-xl pl-10 pr-3.5 py-2.5 text-white font-mono font-bold text-sm focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+
+                  {/* Preset chips */}
+                  <div className="flex items-center gap-1.5 mt-2">
+                    {[100000, 140000, 150000, 200000].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setBatchWageInput(preset)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition cursor-pointer ${
+                          batchWageInput === preset
+                            ? 'bg-indigo-500 text-white shadow'
+                            : 'bg-purple-900/60 text-purple-300 hover:bg-purple-800'
+                        }`}
+                      >
+                        {preset / 1000}rb
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-purple-950/60 border border-purple-800/80 rounded-xl text-[11px] text-purple-300">
+                  Upah baru akan diterapkan ke <strong>{selectedRekapWorkers.length}</strong> pekerja terpilih di semua jadwal periode dan bangunan proyek.
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-purple-800/80 bg-[#160222] flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchWageOpen(false)}
+                  className="px-4 py-2 bg-purple-900/60 hover:bg-purple-800 text-purple-200 font-medium rounded-xl text-xs transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyBatchWage}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs shadow-lg transition cursor-pointer active:scale-95"
+                >
+                  Terapkan Upah Baru
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

@@ -224,6 +224,27 @@ interface LpjState {
     updated: Partial<PekerjaTukang>
   ) => void;
   deletePekerjaFromAbsen: (absenId: string, pekerjaId: string) => void;
+  updateWorkerGlobally: (
+    oldName: string,
+    updated: {
+      nama: string;
+      upahHarian: number;
+      tenagaKerja: string;
+      kodeMtp: 'K' | 'T' | 'P' | 'M';
+      tempatTinggal: 'dalam_desa' | 'luar_desa';
+    }
+  ) => void;
+  deleteWorkersGlobally: (workerNames: string[]) => void;
+  batchUpdateWorkersWage: (workerNames: string[], newWage: number) => void;
+  batchUpdateWorkersProperties: (
+    workerNames: string[],
+    updates: {
+      upahHarian?: number;
+      kodeMtp?: 'K' | 'T' | 'P' | 'M';
+      tenagaKerja?: string;
+      tempatTinggal?: 'dalam_desa' | 'luar_desa';
+    }
+  ) => void;
   addNewAbsenWeek: (weekNum: number, tanggal?: string, targetBangunanId?: string) => void;
   syncDakFisikSchedule: () => void;
   addCustomBahan: (item: Omit<CustomBahanItem, 'id'>) => void;
@@ -1194,6 +1215,82 @@ export const useLpjStore = create<LpjState>()(
           };
         }),
 
+      updateWorkerGlobally: (oldName, updated) =>
+        set((state) => {
+          const oldUpper = oldName.trim().toUpperCase();
+          const newNameClean = updated.nama.trim().toUpperCase();
+          return {
+            absenTukangList: state.absenTukangList.map((week) => ({
+              ...week,
+              pekerja: week.pekerja.map((p) => {
+                if (p.nama.trim().toUpperCase() === oldUpper) {
+                  return {
+                    ...p,
+                    nama: newNameClean,
+                    upahHarian: updated.upahHarian,
+                    tenagaKerja: updated.tenagaKerja,
+                    kategori: updated.tenagaKerja,
+                    kodeMtp: updated.kodeMtp,
+                    tempatTinggal: updated.tempatTinggal,
+                  };
+                }
+                return p;
+              }),
+            })),
+          };
+        }),
+
+      deleteWorkersGlobally: (workerNames) =>
+        set((state) => {
+          const targets = new Set(workerNames.map((n) => n.trim().toUpperCase()));
+          return {
+            absenTukangList: state.absenTukangList.map((week) => ({
+              ...week,
+              pekerja: week.pekerja.filter(
+                (p) => !targets.has(p.nama.trim().toUpperCase())
+              ),
+            })),
+          };
+        }),
+
+      batchUpdateWorkersWage: (workerNames, newWage) =>
+        set((state) => {
+          const targets = new Set(workerNames.map((n) => n.trim().toUpperCase()));
+          return {
+            absenTukangList: state.absenTukangList.map((week) => ({
+              ...week,
+              pekerja: week.pekerja.map((p) => {
+                if (targets.has(p.nama.trim().toUpperCase())) {
+                  return { ...p, upahHarian: newWage };
+                }
+                return p;
+              }),
+            })),
+          };
+        }),
+
+      batchUpdateWorkersProperties: (workerNames, updates) =>
+        set((state) => {
+          const targets = new Set(workerNames.map((n) => n.trim().toUpperCase()));
+          return {
+            absenTukangList: state.absenTukangList.map((week) => ({
+              ...week,
+              pekerja: week.pekerja.map((p) => {
+                if (targets.has(p.nama.trim().toUpperCase())) {
+                  return {
+                    ...p,
+                    ...(updates.upahHarian !== undefined ? { upahHarian: updates.upahHarian } : {}),
+                    ...(updates.kodeMtp !== undefined ? { kodeMtp: updates.kodeMtp } : {}),
+                    ...(updates.tenagaKerja !== undefined ? { tenagaKerja: updates.tenagaKerja, kategori: updates.tenagaKerja } : {}),
+                    ...(updates.tempatTinggal !== undefined ? { tempatTinggal: updates.tempatTinggal } : {}),
+                  };
+                }
+                return p;
+              }),
+            })),
+          };
+        }),
+
       syncDakFisikSchedule: () =>
         set((state) => {
           let updatedList: AbsenMingguanTukang[] = [];
@@ -1511,20 +1608,22 @@ export const useLpjStore = create<LpjState>()(
             }
           }
           if (Array.isArray(state.transactions)) {
-            state.transactions = state.transactions.map((tx) => {
-              let updatedNo = tx.nomorBukti;
-              if (updatedNo && /^BKU\s*(\d+)$/i.test(updatedNo.trim())) {
-                const match = updatedNo.trim().match(/^BKU\s*(\d+)$/i);
-                if (match) {
-                  updatedNo = `KW-${String(parseInt(match[1], 10)).padStart(3, '0')}`;
+            state.transactions = sortTransactionsChronologically(
+              state.transactions.map((tx) => {
+                let updatedNo = tx.nomorBukti;
+                if (updatedNo && /^BKU\s*(\d+)$/i.test(updatedNo.trim())) {
+                  const match = updatedNo.trim().match(/^BKU\s*(\d+)$/i);
+                  if (match) {
+                    updatedNo = `KW-${String(parseInt(match[1], 10)).padStart(3, '0')}`;
+                  }
                 }
-              }
-              return {
-                ...tx,
-                tanggal: formatToSlashDate(tx.tanggal || ''),
-                nomorBukti: updatedNo,
-              };
-            });
+                return {
+                  ...tx,
+                  tanggal: formatToSlashDate(tx.tanggal || ''),
+                  nomorBukti: updatedNo,
+                };
+              })
+            );
           }
           if (!Array.isArray(state.pajakRows) || state.pajakRows.length === 0) {
             state.pajakRows = SAMPLE_IMAGE_PAJAK_ROWS;
