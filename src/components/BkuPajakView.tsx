@@ -34,6 +34,9 @@ import {
   filterOnlyTaxableRows,
   detectTaxForTransaction,
   generatePajakRowsFromTransactions,
+  groupPajakRowsByMonthlyBooks,
+  MonthlyPajakGroup,
+  ComputedPajakRow,
   OFFICIAL_P2SP_TAX_PRESETS,
   DetectedTaxItem,
 } from '../utils/pajakUtils';
@@ -174,51 +177,40 @@ export const BkuPajakView: React.FC = () => {
   // Editing Single Row State
   const [editingRow, setEditingRow] = useState<PajakRowItem | null>(null);
 
-  // Calculate rows with running tax balance matching format_bku_pajak_d1c829d3.png
-  // KRUSIAL: Jika onlyTaxableFilter aktif, hanya baris belanja yang berpajak yang dihitung & ditampilkan!
-  const computedRows = useMemo(() => {
-    let runningSaldoPajak = 0;
-    let totalPenerimaanPajak = 0;
-    let totalPengeluaranPajak = 0;
-    let totalBelanjaBruto = 0;
+  // Pilihan Tab Bulan yang ditampilkan: 'ALL' (Semua Bulan Berjalan) atau 'YYYY-MM' (Bulan Spesifik)
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
 
-    // Filter sumber baris: Singkirkan transaksi belanja tanpa pajak jika filter aktif
-    const sourceRows = onlyTaxableFilter
-      ? filterOnlyTaxableRows(pajakRows)
-      : pajakRows;
+  // Mengelompokkan baris BKU Pajak ke dalam buku bulanan sesuai dengan bulan-bulan berjalan di BKU Tunai
+  const monthlyPajakGroups = useMemo(
+    () => groupPajakRowsByMonthlyBooks(pajakRows, transactions, profile, onlyTaxableFilter),
+    [pajakRows, transactions, profile, onlyTaxableFilter]
+  );
 
-    const list = sourceRows.map((row, idx) => {
-      const tanggalFormatted = formatToSlashDate(row.tanggal);
-      const isTax =
-        row.isTaxRow !== undefined
-          ? row.isTaxRow
-          : /^(diterima|dibayarkan|dipungut|disetor|ppn|pph)/i.test(row.uraian.trim());
+  const groupsToRender = useMemo(() => {
+    if (selectedMonthKey === 'ALL') {
+      return monthlyPajakGroups;
+    }
+    const filtered = monthlyPajakGroups.filter((g) => g.monthKey === selectedMonthKey);
+    return filtered.length > 0 ? filtered : monthlyPajakGroups;
+  }, [monthlyPajakGroups, selectedMonthKey]);
 
-      if (isTax) {
-        runningSaldoPajak += (row.penerimaan || 0) - (row.pengeluaran || 0);
-        totalPenerimaanPajak += row.penerimaan || 0;
-        totalPengeluaranPajak += row.pengeluaran || 0;
-      } else {
-        totalBelanjaBruto += row.pengeluaran || 0;
-      }
+  // Seluruh baris yang sedang aktif ditampilkan di layar (untuk checkbox & select all)
+  const allRenderedRows = useMemo(() => {
+    return groupsToRender.flatMap((g) => g.rows);
+  }, [groupsToRender]);
 
-      return {
-        ...row,
-        noUrut: idx + 1,
-        tanggalFormatted,
-        isTax,
-        saldo: isTax ? runningSaldoPajak : 0,
-      };
-    });
+  const totalPenerimaanPajakAll = useMemo(() => {
+    return groupsToRender.reduce((sum, g) => sum + g.totalPenerimaanPajak, 0);
+  }, [groupsToRender]);
 
-    return {
-      rows: list,
-      totalPenerimaanPajak,
-      totalPengeluaranPajak,
-      totalBelanjaBruto,
-      saldoAkhirPajak: runningSaldoPajak,
-    };
-  }, [pajakRows, onlyTaxableFilter]);
+  const totalPengeluaranPajakAll = useMemo(() => {
+    return groupsToRender.reduce((sum, g) => sum + g.totalPengeluaranPajak, 0);
+  }, [groupsToRender]);
+
+  const latestSaldoAkhirPajak = useMemo(() => {
+    if (groupsToRender.length === 0) return 0;
+    return groupsToRender[groupsToRender.length - 1].saldoAkhirPajak;
+  }, [groupsToRender]);
 
   // Helper membuat daftar taxItems dari pilihan dropdown JenisPajak
   const buildTaxItemsFromJenis = (jenis: JenisPajak, nilaiBelanja: number): TaxEntryDraft[] => {
@@ -667,14 +659,20 @@ export const BkuPajakView: React.FC = () => {
   };
 
   // Fungsi Kotak Centang (Checkbox)
+  // Fungsi Kotak Centang (Checkbox)
+  const selectableRows = useMemo(
+    () => allRenderedRows.filter((r) => !r.isInitialRow),
+    [allRenderedRows]
+  );
+
   const isAllSelected =
-    computedRows.rows.length > 0 && selectedRowIds.length === computedRows.rows.length;
+    selectableRows.length > 0 && selectedRowIds.length === selectableRows.length;
 
   const toggleSelectAll = () => {
     if (isAllSelected) {
       setSelectedRowIds([]);
     } else {
-      setSelectedRowIds(computedRows.rows.map((r) => r.id));
+      setSelectedRowIds(selectableRows.map((r) => r.id));
     }
   };
 
@@ -765,111 +763,135 @@ export const BkuPajakView: React.FC = () => {
   };
 
   const handleExportExcelPajak = () => {
-    const aoa: (string | number)[][] = [
-      [profile.namaSekolah],
-      ['BUKU KAS UMUM'],
-      ['BUKU PEMBANTU PAJAK'],
-      [`BULAN : ${profile.bulanLaporan}`],
-      [],
-      ['Kepala Sekolah', `: ${profile.namaKepalaSekolah}`],
-      ['Bendahara Pengeluaran', `: ${profile.namaBendahara}`],
-      [],
-      [
-        'No Urut',
-        'Tanggal',
-        'Nomor Bukti',
-        'Uraian',
-        'Penerimaan Rp.',
-        'Pengeluaran Rp.',
-        'Saldo Rp.',
-      ],
-      ...computedRows.rows.map((r) => [
-        r.noUrut,
-        r.tanggalFormatted,
-        r.nomorBukti || '',
-        r.uraian,
-        r.penerimaan > 0 ? `Rp ${r.penerimaan.toLocaleString('id-ID')}` : 'Rp -',
-        r.pengeluaran > 0 ? `Rp ${r.pengeluaran.toLocaleString('id-ID')}` : 'Rp -',
-        r.saldo > 0 ? `Rp ${r.saldo.toLocaleString('id-ID')}` : 'Rp -',
-      ]),
-      [
-        '',
-        '',
-        '',
-        'JUMLAH PAJAK (DITERIMA / DIBAYARKAN)',
-        `Rp ${computedRows.totalPenerimaanPajak.toLocaleString('id-ID')}`,
-        `Rp ${computedRows.totalPengeluaranPajak.toLocaleString('id-ID')}`,
-        computedRows.saldoAkhirPajak > 0
-          ? `Rp ${computedRows.saldoAkhirPajak.toLocaleString('id-ID')}`
-          : 'Rp -',
-      ],
-      [],
-      [
-        `Pada hari ini : ${formatToSlashDate(profile.tanggalTutupBuku)} Buku Pembantu Pajak ditutup dengan posisi saldo pajak sebesar : Rp ${computedRows.saldoAkhirPajak.toLocaleString('id-ID')} (${terbilangRupiah(computedRows.saldoAkhirPajak)})`,
-      ],
-      [],
-      [
-        'Mengetahui,',
-        '',
-        '',
-        'Ketua P2SP',
-        '',
-        `${profile.tempatPelunasan || 'Palasa'}, ${formatToSlashDate(profile.tanggalTutupBuku)}`,
-        '',
-      ],
-      [
-        `Kepala ${profile.namaSekolah}`,
-        '',
-        '',
-        '',
-        '',
-        'Bendahara',
-        '',
-      ],
-      [],
-      [],
-      [],
-      [
-        profile.namaKepalaSekolah,
-        '',
-        '',
-        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2SP',
-        '',
-        profile.namaBendahara,
-        '',
-      ],
-      [
-        `NIP. ${profile.nipKepalaSekolah}`,
-        '',
-        '',
-        '-',
-        '',
-        `NIP. ${profile.nipBendahara}`,
-        '',
-      ],
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
-      { s: { r: 2, c: 0 }, e: { r: 2, c: 6 } },
-      { s: { r: 3, c: 0 }, e: { r: 3, c: 6 } },
-    ];
-    ws['!cols'] = [
-      { wch: 9 },
-      { wch: 13 },
-      { wch: 15 },
-      { wch: 46 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 18 },
-    ];
-
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'BKU PAJAK');
+
+    groupsToRender.forEach((group) => {
+      const rowsData =
+        group.rows.length > 0
+          ? group.rows.map((r) => [
+              r.noUrut,
+              r.tanggalFormatted,
+              r.nomorBukti || '',
+              r.uraian,
+              r.penerimaan > 0 ? `Rp ${r.penerimaan.toLocaleString('id-ID')}` : 'Rp -',
+              r.pengeluaran > 0 ? `Rp ${r.pengeluaran.toLocaleString('id-ID')}` : 'Rp -',
+              r.saldo > 0 ? `Rp ${r.saldo.toLocaleString('id-ID')}` : 'Rp -',
+            ])
+          : [
+              [
+                '-',
+                group.tanggalTutupBuku,
+                '-',
+                `Nihil - Tidak terdapat transaksi pemotongan dan penyetoran pajak pada periode ${group.label}`,
+                'Rp -',
+                'Rp -',
+                'Rp -',
+              ],
+            ];
+
+      const aoa: (string | number)[][] = [
+        [profile.namaSekolah],
+        ['BUKU KAS UMUM'],
+        ['BUKU PEMBANTU PAJAK'],
+        [`BULAN : ${group.label.toUpperCase()}`],
+        [],
+        ['Kepala Sekolah', `: ${profile.namaKepalaSekolah}`],
+        ['Bendahara Pengeluaran', `: ${profile.namaBendahara}`],
+        [],
+        [
+          'No Urut',
+          'Tanggal',
+          'Nomor Bukti',
+          'Uraian',
+          'Penerimaan Rp.',
+          'Pengeluaran Rp.',
+          'Saldo Rp.',
+        ],
+        ...rowsData,
+        [
+          '',
+          '',
+          '',
+          `JUMLAH PAJAK BULAN ${group.monthName.toUpperCase()}`,
+          group.totalPenerimaanPajak > 0
+            ? `Rp ${group.totalPenerimaanPajak.toLocaleString('id-ID')}`
+            : 'Rp -',
+          group.totalPengeluaranPajak > 0
+            ? `Rp ${group.totalPengeluaranPajak.toLocaleString('id-ID')}`
+            : 'Rp -',
+          group.saldoAkhirPajak > 0
+            ? `Rp ${group.saldoAkhirPajak.toLocaleString('id-ID')}`
+            : 'Rp -',
+        ],
+        [],
+        [
+          `Pada hari ini : ${group.tanggalTutupBuku} Buku Pembantu Pajak ditutup dengan posisi saldo pajak sebesar : Rp ${group.saldoAkhirPajak.toLocaleString('id-ID')} (${group.saldoAkhirPajak === 0 ? 'Nihil' : terbilangRupiah(group.saldoAkhirPajak)})`,
+        ],
+        [],
+        [
+          'Mengetahui,',
+          '',
+          '',
+          'Ketua P2SP',
+          '',
+          `${profile.tempatPelunasan || 'Palasa'}, ${group.tanggalTutupBuku}`,
+          '',
+        ],
+        [
+          `Kepala ${profile.namaSekolah}`,
+          '',
+          '',
+          '',
+          '',
+          'Bendahara',
+          '',
+        ],
+        [],
+        [],
+        [],
+        [
+          profile.namaKepalaSekolah,
+          '',
+          '',
+          profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2SP',
+          '',
+          profile.namaBendahara,
+          '',
+        ],
+        [
+          `NIP. ${profile.nipKepalaSekolah}`,
+          '',
+          '',
+          '-',
+          '',
+          `NIP. ${profile.nipBendahara}`,
+          '',
+        ],
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 6 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 6 } },
+      ];
+      ws['!cols'] = [
+        { wch: 9 },
+        { wch: 13 },
+        { wch: 15 },
+        { wch: 46 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 },
+      ];
+
+      const sheetName = `Pajak ${group.monthName} ${group.year}`.replace(/[\\/?*:[\]]/g, '').substring(0, 31);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
     const safeSchool = profile.namaSekolah.replace(/[^a-zA-Z0-9]/g, '_');
-    XLSX.writeFile(wb, `BKU_PAJAK_${safeSchool}_${profile.bulanLaporan.replace(/\s+/g, '_')}.xlsx`);
+    XLSX.writeFile(wb, `BKU_PAJAK_${safeSchool}_SEMUA_BULAN.xlsx`);
   };
 
   return (
@@ -892,9 +914,46 @@ export const BkuPajakView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {monthlyPajakGroups.length > 1 && (
+            <div className="flex items-center gap-1 bg-purple-950/80 p-1 rounded-xl border border-amber-400/30">
+              <button
+                type="button"
+                onClick={() => setSelectedMonthKey('ALL')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  selectedMonthKey === 'ALL'
+                    ? 'bg-amber-400 text-purple-950 shadow-sm'
+                    : 'text-purple-200 hover:bg-purple-800'
+                }`}
+              >
+                Semua Bulan ({monthlyPajakGroups.length})
+              </button>
+              {monthlyPajakGroups.map((g) => (
+                <button
+                  key={g.monthKey}
+                  type="button"
+                  onClick={() => setSelectedMonthKey(g.monthKey)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    selectedMonthKey === g.monthKey
+                      ? 'bg-amber-400 text-purple-950 shadow-sm'
+                      : 'text-purple-200 hover:bg-purple-800'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <button
             onClick={() => {
               setAddMode('paket_otomatis');
+              if (selectedMonthKey !== 'ALL') {
+                const foundG = monthlyPajakGroups.find((g) => g.monthKey === selectedMonthKey);
+                if (foundG) {
+                  const mNum = String(foundG.monthKey.split('-')[1]).padStart(2, '0');
+                  setFormTanggal(`01/${mNum}/${foundG.year}`);
+                }
+              }
               setIsAddModalOpen(true);
             }}
             className="flex items-center space-x-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-purple-950 text-xs font-black px-3.5 py-2 rounded-xl shadow-md transition active:scale-95 cursor-pointer"
@@ -1071,6 +1130,23 @@ export const BkuPajakView: React.FC = () => {
         )}
       </div>
 
+      {/* Banner Informasi Seluruh Bulan Berjalan Sesuai BKU Tunai */}
+      {monthlyPajakGroups.length > 1 && (
+        <div className="bg-amber-50 border-2 border-amber-300/80 rounded-2xl p-3.5 text-slate-900 flex items-center justify-between gap-3 shadow-xs print:hidden">
+          <div className="flex items-center gap-2.5 text-xs">
+            <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <span className="font-bold text-purple-950">
+                Buku Pembantu Pajak Mengikuti Seluruh Bulan Berjalan di BKU Tunai:
+              </span>{' '}
+              <span className="text-purple-900">
+                Tiap periode bulan ({monthlyPajakGroups.map((g) => g.label).join(', ')}) memiliki lembar buku resmi tersendiri lengkap dengan kop bulan berjalan, rekap potongan/penyetoran pajak, tutup buku akhir bulan, dan 3 tanda tangan lengkap.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar Aksi Kotak Centang (Checkbox) - Membantu Edit atau Hapus Transaksi */}
       <div
         className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl border transition-all print:hidden ${
@@ -1100,7 +1176,7 @@ export const BkuPajakView: React.FC = () => {
           <span className="text-xs font-bold">
             {selectedRowIds.length > 0 ? (
               <span>
-                <strong>{selectedRowIds.length}</strong> dari {computedRows.rows.length} baris transaksi dicentang
+                <strong>{selectedRowIds.length}</strong> dari {selectableRows.length} baris transaksi dicentang
               </span>
             ) : (
               <span>
@@ -1155,294 +1231,362 @@ export const BkuPajakView: React.FC = () => {
         </div>
       </div>
 
-      {/* Printable Official Sheet matching format_bku_pajak_d1c829d3.png */}
-      <div className="bg-white rounded-xl shadow-md border border-slate-300 p-6 sm:p-8 print:p-0 print:border-none print:shadow-none print:w-full text-black sheet-paper font-sans">
-        {/* Centered Header Titles matching Screenshot */}
-        <div className="text-center space-y-0.5 mb-5 text-black">
-          <h1 className="text-sm sm:text-base font-bold uppercase tracking-wide text-black">
-            {profile.namaSekolah}
-          </h1>
-          <h2 className="text-sm sm:text-base font-bold uppercase tracking-wide text-black">
-            BUKU KAS UMUM
-          </h2>
-          <h3 className="text-sm sm:text-base font-bold uppercase tracking-wide text-black">
-            BUKU PEMBANTU PAJAK
-          </h3>
-          <p className="text-xs sm:text-sm font-bold uppercase text-black">
-            BULAN : {profile.bulanLaporan}
-          </p>
-        </div>
+      {/* Render Each Running Month Sheet matching BKU Tunai & Format Resmi */}
+      {groupsToRender.map((group, gIdx) => (
+        <div
+          key={group.monthKey}
+          className={`bg-white rounded-xl shadow-md border border-slate-300 p-6 sm:p-8 print:p-0 print:border-none print:shadow-none print:w-full text-black sheet-paper font-sans ${
+            gIdx > 0 ? 'mt-8 print:mt-0 print:break-before-page' : ''
+          }`}
+        >
+          {/* Centered Header Titles */}
+          <div className="text-center space-y-0.5 mb-5 text-black">
+            <h1 className="text-sm sm:text-base font-bold uppercase tracking-wide text-black">
+              {profile.namaSekolah}
+            </h1>
+            <h2 className="text-sm sm:text-base font-bold uppercase tracking-wide text-black">
+              BUKU KAS UMUM
+            </h2>
+            <h3 className="text-sm sm:text-base font-bold uppercase tracking-wide text-black">
+              BUKU PEMBANTU PAJAK
+            </h3>
+            <p className="text-xs sm:text-sm font-bold uppercase text-black">
+              BULAN : {group.label.toUpperCase()}
+            </p>
+          </div>
 
-        {/* Left Metadata: Kepala Sekolah & Bendahara Pengeluaran */}
-        <div className="mb-3 text-xs sm:text-[13px] print:text-[11px] text-black font-semibold">
-          <table className="border-none">
-            <tbody>
-              <tr>
-                <td className="pr-4 py-0.5 font-semibold text-black">Kepala Sekolah</td>
-                <td className="pr-2 py-0.5 font-semibold text-black">:</td>
-                <td className="py-0.5 font-semibold text-black">{profile.namaKepalaSekolah}</td>
-              </tr>
-              <tr>
-                <td className="pr-4 py-0.5 font-semibold text-black">Bendahara Pengeluaran</td>
-                <td className="pr-2 py-0.5 font-semibold text-black">:</td>
-                <td className="py-0.5 font-semibold text-black">{profile.namaBendahara}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          {/* Left Metadata: Kepala Sekolah & Bendahara Pengeluaran */}
+          <div className="mb-3 text-xs sm:text-[13px] print:text-[11px] text-black font-semibold">
+            <table className="border-none">
+              <tbody>
+                <tr>
+                  <td className="pr-4 py-0.5 font-semibold text-black">Kepala Sekolah</td>
+                  <td className="pr-2 py-0.5 font-semibold text-black">:</td>
+                  <td className="py-0.5 font-semibold text-black">{profile.namaKepalaSekolah}</td>
+                </tr>
+                <tr>
+                  <td className="pr-4 py-0.5 font-semibold text-black">Bendahara Pengeluaran</td>
+                  <td className="pr-2 py-0.5 font-semibold text-black">:</td>
+                  <td className="py-0.5 font-semibold text-black">{profile.namaBendahara}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-        {/* Main 7-Column Table (+ Checkbox & Aksi hidden in print) */}
-        <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full border-collapse border border-black text-xs sm:text-[12.5px] print:text-[10.5px] text-black">
-            <thead>
-              <tr className="bg-white text-black font-bold text-center">
-                <th
-                  className="border border-black py-2 px-2 w-10 align-middle print:hidden bg-amber-50 cursor-pointer"
-                  onClick={toggleSelectAll}
-                  title="Centang / Batal Centang Semua Baris"
-                >
-                  <input
-                    type="checkbox"
-                    checked={isAllSelected}
-                    onChange={toggleSelectAll}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-4 h-4 accent-purple-900 rounded cursor-pointer"
-                  />
-                </th>
-                <th className="border border-black py-2 px-1.5 w-12 align-middle">
-                  No<br />Urut
-                </th>
-                <th className="border border-black py-2 px-2 w-24 align-middle">
-                  Tanggal
-                </th>
-                <th className="border border-black py-2 px-2 w-28 align-middle">
-                  Nomor Bukti
-                </th>
-                <th className="border border-black py-2 px-3 text-center align-middle">
-                  Uraian
-                </th>
-                <th className="border border-black py-2 px-2.5 w-36 align-middle">
-                  Penerimaan<br />Rp.
-                </th>
-                <th className="border border-black py-2 px-2.5 w-36 align-middle">
-                  Pengeluaran<br />Rp.
-                </th>
-                <th className="border border-black py-2 px-2.5 w-36 align-middle">
-                  Saldo<br />Rp.
-                </th>
-                <th className="border border-black py-2 px-2 w-24 align-middle print:hidden bg-slate-100">
-                  Aksi
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {computedRows.rows.map((r, idx) => {
-                const isChecked = selectedRowIds.includes(r.id);
-                return (
-                  <tr
-                    key={r.id}
-                    className={`transition-colors text-black ${
-                      isChecked
-                        ? 'bg-amber-100/80 print:bg-transparent'
-                        : 'hover:bg-amber-50/40'
-                    }`}
+          {/* Main 7-Column Table (+ Checkbox & Aksi hidden in print) */}
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full border-collapse border border-black text-xs sm:text-[12.5px] print:text-[10.5px] text-black">
+              <thead>
+                <tr className="bg-white text-black font-bold text-center">
+                  <th
+                    className="border border-black py-2 px-2 w-10 align-middle print:hidden bg-amber-50 cursor-pointer"
+                    onClick={toggleSelectAll}
+                    title="Centang / Batal Centang Semua Baris"
                   >
-                    {/* Kotak Centang (Hidden in Print) */}
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={toggleSelectAll}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 accent-purple-900 rounded cursor-pointer"
+                    />
+                  </th>
+                  <th className="border border-black py-2 px-1.5 w-12 align-middle">
+                    No<br />Urut
+                  </th>
+                  <th className="border border-black py-2 px-2 w-24 align-middle">
+                    Tanggal
+                  </th>
+                  <th className="border border-black py-2 px-2 w-28 align-middle">
+                    Nomor Bukti
+                  </th>
+                  <th className="border border-black py-2 px-3 text-center align-middle">
+                    Uraian
+                  </th>
+                  <th className="border border-black py-2 px-2.5 w-36 align-middle">
+                    Penerimaan<br />Rp.
+                  </th>
+                  <th className="border border-black py-2 px-2.5 w-36 align-middle">
+                    Pengeluaran<br />Rp.
+                  </th>
+                  <th className="border border-black py-2 px-2.5 w-36 align-middle">
+                    Saldo<br />Rp.
+                  </th>
+                  <th className="border border-black py-2 px-2 w-24 align-middle print:hidden bg-slate-100">
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.rows.length === 0 ? (
+                  <tr>
                     <td
-                      className="border border-black py-1 px-2 text-center print:hidden cursor-pointer"
-                      onClick={() => toggleSelectRow(r.id)}
+                      colSpan={9}
+                      className="border border-black py-5 px-4 text-center text-slate-600 bg-slate-50 italic"
                     >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleSelectRow(r.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 accent-purple-900 rounded cursor-pointer"
-                      />
-                    </td>
-
-                    {/* No Urut */}
-                    <td className="border border-black py-1 px-1.5 text-center font-mono">
-                      {r.noUrut}
-                    </td>
-
-                    {/* Tanggal (DD/MM/YYYY) */}
-                    <td className="border border-black py-1 px-2 text-center font-mono whitespace-nowrap">
-                      {r.tanggalFormatted}
-                    </td>
-
-                    {/* Nomor Bukti */}
-                    <td className="border border-black py-1 px-2 text-center font-mono whitespace-nowrap">
-                      {r.nomorBukti || ''}
-                    </td>
-
-                    {/* Uraian */}
-                    <td className="border border-black py-1 px-2.5 text-left">
-                      {r.uraian}
-                    </td>
-
-                    {/* Penerimaan Rp. */}
-                    <td className="border border-black py-1 px-2 font-mono whitespace-nowrap">
-                      <div className="flex items-center justify-between gap-1">
-                        <span>Rp</span>
-                        <span>
-                          {r.penerimaan > 0 ? r.penerimaan.toLocaleString('id-ID') : '-'}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Pengeluaran Rp. */}
-                    <td className="border border-black py-1 px-2 font-mono whitespace-nowrap">
-                      <div className="flex items-center justify-between gap-1">
-                        <span>Rp</span>
-                        <span>
-                          {r.pengeluaran > 0 ? r.pengeluaran.toLocaleString('id-ID') : '-'}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Saldo Rp. */}
-                    <td className="border border-black py-1 px-2 font-mono whitespace-nowrap">
-                      <div className="flex items-center justify-between gap-1">
-                        <span>Rp</span>
-                        <span>
-                          {r.saldo > 0 ? r.saldo.toLocaleString('id-ID') : '-'}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Aksi (Hidden in Print) */}
-                    <td className="border border-black py-1 px-1.5 text-center print:hidden bg-slate-50/80 whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => movePajakRow(r.id, 'up')}
-                          disabled={idx === 0}
-                          className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 text-slate-700 cursor-pointer"
-                          title="Geser ke atas"
-                        >
-                          <ArrowUp className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => movePajakRow(r.id, 'down')}
-                          disabled={idx === computedRows.rows.length - 1}
-                          className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 text-slate-700 cursor-pointer"
-                          title="Geser ke bawah"
-                        >
-                          <ArrowDown className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingRow({ ...r })}
-                          className="p-1 rounded hover:bg-blue-100 text-blue-700 cursor-pointer"
-                          title="Edit baris ini"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteIds([r.id])}
-                          className="p-1 rounded hover:bg-rose-100 text-rose-700 cursor-pointer"
-                          title="Hapus baris"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                      <div className="space-y-1.5">
+                        <p className="font-bold text-slate-800 text-xs sm:text-sm">
+                          Nihil — Tidak terdapat transaksi pemotongan dan penyetoran pajak pada periode {group.label}.
+                        </p>
+                        <p className="text-[11px] text-slate-500 max-w-xl mx-auto">
+                          Sesuai aturan perpajakan P2SP Swakelola (KPP Pratama), belanja material toko swakelola biasa dan upah tukang &le; Rp 450.000/hari bebas potongan pajak.
+                        </p>
+                        <div className="pt-2 print:hidden flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddMode('paket_otomatis');
+                              const mNum = String(group.monthKey.split('-')[1]).padStart(2, '0');
+                              setFormTanggal(`01/${mNum}/${group.year}`);
+                              setIsAddModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-purple-950 font-black text-xs rounded-xl transition cursor-pointer shadow-xs active:scale-95"
+                          >
+                            <PlusCircle className="w-3.5 h-3.5" />
+                            <span>+ Tambah Pajak Bulan {group.monthName}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleOpenBatchSyncModal}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-950 hover:bg-purple-900 text-amber-300 font-bold text-xs rounded-xl border border-amber-400/40 transition cursor-pointer active:scale-95"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Pilih Belanja BKU</span>
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
-                );
-              })}
+                ) : (
+                  group.rows.map((r, idx) => {
+                    const isChecked = selectedRowIds.includes(r.id);
+                    return (
+                      <tr
+                        key={r.id}
+                        className={`transition-colors text-black ${
+                          r.isInitialRow
+                            ? 'bg-amber-50/70 font-semibold'
+                            : isChecked
+                            ? 'bg-amber-100/80 print:bg-transparent'
+                            : 'hover:bg-amber-50/40'
+                        }`}
+                      >
+                        {/* Kotak Centang (Hidden in Print) */}
+                        <td
+                          className="border border-black py-1 px-2 text-center print:hidden cursor-pointer"
+                          onClick={() => !r.isInitialRow && toggleSelectRow(r.id)}
+                        >
+                          {!r.isInitialRow && (
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleSelectRow(r.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 accent-purple-900 rounded cursor-pointer"
+                            />
+                          )}
+                        </td>
 
-              {/* Summary Footer Row */}
-              <tr className="bg-slate-50 print:bg-white font-bold text-black border-t-2 border-black">
-                <td className="border border-black py-1.5 px-1 print:hidden bg-slate-100"></td>
-                <td
-                  colSpan={4}
-                  className="border border-black py-1.5 px-3 text-center uppercase tracking-wide"
-                >
-                  JUMLAH PAJAK (PENERIMAAN & PENGELUARAN PAJAK)
-                </td>
-                <td className="border border-black py-1.5 px-2 font-mono whitespace-nowrap">
-                  <div className="flex items-center justify-between gap-1">
-                    <span>Rp</span>
-                    <span>
-                      {computedRows.totalPenerimaanPajak > 0
-                        ? computedRows.totalPenerimaanPajak.toLocaleString('id-ID')
-                        : '-'}
-                    </span>
-                  </div>
-                </td>
-                <td className="border border-black py-1.5 px-2 font-mono whitespace-nowrap">
-                  <div className="flex items-center justify-between gap-1">
-                    <span>Rp</span>
-                    <span>
-                      {computedRows.totalPengeluaranPajak > 0
-                        ? computedRows.totalPengeluaranPajak.toLocaleString('id-ID')
-                        : '-'}
-                    </span>
-                  </div>
-                </td>
-                <td className="border border-black py-1.5 px-2 font-mono whitespace-nowrap">
-                  <div className="flex items-center justify-between gap-1">
-                    <span>Rp</span>
-                    <span>
-                      {computedRows.saldoAkhirPajak > 0
-                        ? computedRows.saldoAkhirPajak.toLocaleString('id-ID')
-                        : '-'}
-                    </span>
-                  </div>
-                </td>
-                <td className="border border-black py-1.5 px-1 print:hidden bg-slate-100"></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                        {/* No Urut */}
+                        <td className="border border-black py-1 px-1.5 text-center font-mono">
+                          {r.noUrut}
+                        </td>
 
-        {/* 3 Signatures Block: Kepala Sekolah, Ketua P2SP, Bendahara */}
-        <div className="mt-8 pt-4 text-xs sm:text-[13px] print:text-[11px] break-inside-avoid page-break-inside-avoid text-black">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            {/* Pihak 1: Kepala Sekolah */}
-            <div>
-              <p className="font-semibold text-black">Mengetahui,</p>
-              <p className="font-bold text-black mb-16">
-                Kepala {profile.namaSekolah || 'Sekolah'}
-              </p>
-              <p className="font-bold underline uppercase text-black leading-tight">
-                {profile.namaKepalaSekolah}
-              </p>
-              <p className="text-black font-medium">
-                NIP. {profile.nipKepalaSekolah}
-              </p>
-            </div>
+                        {/* Tanggal (DD/MM/YYYY) */}
+                        <td className="border border-black py-1 px-2 text-center font-mono whitespace-nowrap">
+                          {r.tanggalFormatted}
+                        </td>
 
-            {/* Pihak 2: Ketua P2SP */}
-            <div>
-              <p className="font-semibold text-transparent select-none">.</p>
-              <p className="font-bold text-black mb-16">Ketua P2SP</p>
-              <p className="font-bold underline uppercase text-black leading-tight">
-                {profile.namaKetuaP2S || profile.namaPanitia || '....................................'}
-              </p>
-              <p className="text-black font-medium">-</p>
-            </div>
+                        {/* Nomor Bukti */}
+                        <td className="border border-black py-1 px-2 text-center font-mono whitespace-nowrap">
+                          {r.nomorBukti || ''}
+                        </td>
 
-            {/* Pihak 3: Bendahara */}
-            <div>
-              <p className="font-semibold text-black">
-                {profile.tempatPelunasan || profile.kabupaten || 'Palasa'},{' '}
-                {formatToSlashDate(profile.tanggalTutupBuku)}
-              </p>
-              <p className="font-bold text-black mb-16">Bendahara</p>
-              <p className="font-bold underline uppercase text-black leading-tight">
-                {profile.namaBendahara}
-              </p>
-              <p className="text-black font-medium">
-                NIP. {profile.nipBendahara}
-              </p>
+                        {/* Uraian */}
+                        <td className="border border-black py-1 px-2.5 text-left">
+                          {r.uraian}
+                        </td>
+
+                        {/* Penerimaan Rp. */}
+                        <td className="border border-black py-1 px-2 font-mono whitespace-nowrap">
+                          <div className="flex items-center justify-between gap-1">
+                            <span>Rp</span>
+                            <span>
+                              {r.penerimaan > 0 ? r.penerimaan.toLocaleString('id-ID') : '-'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Pengeluaran Rp. */}
+                        <td className="border border-black py-1 px-2 font-mono whitespace-nowrap">
+                          <div className="flex items-center justify-between gap-1">
+                            <span>Rp</span>
+                            <span>
+                              {r.pengeluaran > 0 ? r.pengeluaran.toLocaleString('id-ID') : '-'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Saldo Rp. */}
+                        <td className="border border-black py-1 px-2 font-mono whitespace-nowrap">
+                          <div className="flex items-center justify-between gap-1">
+                            <span>Rp</span>
+                            <span>
+                              {r.saldo > 0 ? r.saldo.toLocaleString('id-ID') : '-'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Aksi (Hidden in Print) */}
+                        <td className="border border-black py-1 px-1.5 text-center print:hidden bg-slate-50/80 whitespace-nowrap">
+                          {!r.isInitialRow ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => movePajakRow(r.id, 'up')}
+                                disabled={idx === 0}
+                                className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 text-slate-700 cursor-pointer"
+                                title="Geser ke atas"
+                              >
+                                <ArrowUp className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => movePajakRow(r.id, 'down')}
+                                disabled={idx === group.rows.length - 1}
+                                className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 text-slate-700 cursor-pointer"
+                                title="Geser ke bawah"
+                              >
+                                <ArrowDown className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingRow({ ...r })}
+                                className="p-1 rounded hover:bg-blue-100 text-blue-700 cursor-pointer"
+                                title="Edit baris ini"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteIds([r.id])}
+                                className="p-1 rounded hover:bg-rose-100 text-rose-700 cursor-pointer"
+                                title="Hapus baris"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic font-sans">
+                              Saldo Awal
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+
+                {/* Summary Footer Row for this Month */}
+                <tr className="bg-slate-50 print:bg-white font-bold text-black border-t-2 border-black">
+                  <td className="border border-black py-1.5 px-1 print:hidden bg-slate-100"></td>
+                  <td
+                    colSpan={4}
+                    className="border border-black py-1.5 px-3 text-center uppercase tracking-wide font-black"
+                  >
+                    JUMLAH PAJAK BULAN {group.monthName.toUpperCase()}
+                  </td>
+                  <td className="border border-black py-1.5 px-2 font-mono whitespace-nowrap">
+                    <div className="flex items-center justify-between gap-1">
+                      <span>Rp</span>
+                      <span>
+                        {group.totalPenerimaanPajak > 0
+                          ? group.totalPenerimaanPajak.toLocaleString('id-ID')
+                          : '-'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="border border-black py-1.5 px-2 font-mono whitespace-nowrap">
+                    <div className="flex items-center justify-between gap-1">
+                      <span>Rp</span>
+                      <span>
+                        {group.totalPengeluaranPajak > 0
+                          ? group.totalPengeluaranPajak.toLocaleString('id-ID')
+                          : '-'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="border border-black py-1.5 px-2 font-mono whitespace-nowrap">
+                    <div className="flex items-center justify-between gap-1">
+                      <span>Rp</span>
+                      <span>
+                        {group.saldoAkhirPajak > 0
+                          ? group.saldoAkhirPajak.toLocaleString('id-ID')
+                          : '-'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="border border-black py-1.5 px-1 print:hidden bg-slate-100"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Monthly Closing Statement */}
+          <div className="mt-4 text-xs sm:text-[12px] print:text-[10px] text-black space-y-1 border-t border-slate-400 pt-3">
+            <p>
+              Pada hari ini : <span className="font-bold">{group.tanggalTutupBuku}</span> Buku Pembantu Pajak ditutup dengan posisi saldo kas pajak sebesar : <span className="font-bold">Rp {group.saldoAkhirPajak.toLocaleString('id-ID')}</span>
+            </p>
+            <p className="italic">
+              (Terbilang : {group.saldoAkhirPajak === 0 ? 'Nihil' : terbilangRupiah(group.saldoAkhirPajak)})
+            </p>
+          </div>
+
+          {/* 3 Signatures Block: Kepala Sekolah, Ketua P2SP, Bendahara */}
+          <div className="mt-8 pt-4 text-xs sm:text-[13px] print:text-[11px] break-inside-avoid page-break-inside-avoid text-black">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              {/* Pihak 1: Kepala Sekolah */}
+              <div>
+                <p className="font-semibold text-black">Mengetahui,</p>
+                <p className="font-bold text-black mb-16">
+                  Kepala {profile.namaSekolah || 'Sekolah'}
+                </p>
+                <p className="font-bold underline uppercase text-black leading-tight">
+                  {profile.namaKepalaSekolah}
+                </p>
+                <p className="text-black font-medium">
+                  NIP. {profile.nipKepalaSekolah}
+                </p>
+              </div>
+
+              {/* Pihak 2: Ketua P2SP */}
+              <div>
+                <p className="font-semibold text-transparent select-none">.</p>
+                <p className="font-bold text-black mb-16">Ketua P2SP</p>
+                <p className="font-bold underline uppercase text-black leading-tight">
+                  {profile.namaKetuaP2S || profile.namaPanitia || '....................................'}
+                </p>
+                <p className="text-black font-medium">-</p>
+              </div>
+
+              {/* Pihak 3: Bendahara */}
+              <div>
+                <p className="font-semibold text-black">
+                  {profile.tempatPelunasan || profile.kabupaten || 'Palasa'},{' '}
+                  {group.tanggalTutupBuku}
+                </p>
+                <p className="font-bold text-black mb-16">Bendahara</p>
+                <p className="font-bold underline uppercase text-black leading-tight">
+                  {profile.namaBendahara}
+                </p>
+                <p className="text-black font-medium">
+                  NIP. {profile.nipBendahara}
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ))}
 
       {/* Modal Tambah Paket / Baris Pajak (Mendukung Multi-Pajak & Pajak Custom) */}
       {isAddModalOpen && (

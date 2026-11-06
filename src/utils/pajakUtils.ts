@@ -1,6 +1,15 @@
-import { PajakRowItem, Transaction, JenisPajak } from '../types';
-import { formatToSlashDate } from './dateUtils';
-import { sortTransactionsChronologically } from './calculations';
+import { PajakRowItem, Transaction, JenisPajak, ProjectProfile } from '../types';
+import {
+  formatToSlashDate,
+  extractMonthAndYear,
+  getClosingDateForMonth,
+  getFirstDateForMonth,
+  BULAN_LIST,
+} from './dateUtils';
+import {
+  sortTransactionsChronologically,
+  groupTransactionsByMonthlyBooks,
+} from './calculations';
 
 /**
  * PANDUAN PERPAJAKAN P2SP (SWAKELOLA REVITALISASI / DAK FISIK SEKOLAH)
@@ -667,3 +676,216 @@ export function hitungPajakDariBruto(
 
   return Math.round(base * 0.04);
 }
+
+export interface ComputedPajakRow extends PajakRowItem {
+  noUrut: number;
+  tanggalFormatted: string;
+  isTax: boolean;
+  saldo: number;
+  isInitialRow?: boolean;
+}
+
+export interface MonthlyPajakGroup {
+  monthKey: string; // e.g. "2026-08", "2026-10"
+  monthName: string; // e.g. "Agustus", "Oktober"
+  year: number; // e.g. 2026
+  label: string; // e.g. "Agustus 2026", "Oktober 2026"
+  tanggalTutupBuku: string; // e.g. "31/08/2026", "31/10/2026"
+  rows: ComputedPajakRow[];
+  totalPenerimaanPajak: number;
+  totalPengeluaranPajak: number;
+  totalBelanjaBruto: number;
+  saldoAwalPajak: number;
+  saldoAkhirPajak: number;
+  hasTransactions: boolean;
+}
+
+/**
+  * Mengelompokkan baris BKU Pajak ke dalam buku bulanan sesuai dengan bulan-bulan berjalan di BKU Tunai.
+  * Setiap bulan berjalan memiliki lembar resmi tersendiri lengkap dengan kop bulan berjalan,
+  * tabel 7 kolom, saldo awal/kumulatif, tutup buku, dan 3 tanda tangan.
+  */
+export function groupPajakRowsByMonthlyBooks(
+  pajakRows: PajakRowItem[],
+  transactions: Transaction[] = [],
+  profile?: ProjectProfile,
+  onlyTaxable: boolean = true
+): MonthlyPajakGroup[] {
+  // 1. Kumpulkan seluruh bulan berjalan dari BKU Tunai / Transaksi, Profil, dan PajakRows
+  const runningMonthsMap = new Map<
+    string,
+    { monthName: string; year: number; label: string; tanggalTutupBuku: string }
+  >();
+
+  // Ambil semua bulan berjalan dari BKU Tunai (sesuai groupTransactionsByMonthlyBooks)
+  const bkuMonthlyBooks = groupTransactionsByMonthlyBooks(transactions, profile);
+  bkuMonthlyBooks.forEach((g) => {
+    runningMonthsMap.set(g.monthKey, {
+      monthName: g.monthName,
+      year: g.year,
+      label: g.label,
+      tanggalTutupBuku: g.tanggalTutupBuku,
+    });
+  });
+
+  // Ambil juga jika ada tanggal di pajakRows yang berada pada bulan lain
+  pajakRows.forEach((r) => {
+    const my = extractMonthAndYear(r.tanggal);
+    if (my) {
+      const mIdx = BULAN_LIST.findIndex(
+        (m) => m.toLowerCase() === my.month.toLowerCase()
+      );
+      const pad = String(mIdx >= 0 ? mIdx + 1 : 8).padStart(2, '0');
+      const key = `${my.year}-${pad}`;
+      if (!runningMonthsMap.has(key)) {
+        runningMonthsMap.set(key, {
+          monthName: my.month,
+          year: my.year,
+          label: `${my.month} ${my.year}`,
+          tanggalTutupBuku: getClosingDateForMonth(my.month, my.year),
+        });
+      }
+    }
+  });
+
+  // Fallback jika belum ada data sama sekali
+  if (runningMonthsMap.size === 0) {
+    const profMonth = profile?.bulanLaporan || 'AGUSTUS 2026';
+    const my = extractMonthAndYear(profMonth);
+    const monthName = my?.month || 'Agustus';
+    const year = my?.year || 2026;
+    const mIdx = BULAN_LIST.findIndex(
+      (m) => m.toLowerCase() === monthName.toLowerCase()
+    );
+    const pad = String(mIdx >= 0 ? mIdx + 1 : 8).padStart(2, '0');
+    const key = `${year}-${pad}`;
+    runningMonthsMap.set(key, {
+      monthName,
+      year,
+      label: `${monthName} ${year}`,
+      tanggalTutupBuku: getClosingDateForMonth(monthName, year),
+    });
+  }
+
+  // Urutkan kunci bulan secara kronologis (misal 2026-08, 2026-09, 2026-10)
+  const sortedMonthKeys = Array.from(runningMonthsMap.keys()).sort();
+
+  // Filter baris sumber: hanya belanja yang ada pajaknya jika filter aktif
+  const sourceRows = onlyTaxable ? filterOnlyTaxableRows(pajakRows) : pajakRows;
+
+  const groups: MonthlyPajakGroup[] = [];
+  let runningSaldoAcrossMonths = 0;
+
+  sortedMonthKeys.forEach((key, monthIdx) => {
+    const monthMeta = runningMonthsMap.get(key)!;
+    const { monthName, year, label, tanggalTutupBuku } = monthMeta;
+    const isFirstMonth = monthIdx === 0;
+    const saldoAwalBulan = runningSaldoAcrossMonths;
+
+    // Filter baris yang jatuh pada bulan ini
+    const rowsInMonth = sourceRows.filter((r) => {
+      const my = extractMonthAndYear(r.tanggal);
+      if (!my) {
+        return isFirstMonth;
+      }
+      const idx = BULAN_LIST.findIndex(
+        (m) => m.toLowerCase() === my.month.toLowerCase()
+      );
+      const pad = String(idx >= 0 ? idx + 1 : 8).padStart(2, '0');
+      return `${my.year}-${pad}` === key;
+    });
+
+    let effectiveRows = [...rowsInMonth];
+
+    // Jika bulan ini belum memiliki baris pajak di pajakRows, namun di BKU Tunai bulan ini
+    // ada transaksi belanja yang merupakan objek pajak (misal konsultan/perencana/pengawas/sewa),
+    // otomatis buatkan baris pajaknya untuk bulan berjalan ini!
+    if (effectiveRows.length === 0 && transactions && transactions.length > 0) {
+      const txsInMonth = transactions.filter((t) => {
+        const my = extractMonthAndYear(t.tanggal);
+        if (!my) return false;
+        const idx = BULAN_LIST.findIndex(
+          (m) => m.toLowerCase() === my.month.toLowerCase()
+        );
+        const pad = String(idx >= 0 ? idx + 1 : 8).padStart(2, '0');
+        return `${my.year}-${pad}` === key;
+      });
+
+      const autoTaxRows = generatePajakRowsFromTransactions(txsInMonth);
+      if (autoTaxRows.length > 0) {
+        effectiveRows = autoTaxRows;
+      }
+    }
+
+    const computedRowsForMonth: ComputedPajakRow[] = [];
+    let rowNo = 1;
+    let monthPenerimaanPajak = 0;
+    let monthPengeluaranPajak = 0;
+    let monthBelanjaBruto = 0;
+
+    // Jika ada sisa saldo pajak dari bulan sebelumnya (> 0), sertakan baris saldo awal bulan
+    if (!isFirstMonth && saldoAwalBulan > 0) {
+      const prevMonthName = groups[monthIdx - 1]?.monthName || '';
+      const firstDateStr = getFirstDateForMonth(monthName, year);
+      computedRowsForMonth.push({
+        id: `pjk-init-${key}`,
+        tanggal: firstDateStr,
+        nomorBukti: '-',
+        uraian: `Sisa Saldo Kas Pajak Bulan ${prevMonthName}`,
+        penerimaan: saldoAwalBulan,
+        pengeluaran: 0,
+        isTaxRow: true,
+        noUrut: rowNo++,
+        tanggalFormatted: firstDateStr,
+        isTax: true,
+        saldo: runningSaldoAcrossMonths,
+        isInitialRow: true,
+      });
+      monthPenerimaanPajak += saldoAwalBulan;
+    }
+
+    effectiveRows.forEach((row) => {
+      const tanggalFormatted = formatToSlashDate(row.tanggal);
+      const isTax =
+        row.isTaxRow !== undefined
+          ? row.isTaxRow
+          : /^(diterima|dibayarkan|dipungut|disetor|ppn|pph)/i.test(row.uraian.trim());
+
+      if (isTax) {
+        runningSaldoAcrossMonths += (row.penerimaan || 0) - (row.pengeluaran || 0);
+        monthPenerimaanPajak += row.penerimaan || 0;
+        monthPengeluaranPajak += row.pengeluaran || 0;
+      } else {
+        monthBelanjaBruto += row.pengeluaran || 0;
+      }
+
+      computedRowsForMonth.push({
+        ...row,
+        noUrut: rowNo++,
+        tanggalFormatted,
+        isTax,
+        saldo: isTax ? runningSaldoAcrossMonths : 0,
+      });
+    });
+
+    const hasTransactions = effectiveRows.length > 0;
+
+    groups.push({
+      monthKey: key,
+      monthName,
+      year,
+      label,
+      tanggalTutupBuku,
+      rows: computedRowsForMonth,
+      totalPenerimaanPajak: monthPenerimaanPajak,
+      totalPengeluaranPajak: monthPengeluaranPajak,
+      totalBelanjaBruto: monthBelanjaBruto,
+      saldoAwalPajak: saldoAwalBulan,
+      saldoAkhirPajak: runningSaldoAcrossMonths,
+      hasTransactions,
+    });
+  });
+
+  return groups;
+}
+
