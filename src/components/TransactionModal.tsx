@@ -14,7 +14,7 @@ import {
 import { useLpjStore } from '../store/lpjStore';
 import { SubItem, TransactionJenis, TransactionMetode } from '../types';
 import { formatRupiah, terbilangRupiah } from '../utils/terbilang';
-import { getJenisBiaya } from '../utils/calculations';
+import { getJenisBiaya, isTarikTunaiOrSp2d } from '../utils/calculations';
 import {
   formatToIndonesianDate,
   indonesianDateToIso,
@@ -157,14 +157,15 @@ export const TransactionModal: React.FC = () => {
 
   useEffect(() => {
     if (transactionToEdit) {
+      const isSp2d = isTarikTunaiOrSp2d(transactionToEdit);
       const formattedEditDate = formatToIndonesianDate(transactionToEdit.tanggal);
       setTanggal(formattedEditDate);
       setIsoDate(indonesianDateToIso(formattedEditDate));
       setUraian(transactionToEdit.uraian);
       setNomorBukti(transactionToEdit.nomorBukti || '');
-      setMetode(transactionToEdit.metode);
-      setJenis(transactionToEdit.jenis);
-      setJenisBiaya(transactionToEdit.jenisBiaya || getJenisBiaya(transactionToEdit));
+      setMetode(isSp2d ? 'TARIK_TUNAI' : transactionToEdit.metode);
+      setJenis(isSp2d ? 'PENERIMAAN' : transactionToEdit.jenis);
+      setJenisBiaya(isSp2d ? '' : (transactionToEdit.jenisBiaya || getJenisBiaya(transactionToEdit)));
       setPenerima(transactionToEdit.penerima || '');
       setKeterangan(transactionToEdit.keterangan || '');
 
@@ -173,7 +174,7 @@ export const TransactionModal: React.FC = () => {
       setSubItems(transactionToEdit.subItems || []);
 
       const nominalVal =
-        transactionToEdit.jenis === 'PENERIMAAN'
+        transactionToEdit.penerimaan > 0
           ? transactionToEdit.penerimaan
           : transactionToEdit.pengeluaran;
       setManualNominal(nominalVal);
@@ -401,13 +402,22 @@ export const TransactionModal: React.FC = () => {
       return;
     }
 
+    const isSp2dOrPenarikan =
+      metode === 'TARIK_TUNAI' ||
+      /sp2d/i.test(nomorBukti || '') ||
+      /penarikan/i.test(uraian || '') ||
+      /tarik tunai/i.test(uraian || '');
+
+    const resolvedMetode = isSp2dOrPenarikan ? 'TARIK_TUNAI' : metode;
+    const resolvedJenis = isSp2dOrPenarikan ? 'PENERIMAAN' : jenis;
+
     let penerimaan = 0;
     let pengeluaran = 0;
 
-    if (metode === 'TARIK_TUNAI') {
+    if (resolvedMetode === 'TARIK_TUNAI' || isSp2dOrPenarikan) {
       penerimaan = totalNominal;
-      pengeluaran = totalNominal;
-    } else if (jenis === 'PENERIMAAN') {
+      pengeluaran = totalNominal; // BK Bank kredit mutasi, tapi di BKU dan Kas Tunai tercatat di PENERIMAAN
+    } else if (resolvedJenis === 'PENERIMAAN') {
       penerimaan = totalNominal;
       pengeluaran = 0;
     } else {
@@ -419,9 +429,9 @@ export const TransactionModal: React.FC = () => {
       tanggal,
       uraian,
       nomorBukti,
-      metode,
-      jenis,
-      jenisBiaya: jenis === 'PENGELUARAN' ? (jenisBiaya || 'Bahan') : undefined,
+      metode: resolvedMetode,
+      jenis: resolvedJenis,
+      jenisBiaya: resolvedJenis === 'PENGELUARAN' && !isSp2dOrPenarikan ? (jenisBiaya || 'Bahan') : undefined,
       penerimaan,
       pengeluaran,
       penerima,
@@ -530,8 +540,12 @@ export const TransactionModal: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setMetode('TARIK_TUNAI');
+                    setJenis('PENERIMAAN');
+                    setJenisBiaya('');
                     setUraian('PENARIKAN DANA DARI BANK KE KAS TUNAI');
-                    setNomorBukti('');
+                    if (!nomorBukti || /^KW/i.test(nomorBukti)) {
+                      setNomorBukti('SP2D-001');
+                    }
                   }}
                   className={`py-2.5 px-2 text-xs font-black rounded-xl border-2 transition text-center cursor-pointer ${
                     metode === 'TARIK_TUNAI'
@@ -539,7 +553,7 @@ export const TransactionModal: React.FC = () => {
                       : 'bg-white border-purple-200 text-purple-950 hover:bg-purple-50 font-bold'
                   }`}
                 >
-                  Tarik Tunai
+                  Tarik Tunai (SP2D)
                 </button>
               </div>
             </div>
@@ -548,36 +562,37 @@ export const TransactionModal: React.FC = () => {
               <label className="block text-xs font-black text-purple-950 uppercase tracking-wide mb-2">
                 Jenis Transaksi
               </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={metode === 'TARIK_TUNAI'}
-                  onClick={() => setJenis('PENGELUARAN')}
-                  className={`py-2.5 px-3 text-xs font-black rounded-xl border-2 transition text-center cursor-pointer ${
-                    metode === 'TARIK_TUNAI'
-                      ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
-                      : jenis === 'PENGELUARAN'
-                      ? 'bg-rose-600 text-white border-rose-700 shadow-md ring-2 ring-rose-300'
-                      : 'bg-white border-purple-200 text-purple-950 hover:bg-purple-50 font-bold'
-                  }`}
-                >
-                  Pengeluaran (Kredit)
-                </button>
-                <button
-                  type="button"
-                  disabled={metode === 'TARIK_TUNAI'}
-                  onClick={() => setJenis('PENERIMAAN')}
-                  className={`py-2.5 px-3 text-xs font-black rounded-xl border-2 transition text-center cursor-pointer ${
-                    metode === 'TARIK_TUNAI'
-                      ? 'opacity-40 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400'
-                      : jenis === 'PENERIMAAN'
-                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-md ring-2 ring-emerald-300'
-                      : 'bg-white border-purple-200 text-purple-950 hover:bg-purple-50 font-bold'
-                  }`}
-                >
-                  Penerimaan (Debet)
-                </button>
-              </div>
+              {metode === 'TARIK_TUNAI' ? (
+                <div className="bg-emerald-50 border-2 border-emerald-500 text-emerald-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs">
+                  <Check className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>Penerimaan (Debet) — Dana SP2D Masuk ke Kas Tunai</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setJenis('PENGELUARAN')}
+                    className={`py-2.5 px-3 text-xs font-black rounded-xl border-2 transition text-center cursor-pointer ${
+                      jenis === 'PENGELUARAN'
+                        ? 'bg-rose-600 text-white border-rose-700 shadow-md ring-2 ring-rose-300'
+                        : 'bg-white border-purple-200 text-purple-950 hover:bg-purple-50 font-bold'
+                    }`}
+                  >
+                    Pengeluaran (Kredit)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setJenis('PENERIMAAN')}
+                    className={`py-2.5 px-3 text-xs font-black rounded-xl border-2 transition text-center cursor-pointer ${
+                      jenis === 'PENERIMAAN'
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-md ring-2 ring-emerald-300'
+                        : 'bg-white border-purple-200 text-purple-950 hover:bg-purple-50 font-bold'
+                    }`}
+                  >
+                    Penerimaan (Debet)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

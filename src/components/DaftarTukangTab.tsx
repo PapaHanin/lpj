@@ -15,6 +15,8 @@ import {
   ALL_WEEKS_2026,
   createDefaultWeeksForBangunan,
   getKodeMtp,
+  getRoleRank,
+  sortWorkersByRoleHierarchy,
 } from '../utils/bahanTukangUtils';
 import { formatToSlashDate } from '../utils/dateUtils';
 import { terbilangRupiah } from '../utils/terbilang';
@@ -82,6 +84,7 @@ export const DaftarTukangTab: React.FC = () => {
     deleteWorkersGlobally,
     batchUpdateWorkersWage,
     batchUpdateWorkersProperties,
+    reorderAllWorkersByRole,
     addNewAbsenWeek,
     syncDakFisikSchedule,
     showToast,
@@ -225,6 +228,27 @@ export const DaftarTukangTab: React.FC = () => {
     }
   }, [absenTukangList]);
 
+  // Auto-sort workers across all weeks according to official role hierarchy (Kepala Tukang K -> Tukang T -> Pekerja P)
+  // This automatically cleans up any pre-existing out-of-order workers (from screenshot or older sessions)
+  useEffect(() => {
+    let needsSort = false;
+    for (const w of absenTukangList) {
+      if (!Array.isArray(w.pekerja)) continue;
+      for (let i = 0; i < w.pekerja.length - 1; i++) {
+        const rankA = getRoleRank(w.pekerja[i]);
+        const rankB = getRoleRank(w.pekerja[i + 1]);
+        if (rankA > rankB) {
+          needsSort = true;
+          break;
+        }
+      }
+      if (needsSort) break;
+    }
+    if (needsSort) {
+      reorderAllWorkersByRole();
+    }
+  }, [absenTukangList, reorderAllWorkersByRole]);
+
   useEffect(() => {
     if (!selectedAbsenWeekId || selectedAbsenWeekId === 'absen-minggu-2') {
       setSelectedAbsenWeekId('absen-minggu-4');
@@ -284,11 +308,14 @@ export const DaftarTukangTab: React.FC = () => {
     paraf?: string;
   } | null>(null);
 
-  // Currently selected week data
+  // Currently selected week data, guaranteed sorted K -> T -> P
   const currentAbsen = useMemo(() => {
     const found = weeksForCurrentBangunan.find((w) => w.id === selectedAbsenWeekId);
-    if (found) return found;
-    return weeksForCurrentBangunan[0] || DEFAULT_ABSEN_MINGGU_4;
+    const raw = found || weeksForCurrentBangunan[0] || DEFAULT_ABSEN_MINGGU_4;
+    return {
+      ...raw,
+      pekerja: sortWorkersByRoleHierarchy(raw.pekerja || []),
+    };
   }, [weeksForCurrentBangunan, selectedAbsenWeekId]);
 
   // Derived metadata for 2-week period - STRICTLY prioritize data entered in Pengaturan (profile)
@@ -460,10 +487,17 @@ export const DaftarTukangTab: React.FC = () => {
       }
     }
 
-    return Array.from(workerMap.values()).map((w) => ({
-      ...w,
-      bangunanList: Array.from(w.bangunanMap.values()),
-    }));
+    return Array.from(workerMap.values())
+      .map((w) => ({
+        ...w,
+        bangunanList: Array.from(w.bangunanMap.values()),
+      }))
+      .sort((a, b) => {
+        const rankMap: Record<'K' | 'T' | 'P', number> = { K: 1, T: 2, P: 3 };
+        const diff = (rankMap[a.kodeMtp] || 3) - (rankMap[b.kodeMtp] || 3);
+        if (diff !== 0) return diff;
+        return a.nama.localeCompare(b.nama);
+      });
   }, [uniqueAbsenTukangList, bangunanList]);
 
   // Filtered workers for the modal
@@ -1561,6 +1595,22 @@ export const DaftarTukangTab: React.FC = () => {
           >
             <Plus className="w-3.5 h-3.5" />
             <span>+ Tambah Pekerja</span>
+          </button>
+
+          <button
+            onClick={() => {
+              reorderAllWorkersByRole();
+              showToast({
+                type: 'success',
+                title: 'Urutan Otomatis K / T / P Aktif',
+                message: 'Daftar tenaga kerja berhasil diurutkan rapi: Kepala Tukang (K) → Tukang (T) → Pekerja (P).',
+              });
+            }}
+            className="flex items-center space-x-1.5 px-3 py-1.5 text-xs bg-amber-500 hover:bg-amber-400 text-purple-950 font-bold rounded-lg transition shadow-sm cursor-pointer"
+            title="Urutkan otomatis urutan daftar tukang: Kepala Tukang (K) → Tukang (T) → Pekerja (P)"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Urutkan K / T / P</span>
           </button>
 
           <button

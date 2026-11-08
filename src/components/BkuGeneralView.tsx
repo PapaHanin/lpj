@@ -16,13 +16,15 @@ import {
   Eye,
 } from 'lucide-react';
 import { useLpjStore } from '../store/lpjStore';
-import { groupTransactionsByMonthlyBooks, getJenisBiaya } from '../utils/calculations';
+import { groupTransactionsByMonthlyBooks, getJenisBiaya, isTarikTunaiOrSp2d } from '../utils/calculations';
 import { formatRupiah } from '../utils/terbilang';
 import { formatToSlashDate } from '../utils/dateUtils';
 import { exportLpjToExcel } from '../utils/excelExport';
 import { triggerPrint } from '../utils/printHelper';
 import { TransactionSelectionBar } from './TransactionSelectionBar';
 import { Transaction } from '../types';
+import { BkuSearchBar, HighlightMatch, SearchActiveBanner } from './BkuSearchBar';
+import { matchesTransaction } from '../utils/searchHelpers';
 
 export const BkuGeneralView: React.FC = () => {
   const {
@@ -42,11 +44,17 @@ export const BkuGeneralView: React.FC = () => {
 
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const monthlyGroups = useMemo(
     () => groupTransactionsByMonthlyBooks(transactions, profile),
     [transactions, profile]
   );
+
+  const totalMatches = useMemo(() => {
+    if (!searchQuery.trim()) return 0;
+    return transactions.filter((t) => matchesTransaction(t, searchQuery)).length;
+  }, [transactions, searchQuery]);
 
   const groupsToRender = useMemo(() => {
     if (selectedMonthKey === 'ALL') {
@@ -101,6 +109,15 @@ export const BkuGeneralView: React.FC = () => {
               ))}
             </div>
           )}
+
+          {/* Kolom Pencarian BKU */}
+          <BkuSearchBar
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            totalMatches={totalMatches}
+            onClear={() => setSearchQuery('')}
+            placeholder="Cari di BKU (uraian, no bukti, nominal, item nota)..."
+          />
 
           <button
             onClick={openProfileModal}
@@ -161,6 +178,14 @@ export const BkuGeneralView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Banner Filter Pencarian Aktif */}
+      <SearchActiveBanner
+        query={searchQuery}
+        totalMatches={totalMatches}
+        onClear={() => setSearchQuery('')}
+        label="transaksi BKU"
+      />
 
       {/* Banner Notifikasi Status Tarik Tunai (Hidden saat Print) */}
       {profile.tampilkanTarikTunaiDiBku && (
@@ -233,7 +258,20 @@ export const BkuGeneralView: React.FC = () => {
 
         // Transaksi Penerimaan dalam bulan ini
         group.transactions.forEach((t) => {
-          if (t.jenis === 'PENERIMAAN' && t.metode !== 'TARIK_TUNAI') {
+          const isSp2d = isTarikTunaiOrSp2d(t);
+          if (isSp2d) {
+            // Sesuai aturan BKU DAK: Penarikan uang (SP2D / Tarik Tunai) selalu masuk di sisi PENERIMAAN
+            const nominal = t.penerimaan > 0 ? t.penerimaan : (t.pengeluaran > 0 ? t.pengeluaran : 0);
+            penerimaanItems.push({
+              id: `${t.id}-in`,
+              tanggal: formatToSlashDate(t.tanggal),
+              uraian: t.uraian,
+              nomorBukti: t.nomorBukti || 'SP2D',
+              jumlah: nominal,
+              isTarikTunai: true,
+              transaction: t,
+            });
+          } else if (t.jenis === 'PENERIMAAN' || (t.penerimaan > 0 && t.pengeluaran === 0)) {
             penerimaanItems.push({
               id: t.id,
               tanggal: formatToSlashDate(t.tanggal),
@@ -242,27 +280,18 @@ export const BkuGeneralView: React.FC = () => {
               jumlah: t.penerimaan,
               transaction: t,
             });
-          } else if (
-            t.metode === 'TARIK_TUNAI' &&
-            showTarikTunai &&
-            (posisiTarikTunai === 'penerimaan' || posisiTarikTunai === 'kedua_sisi')
-          ) {
-            penerimaanItems.push({
-              id: `${t.id}-in`,
-              tanggal: formatToSlashDate(t.tanggal),
-              uraian: t.uraian,
-              nomorBukti: t.nomorBukti || '-',
-              jumlah: t.penerimaan || t.pengeluaran,
-              isTarikTunai: true,
-              transaction: t,
-            });
           }
         });
 
-        // Transaksi Pengeluaran dalam bulan ini (belanja riil)
+        // Transaksi Pengeluaran dalam bulan ini (belanja riil barang & upah, BUKAN penarikan uang/SP2D)
         const pengeluaranItems: PengeluaranItem[] = [];
         group.transactions.forEach((t) => {
-          if (t.jenis === 'PENGELUARAN' || (t.metode !== 'TARIK_TUNAI' && t.pengeluaran > 0)) {
+          // Penarikan dana/SP2D BUKAN pengeluaran/belanja! Jangan pernah dimasukkan ke sisi Pengeluaran
+          if (isTarikTunaiOrSp2d(t)) {
+            return;
+          }
+
+          if (t.jenis === 'PENGELUARAN' || t.pengeluaran > 0) {
             pengeluaranItems.push({
               id: t.id,
               tanggal: formatToSlashDate(t.tanggal),
@@ -272,25 +301,32 @@ export const BkuGeneralView: React.FC = () => {
               jumlah: t.pengeluaran,
               transaction: t,
             });
-          } else if (
-            t.metode === 'TARIK_TUNAI' &&
-            showTarikTunai &&
-            (posisiTarikTunai === 'pengeluaran' || posisiTarikTunai === 'kedua_sisi')
-          ) {
-            pengeluaranItems.push({
-              id: `${t.id}-out`,
-              tanggal: formatToSlashDate(t.tanggal),
-              uraian: t.uraian,
-              nomorBukti: t.nomorBukti || '',
-              jenisBiaya: t.jenisBiaya || 'Tarik Tunai',
-              jumlah: t.pengeluaran || t.penerimaan,
-              isTarikTunai: true,
-              transaction: t,
-            });
           }
         });
 
-        const maxRows = Math.max(penerimaanItems.length, pengeluaranItems.length, 8);
+        const isSearching = Boolean(searchQuery.trim());
+        const displayPenerimaan = isSearching
+          ? penerimaanItems.filter((p) =>
+              p.isInitial
+                ? p.uraian.toLowerCase().includes(searchQuery.toLowerCase().trim())
+                : matchesTransaction(p.transaction, searchQuery) ||
+                  p.uraian.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+                  p.nomorBukti.toLowerCase().includes(searchQuery.toLowerCase().trim())
+            )
+          : penerimaanItems;
+
+        const displayPengeluaran = isSearching
+          ? pengeluaranItems.filter((q) =>
+              matchesTransaction(q.transaction, searchQuery) ||
+              q.uraian.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+              q.nomorBukti.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+              q.jenisBiaya.toLowerCase().includes(searchQuery.toLowerCase().trim())
+            )
+          : pengeluaranItems;
+
+        const maxRows = isSearching
+          ? Math.max(displayPenerimaan.length, displayPengeluaran.length, 1)
+          : Math.max(penerimaanItems.length, pengeluaranItems.length, 8);
         const totalPenerimaan = penerimaanItems.reduce((acc, p) => acc + p.jumlah, 0);
         const totalPengeluaran = pengeluaranItems.reduce((acc, q) => acc + q.jumlah, 0);
         const saldoKasUmum = totalPenerimaan - totalPengeluaran;
@@ -387,97 +423,106 @@ export const BkuGeneralView: React.FC = () => {
                 </thead>
 
                 <tbody>
-                  {Array.from({ length: maxRows }).map((_, idx) => {
-                    const p = penerimaanItems[idx];
-                    const q = pengeluaranItems[idx];
+                  {isSearching && displayPenerimaan.length === 0 && displayPengeluaran.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="border border-black py-8 text-center text-slate-500 italic bg-amber-50/40">
+                        Tidak ada transaksi pada bulan {group.label} yang cocok dengan kata kunci "{searchQuery}"
+                      </td>
+                    </tr>
+                  ) : (
+                    Array.from({ length: maxRows }).map((_, idx) => {
+                      const p = displayPenerimaan[idx];
+                      const q = displayPengeluaran[idx];
 
-                    return (
-                      <tr
-                        key={`bku-row-${group.monthKey}-${idx}`}
-                        className="hover:bg-slate-50 transition text-black font-sans"
-                      >
-                        {/* Kolom 1: Tanggal Penerimaan */}
-                        <td className="border border-black py-1.5 px-2 text-center whitespace-nowrap">
-                          {p ? p.tanggal : ''}
-                        </td>
+                      return (
+                        <tr
+                          key={`bku-row-${group.monthKey}-${idx}`}
+                          className="hover:bg-slate-50 transition text-black font-sans"
+                        >
+                          {/* Kolom 1: Tanggal Penerimaan */}
+                          <td className="border border-black py-1.5 px-2 text-center whitespace-nowrap">
+                            {p ? <HighlightMatch text={p.tanggal} query={searchQuery} /> : ''}
+                          </td>
 
-                        {/* Kolom 2: Uraian Penerimaan */}
-                        <td className="border border-black py-1.5 px-2 text-left">
-                          {p ? (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={p.isInitial ? 'font-bold italic text-purple-950' : 'font-medium'}>
-                                {p.uraian}
-                              </span>
-                              {p.isTarikTunai && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:border-black print:text-black">
-                                  Tarik Tunai
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            ''
-                          )}
-                        </td>
-
-                        {/* Kolom 3: No. Bukti Penerimaan */}
-                        <td className="border border-black py-1.5 px-2 text-center font-mono font-medium">
-                          {p ? p.nomorBukti : ''}
-                        </td>
-
-                        {/* Kolom 4: Jumlah Penerimaan */}
-                        <td className="border border-black py-1.5 px-2 text-right font-mono font-bold">
-                          {p ? formatRupiah(p.jumlah, false) : ''}
-                        </td>
-
-                        {/* Kolom 5: Tanggal Pengeluaran */}
-                        <td className="border border-black py-1.5 px-2 text-center whitespace-nowrap">
-                          {q ? q.tanggal : ''}
-                        </td>
-
-                        {/* Kolom 6: Uraian Pengeluaran */}
-                        <td className="border border-black py-1.5 px-2 text-left">
-                          {q ? (
-                            <div className="flex items-center justify-between gap-1">
+                          {/* Kolom 2: Uraian Penerimaan */}
+                          <td className="border border-black py-1.5 px-2 text-left">
+                            {p ? (
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-medium">{q.uraian}</span>
-                                {q.isTarikTunai && (
+                                <span className={p.isInitial ? 'font-bold italic text-purple-950' : 'font-medium'}>
+                                  <HighlightMatch text={p.uraian} query={searchQuery} />
+                                </span>
+                                {p.isTarikTunai && (
                                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:border-black print:text-black">
                                     Tarik Tunai
                                   </span>
                                 )}
                               </div>
-                              {!q.transaction.subItems?.length && null}
-                              {q.transaction.subItems && q.transaction.subItems.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => openNotaModal(q.transaction)}
-                                  className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 hover:border-amber-400 transition shrink-0 print:hidden cursor-pointer flex items-center gap-1 shadow-xs group active:scale-95"
-                                  title="Klik untuk melihat rincian barang belanja nota ini"
-                                >
-                                  <Eye className="w-3 h-3 text-amber-800 group-hover:text-black transition" />
-                                  <span>{q.transaction.subItems.length} item nota</span>
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            ''
-                          )}
-                        </td>
+                            ) : (
+                              ''
+                            )}
+                          </td>
 
-                        {/* Kolom 7: No. Bukti Pengeluaran */}
-                        <td className="border border-black py-1.5 px-2 text-center font-mono font-bold">
-                          {q ? q.nomorBukti : ''}
-                        </td>
+                          {/* Kolom 3: No. Bukti Penerimaan */}
+                          <td className="border border-black py-1.5 px-2 text-center font-mono font-medium">
+                            {p ? <HighlightMatch text={p.nomorBukti} query={searchQuery} /> : ''}
+                          </td>
 
-                        {/* Kolom 8: Jenis Biaya Pengeluaran Sesuai Gambar */}
-                        <td className="border border-black py-1.5 px-2 text-center font-medium">
-                          {q ? q.jenisBiaya : ''}
-                        </td>
+                          {/* Kolom 4: Jumlah Penerimaan */}
+                          <td className="border border-black py-1.5 px-2 text-right font-mono font-bold">
+                            {p ? formatRupiah(p.jumlah, false) : ''}
+                          </td>
 
-                        {/* Kolom 9: Jumlah Pengeluaran */}
-                        <td className="border border-black py-1.5 px-2 text-right font-mono font-bold">
-                          {q ? formatRupiah(q.jumlah, false) : ''}
-                        </td>
+                          {/* Kolom 5: Tanggal Pengeluaran */}
+                          <td className="border border-black py-1.5 px-2 text-center whitespace-nowrap">
+                            {q ? <HighlightMatch text={q.tanggal} query={searchQuery} /> : ''}
+                          </td>
+
+                          {/* Kolom 6: Uraian Pengeluaran */}
+                          <td className="border border-black py-1.5 px-2 text-left">
+                            {q ? (
+                              <div className="flex items-center justify-between gap-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-medium">
+                                    <HighlightMatch text={q.uraian} query={searchQuery} />
+                                  </span>
+                                  {q.isTarikTunai && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:border-black print:text-black">
+                                      Tarik Tunai
+                                    </span>
+                                  )}
+                                </div>
+                                {!q.transaction.subItems?.length && null}
+                                {q.transaction.subItems && q.transaction.subItems.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openNotaModal(q.transaction)}
+                                    className="text-[9.5px] font-extrabold px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 hover:border-amber-400 transition shrink-0 print:hidden cursor-pointer flex items-center gap-1 shadow-xs group active:scale-95"
+                                    title="Klik untuk melihat rincian barang belanja nota ini"
+                                  >
+                                    <Eye className="w-3 h-3 text-amber-800 group-hover:text-black transition" />
+                                    <span>{q.transaction.subItems.length} item nota</span>
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              ''
+                            )}
+                          </td>
+
+                          {/* Kolom 7: No. Bukti Pengeluaran */}
+                          <td className="border border-black py-1.5 px-2 text-center font-mono font-bold">
+                            {q ? <HighlightMatch text={q.nomorBukti} query={searchQuery} /> : ''}
+                          </td>
+
+                          {/* Kolom 8: Jenis Biaya Pengeluaran Sesuai Gambar */}
+                          <td className="border border-black py-1.5 px-2 text-center font-medium">
+                            {q ? <HighlightMatch text={q.jenisBiaya} query={searchQuery} /> : ''}
+                          </td>
+
+                          {/* Kolom 9: Jumlah Pengeluaran */}
+                          <td className="border border-black py-1.5 px-2 text-right font-mono font-bold">
+                            {q ? formatRupiah(q.jumlah, false) : ''}
+                          </td>
 
                         {/* Aksi Baris (Screen Only) */}
                         <td className="border border-black py-1.5 px-1 text-center print:hidden">
@@ -518,7 +563,7 @@ export const BkuGeneralView: React.FC = () => {
                         </td>
                       </tr>
                     );
-                  })}
+                  }))}
 
                   {/* Baris Bawah 1: Total Pengeluaran (III) */}
                   <tr className="font-bold text-black bg-white">

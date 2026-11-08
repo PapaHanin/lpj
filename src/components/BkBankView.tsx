@@ -19,6 +19,8 @@ import { exportLpjToExcel } from '../utils/excelExport';
 import { triggerPrint } from '../utils/printHelper';
 import { TransactionSelectionBar } from './TransactionSelectionBar';
 import { Transaction } from '../types';
+import { BkuSearchBar, HighlightMatch, SearchActiveBanner } from './BkuSearchBar';
+import { matchesBkBankRow } from '../utils/searchHelpers';
 
 export const BkBankView: React.FC = () => {
   const {
@@ -34,11 +36,25 @@ export const BkBankView: React.FC = () => {
 
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const monthlyGroups = useMemo(
     () => groupTransactionsByMonthlyBooks(transactions, profile),
     [transactions, profile]
   );
+
+  const totalMatches = useMemo(() => {
+    if (!searchQuery.trim()) return 0;
+    let count = 0;
+    for (const group of monthlyGroups) {
+      for (const r of group.bkBank.rows) {
+        if (!r.isInitialRow && matchesBkBankRow(r, searchQuery)) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }, [monthlyGroups, searchQuery]);
 
   const groupsToRender = useMemo(() => {
     if (selectedMonthKey === 'ALL') {
@@ -99,6 +115,15 @@ export const BkBankView: React.FC = () => {
               ))}
             </div>
           )}
+
+          {/* Kolom Pencarian BK Bank */}
+          <BkuSearchBar
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            totalMatches={totalMatches}
+            onClear={() => setSearchQuery('')}
+            placeholder="Cari transaksi bank (uraian, no bukti, debet/kredit)..."
+          />
 
           <button
             onClick={openProfileModal}
@@ -177,6 +202,14 @@ export const BkBankView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Banner Pencarian Aktif */}
+      <SearchActiveBanner
+        query={searchQuery}
+        totalMatches={totalMatches}
+        onClear={() => setSearchQuery('')}
+        label="transaksi bank"
+      />
 
       {/* Render Each Month Sheet */}
       {groupsToRender.map((group, gIdx) => (
@@ -336,148 +369,187 @@ export const BkBankView: React.FC = () => {
                   </thead>
 
                   <tbody>
-                    {group.bkBank.rows.map((row, idx) => {
-                      const isSelected = !row.isInitialRow && selectedTxIds.includes(row.transaction.id);
-                      const currentIndexInNonInitial = nonInitialRows.findIndex(
-                        (r) => r.transaction?.id === row.transaction?.id
-                      );
-                      const canMoveUp = currentIndexInNonInitial > 0;
-                      const canMoveDown =
-                        currentIndexInNonInitial >= 0 &&
-                        currentIndexInNonInitial < nonInitialRows.length - 1;
+                    {(() => {
+                      const isSearching = searchQuery.trim().length > 0;
+                      const rowsToDisplay = isSearching
+                        ? group.bkBank.rows.filter(
+                            (r) => !r.isInitialRow && matchesBkBankRow(r, searchQuery)
+                          )
+                        : group.bkBank.rows;
 
-                      return (
-                        <tr
-                          key={row.isInitialRow ? `initial-bank-${group.monthKey}` : row.transaction.id}
-                          className={`hover:bg-slate-50 transition ${
-                            row.isInitialRow
-                              ? 'bg-amber-50/50 font-bold'
-                              : isSelected
-                              ? 'bg-amber-100/70 border-l-4 border-l-amber-500 font-semibold ring-1 ring-amber-300 inset'
-                              : idx % 2 === 1
-                              ? 'bg-slate-50/40'
-                              : 'bg-white'
-                          }`}
-                        >
-                          {/* Checkbox */}
-                          <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
-                            {row.isInitialRow ? (
-                              <span className="text-slate-400 font-mono text-[10px]">-</span>
-                            ) : (
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleToggleSelect(row.transaction.id)}
-                                className="w-4 h-4 text-purple-900 rounded cursor-pointer align-middle accent-purple-800"
-                                title="Centang untuk edit / hapus / tukar nomor BKU"
-                              />
-                            )}
-                          </td>
+                      if (isSearching && rowsToDisplay.length === 0) {
+                        return (
+                          <tr>
+                            <td
+                              colSpan={9}
+                              className="border border-slate-900 py-8 px-4 text-center bg-amber-50/60 text-slate-700"
+                            >
+                              <p className="font-bold text-sm text-slate-800">
+                                Tidak ada transaksi bank yang cocok dengan &quot;{searchQuery}&quot; pada bulan {group.label}.
+                              </p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                Coba gunakan kata kunci lain (misal: nominal, nomor bukti, atau kata dalam uraian) atau klik &quot;Reset&quot;.
+                              </p>
+                            </td>
+                          </tr>
+                        );
+                      }
 
-                          <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
-                            {row.no}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 whitespace-nowrap font-medium text-black">
-                            {row.tanggal}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-4 font-bold text-black">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className={row.isInitialRow ? 'font-black italic text-purple-950' : ''}>
-                                {row.uraian}
-                              </span>
-                              {row.isInitialRow && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200/80 text-amber-950 border border-amber-400 print:hidden not-italic">
-                                  Saldo Awal Rekening
-                                </span>
+                      return rowsToDisplay.map((row, idx) => {
+                        const isSelected = !row.isInitialRow && selectedTxIds.includes(row.transaction.id);
+                        const currentIndexInNonInitial = nonInitialRows.findIndex(
+                          (r) => r.transaction?.id === row.transaction?.id
+                        );
+                        const canMoveUp = currentIndexInNonInitial > 0;
+                        const canMoveDown =
+                          currentIndexInNonInitial >= 0 &&
+                          currentIndexInNonInitial < nonInitialRows.length - 1;
+
+                        return (
+                          <tr
+                            key={row.isInitialRow ? `initial-bank-${group.monthKey}` : row.transaction.id}
+                            className={`hover:bg-slate-50 transition ${
+                              row.isInitialRow
+                                ? 'bg-amber-50/50 font-bold'
+                                : isSelected
+                                ? 'bg-amber-100/70 border-l-4 border-l-amber-500 font-semibold ring-1 ring-amber-300 inset'
+                                : idx % 2 === 1
+                                ? 'bg-slate-50/40'
+                                : 'bg-white'
+                            }`}
+                          >
+                            {/* Checkbox */}
+                            <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
+                              {row.isInitialRow ? (
+                                <span className="text-slate-400 font-mono text-[10px]">-</span>
+                              ) : (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleSelect(row.transaction.id)}
+                                  className="w-4 h-4 text-purple-900 rounded cursor-pointer align-middle accent-purple-800"
+                                  title="Centang untuk edit / hapus / tukar nomor BKU"
+                                />
                               )}
-                              {!row.isInitialRow && row.transaction.metode === 'TARIK_TUNAI' && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:hidden shrink-0">
-                                  Pindah ke Kas Tunai
+                            </td>
+
+                            <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
+                              {row.no}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-3 whitespace-nowrap font-medium text-black">
+                              <HighlightMatch text={row.tanggal} query={searchQuery} />
+                            </td>
+                            <td className="border border-slate-900 py-2 px-4 font-bold text-black">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={row.isInitialRow ? 'font-black italic text-purple-950' : ''}>
+                                  <HighlightMatch text={row.uraian} query={searchQuery} />
                                 </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 text-center font-mono font-bold text-black">
-                            {row.nomorBukti || '-'}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 text-right font-mono font-bold text-black">
-                            {row.debet > 0 ? formatRupiah(row.debet, false) : '-'}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 text-right font-mono font-bold text-rose-700">
-                            {row.kredit > 0 ? formatRupiah(row.kredit, false) : '-'}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-3 text-right font-mono font-black text-black">
-                            {formatRupiah(row.saldo, false)}
-                          </td>
-                          <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
-                            {!row.isInitialRow && (
-                              <div className="flex items-center justify-center space-x-1">
-                                {/* Pindah ke Atas */}
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleMoveRowUp(
-                                      row.transaction,
-                                      nonInitialRows[currentIndexInNonInitial - 1]?.transaction
-                                    )
-                                  }
-                                  disabled={!canMoveUp}
-                                  className="p-1 text-slate-600 hover:text-purple-900 hover:bg-purple-100 rounded disabled:opacity-20 disabled:cursor-not-allowed transition cursor-pointer"
-                                  title="Pindah ke Atas"
-                                >
-                                  <ArrowUp className="w-3.5 h-3.5" />
-                                </button>
-
-                                {/* Pindah ke Bawah */}
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleMoveRowDown(
-                                      row.transaction,
-                                      nonInitialRows[currentIndexInNonInitial + 1]?.transaction
-                                    )
-                                  }
-                                  disabled={!canMoveDown}
-                                  className="p-1 text-slate-600 hover:text-purple-900 hover:bg-purple-100 rounded disabled:opacity-20 disabled:cursor-not-allowed transition cursor-pointer"
-                                  title="Pindah ke Bawah"
-                                >
-                                  <ArrowDown className="w-3.5 h-3.5" />
-                                </button>
-
-                                {/* Tukar Nomor BKU */}
-                                <button
-                                  type="button"
-                                  onClick={() => openSwapRenumberModal(row.transaction.id)}
-                                  className="p-1 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded transition cursor-pointer"
-                                  title="Tukar Nomor BKU dengan transaksi lain"
-                                >
-                                  <ArrowLeftRight className="w-3.5 h-3.5" />
-                                </button>
-
-                                <button
-                                  onClick={() => openTransactionModal(row.transaction)}
-                                  className="p-1 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
-                                  title="Edit Baris"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (window.confirm(`Hapus transaksi "${row.uraian}"?`)) {
-                                      deleteTransaction(row.transaction.id);
-                                    }
-                                  }}
-                                  className="p-1 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                                  title="Hapus"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {row.isInitialRow && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200/80 text-amber-950 border border-amber-400 print:hidden not-italic">
+                                    Saldo Awal Rekening
+                                  </span>
+                                )}
+                                {!row.isInitialRow && row.transaction.metode === 'TARIK_TUNAI' && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 print:hidden shrink-0">
+                                    Pindah ke Kas Tunai
+                                  </span>
+                                )}
                               </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-3 text-center font-mono font-bold text-black">
+                              {row.nomorBukti ? (
+                                <HighlightMatch text={row.nomorBukti} query={searchQuery} />
+                              ) : (
+                                '-'
+                              )}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-3 text-right font-mono font-bold text-black">
+                              {row.debet > 0 ? (
+                                <HighlightMatch text={formatRupiah(row.debet, false)} query={searchQuery} />
+                              ) : (
+                                '-'
+                              )}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-3 text-right font-mono font-bold text-rose-700">
+                              {row.kredit > 0 ? (
+                                <HighlightMatch text={formatRupiah(row.kredit, false)} query={searchQuery} />
+                              ) : (
+                                '-'
+                              )}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-3 text-right font-mono font-black text-black">
+                              {formatRupiah(row.saldo, false)}
+                            </td>
+                            <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
+                              {!row.isInitialRow && (
+                                <div className="flex items-center justify-center space-x-1">
+                                  {/* Pindah ke Atas */}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleMoveRowUp(
+                                        row.transaction,
+                                        nonInitialRows[currentIndexInNonInitial - 1]?.transaction
+                                      )
+                                    }
+                                    disabled={!canMoveUp}
+                                    className="p-1 text-slate-600 hover:text-purple-900 hover:bg-purple-100 rounded disabled:opacity-20 disabled:cursor-not-allowed transition cursor-pointer"
+                                    title="Pindah ke Atas"
+                                  >
+                                    <ArrowUp className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Pindah ke Bawah */}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleMoveRowDown(
+                                        row.transaction,
+                                        nonInitialRows[currentIndexInNonInitial + 1]?.transaction
+                                      )
+                                    }
+                                    disabled={!canMoveDown}
+                                    className="p-1 text-slate-600 hover:text-purple-900 hover:bg-purple-100 rounded disabled:opacity-20 disabled:cursor-not-allowed transition cursor-pointer"
+                                    title="Pindah ke Bawah"
+                                  >
+                                    <ArrowDown className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {/* Tukar Nomor BKU */}
+                                  <button
+                                    type="button"
+                                    onClick={() => openSwapRenumberModal(row.transaction.id)}
+                                    className="p-1 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded transition cursor-pointer"
+                                    title="Tukar Nomor BKU dengan transaksi lain"
+                                  >
+                                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => openTransactionModal(row.transaction)}
+                                    className="p-1 text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded cursor-pointer"
+                                    title="Edit Baris"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (window.confirm(`Hapus transaksi "${row.uraian}"?`)) {
+                                        deleteTransaction(row.transaction.id);
+                                      }
+                                    }}
+                                    className="p-1 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                                    title="Hapus"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
 
                     {/* Baris Total / JUMLAH */}
                     <tr className="bg-slate-100 font-bold text-black text-xs">

@@ -42,6 +42,8 @@ import {
 } from '../utils/pajakUtils';
 import { triggerPrint } from '../utils/printHelper';
 import { terbilangRupiah } from '../utils/terbilang';
+import { BkuSearchBar, HighlightMatch, SearchActiveBanner } from './BkuSearchBar';
+import { matchesPajakRow } from '../utils/searchHelpers';
 
 export interface TaxEntryDraft {
   id: string;
@@ -179,12 +181,26 @@ export const BkuPajakView: React.FC = () => {
 
   // Pilihan Tab Bulan yang ditampilkan: 'ALL' (Semua Bulan Berjalan) atau 'YYYY-MM' (Bulan Spesifik)
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Mengelompokkan baris BKU Pajak ke dalam buku bulanan sesuai dengan bulan-bulan berjalan di BKU Tunai
   const monthlyPajakGroups = useMemo(
     () => groupPajakRowsByMonthlyBooks(pajakRows, transactions, profile, onlyTaxableFilter),
     [pajakRows, transactions, profile, onlyTaxableFilter]
   );
+
+  const totalMatches = useMemo(() => {
+    if (!searchQuery.trim()) return 0;
+    let count = 0;
+    for (const group of monthlyPajakGroups) {
+      for (const r of group.rows) {
+        if (!r.isInitialRow && matchesPajakRow(r, searchQuery)) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }, [monthlyPajakGroups, searchQuery]);
 
   const groupsToRender = useMemo(() => {
     if (selectedMonthKey === 'ALL') {
@@ -777,17 +793,7 @@ export const BkuPajakView: React.FC = () => {
               r.pengeluaran > 0 ? `Rp ${r.pengeluaran.toLocaleString('id-ID')}` : 'Rp -',
               r.saldo > 0 ? `Rp ${r.saldo.toLocaleString('id-ID')}` : 'Rp -',
             ])
-          : [
-              [
-                '-',
-                group.tanggalTutupBuku,
-                '-',
-                `Nihil - Tidak terdapat transaksi pemotongan dan penyetoran pajak pada periode ${group.label}`,
-                'Rp -',
-                'Rp -',
-                'Rp -',
-              ],
-            ];
+          : Array.from({ length: 6 }).map(() => ['', '', '', '', '', '', '']);
 
       const aoa: (string | number)[][] = [
         [profile.namaSekolah],
@@ -943,6 +949,15 @@ export const BkuPajakView: React.FC = () => {
               ))}
             </div>
           )}
+
+          {/* Kolom Pencarian BKU Pajak */}
+          <BkuSearchBar
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            totalMatches={totalMatches}
+            onClear={() => setSearchQuery('')}
+            placeholder="Cari BKU pajak (uraian, no bukti, jenis pajak, nominal)..."
+          />
 
           <button
             onClick={() => {
@@ -1231,6 +1246,14 @@ export const BkuPajakView: React.FC = () => {
         </div>
       </div>
 
+      {/* Banner Pencarian Aktif */}
+      <SearchActiveBanner
+        query={searchQuery}
+        totalMatches={totalMatches}
+        onClear={() => setSearchQuery('')}
+        label="transaksi BKU pajak"
+      />
+
       {/* Render Each Running Month Sheet matching BKU Tunai & Format Resmi */}
       {groupsToRender.map((group, gIdx) => (
         <div
@@ -1318,47 +1341,51 @@ export const BkuPajakView: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {group.rows.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={9}
-                      className="border border-black py-5 px-4 text-center text-slate-600 bg-slate-50 italic"
-                    >
-                      <div className="space-y-1.5">
-                        <p className="font-bold text-slate-800 text-xs sm:text-sm">
-                          Nihil — Tidak terdapat transaksi pemotongan dan penyetoran pajak pada periode {group.label}.
-                        </p>
-                        <p className="text-[11px] text-slate-500 max-w-xl mx-auto">
-                          Sesuai aturan perpajakan P2SP Swakelola (KPP Pratama), belanja material toko swakelola biasa dan upah tukang &le; Rp 450.000/hari bebas potongan pajak.
-                        </p>
-                        <div className="pt-2 print:hidden flex items-center justify-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setAddMode('paket_otomatis');
-                              const mNum = String(group.monthKey.split('-')[1]).padStart(2, '0');
-                              setFormTanggal(`01/${mNum}/${group.year}`);
-                              setIsAddModalOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-purple-950 font-black text-xs rounded-xl transition cursor-pointer shadow-xs active:scale-95"
-                          >
-                            <PlusCircle className="w-3.5 h-3.5" />
-                            <span>+ Tambah Pajak Bulan {group.monthName}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleOpenBatchSyncModal}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-950 hover:bg-purple-900 text-amber-300 font-bold text-xs rounded-xl border border-amber-400/40 transition cursor-pointer active:scale-95"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Pilih Belanja BKU</span>
-                          </button>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  group.rows.map((r, idx) => {
+                {(() => {
+                  const isSearching = searchQuery.trim().length > 0;
+                  const rowsToDisplay = isSearching
+                    ? group.rows.filter((r) => !r.isInitialRow && matchesPajakRow(r, searchQuery))
+                    : group.rows;
+
+                  if (isSearching && rowsToDisplay.length === 0) {
+                    return (
+                      <tr>
+                        <td
+                          colSpan={9}
+                          className="border border-black py-8 px-4 text-center bg-amber-50/60 text-slate-700"
+                        >
+                          <p className="font-bold text-sm text-slate-800">
+                            Tidak ada catatan pajak yang cocok dengan &quot;{searchQuery}&quot; pada bulan {group.label}.
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Coba kata kunci lain (uraian belanja, nomor bukti, jenis pajak, atau nominal) atau klik &quot;Reset&quot;.
+                          </p>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  if (rowsToDisplay.length === 0) {
+                    return (
+                      <>
+                        {Array.from({ length: 6 }).map((_, emptyIdx) => (
+                          <tr key={`empty-${group.monthKey}-${emptyIdx}`} className="h-8 text-black">
+                            <td className="border border-black py-2.5 px-2 text-center print:hidden bg-white">&nbsp;</td>
+                            <td className="border border-black py-2.5 px-1.5 text-center">&nbsp;</td>
+                            <td className="border border-black py-2.5 px-2 text-center">&nbsp;</td>
+                            <td className="border border-black py-2.5 px-2 text-center">&nbsp;</td>
+                            <td className="border border-black py-2.5 px-3 text-left">&nbsp;</td>
+                            <td className="border border-black py-2.5 px-2.5 text-right">&nbsp;</td>
+                            <td className="border border-black py-2.5 px-2.5 text-right">&nbsp;</td>
+                            <td className="border border-black py-2.5 px-2.5 text-right">&nbsp;</td>
+                            <td className="border border-black py-2.5 px-2 text-center print:hidden bg-slate-50/50">&nbsp;</td>
+                          </tr>
+                        ))}
+                      </>
+                    );
+                  }
+
+                  return rowsToDisplay.map((r, idx) => {
                     const isChecked = selectedRowIds.includes(r.id);
                     return (
                       <tr
@@ -1394,17 +1421,21 @@ export const BkuPajakView: React.FC = () => {
 
                         {/* Tanggal (DD/MM/YYYY) */}
                         <td className="border border-black py-1 px-2 text-center font-mono whitespace-nowrap">
-                          {r.tanggalFormatted}
+                          <HighlightMatch text={r.tanggalFormatted} query={searchQuery} />
                         </td>
 
                         {/* Nomor Bukti */}
                         <td className="border border-black py-1 px-2 text-center font-mono whitespace-nowrap">
-                          {r.nomorBukti || ''}
+                          {r.nomorBukti ? (
+                            <HighlightMatch text={r.nomorBukti} query={searchQuery} />
+                          ) : (
+                            ''
+                          )}
                         </td>
 
                         {/* Uraian */}
                         <td className="border border-black py-1 px-2.5 text-left">
-                          {r.uraian}
+                          <HighlightMatch text={r.uraian} query={searchQuery} />
                         </td>
 
                         {/* Penerimaan Rp. */}
@@ -1412,7 +1443,14 @@ export const BkuPajakView: React.FC = () => {
                           <div className="flex items-center justify-between gap-1">
                             <span>Rp</span>
                             <span>
-                              {r.penerimaan > 0 ? r.penerimaan.toLocaleString('id-ID') : '-'}
+                              {r.penerimaan > 0 ? (
+                                <HighlightMatch
+                                  text={r.penerimaan.toLocaleString('id-ID')}
+                                  query={searchQuery}
+                                />
+                              ) : (
+                                '-'
+                              )}
                             </span>
                           </div>
                         </td>
@@ -1422,7 +1460,14 @@ export const BkuPajakView: React.FC = () => {
                           <div className="flex items-center justify-between gap-1">
                             <span>Rp</span>
                             <span>
-                              {r.pengeluaran > 0 ? r.pengeluaran.toLocaleString('id-ID') : '-'}
+                              {r.pengeluaran > 0 ? (
+                                <HighlightMatch
+                                  text={r.pengeluaran.toLocaleString('id-ID')}
+                                  query={searchQuery}
+                                />
+                              ) : (
+                                '-'
+                              )}
                             </span>
                           </div>
                         </td>
@@ -1453,7 +1498,7 @@ export const BkuPajakView: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => movePajakRow(r.id, 'down')}
-                                disabled={idx === group.rows.length - 1}
+                                disabled={idx === rowsToDisplay.length - 1}
                                 className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 text-slate-700 cursor-pointer"
                                 title="Geser ke bawah"
                               >
@@ -1484,8 +1529,8 @@ export const BkuPajakView: React.FC = () => {
                         </td>
                       </tr>
                     );
-                  })
-                )}
+                  });
+                })()}
 
                 {/* Summary Footer Row for this Month */}
                 <tr className="bg-slate-50 print:bg-white font-bold text-black border-t-2 border-black">

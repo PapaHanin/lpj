@@ -26,6 +26,8 @@ import { exportLpjToExcel } from '../utils/excelExport';
 import { triggerPrint } from '../utils/printHelper';
 import { TransactionSelectionBar } from './TransactionSelectionBar';
 import { Transaction } from '../types';
+import { BkuSearchBar, HighlightMatch, SearchActiveBanner } from './BkuSearchBar';
+import { matchesBkuTunaiRow } from '../utils/searchHelpers';
 
 export const BkuTunaiView: React.FC = () => {
   const {
@@ -44,6 +46,7 @@ export const BkuTunaiView: React.FC = () => {
 
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('ALL');
   const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [showSubDetails, setShowSubDetails] = useState<boolean>(false);
   const [printWithSubDetails, setPrintWithSubDetails] = useState<boolean>(true);
   const [expandedTxIds, setExpandedTxIds] = useState<Set<string>>(new Set());
@@ -63,6 +66,19 @@ export const BkuTunaiView: React.FC = () => {
     () => groupTransactionsByMonthlyBooks(transactions, profile),
     [transactions, profile]
   );
+
+  const totalMatches = useMemo(() => {
+    if (!searchQuery.trim()) return 0;
+    let count = 0;
+    for (const group of monthlyGroups) {
+      for (const r of group.bkuTunai.rows) {
+        if (!r.isInitialRow && matchesBkuTunaiRow(r, searchQuery)) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }, [monthlyGroups, searchQuery]);
 
   const groupsToRender = useMemo(() => {
     if (selectedMonthKey === 'ALL') {
@@ -123,6 +139,15 @@ export const BkuTunaiView: React.FC = () => {
               ))}
             </div>
           )}
+
+          {/* Kolom Pencarian BKU Tunai */}
+          <BkuSearchBar
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            totalMatches={totalMatches}
+            onClear={() => setSearchQuery('')}
+            placeholder="Cari transaksi kas tunai / rincian nota..."
+          />
 
           <button
             onClick={() => setSignatureFormat((prev) => (prev === '3_pihak' ? '2_pihak' : '3_pihak'))}
@@ -217,6 +242,14 @@ export const BkuTunaiView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Banner Filter Pencarian Aktif */}
+      <SearchActiveBanner
+        query={searchQuery}
+        totalMatches={totalMatches}
+        onClear={() => setSearchQuery('')}
+        label="transaksi kas tunai"
+      />
 
       {/* Banner Khusus BKU Tunai: Seluruh Nota Belanja Otomatis Tercetak */}
       <div className="bg-amber-400/15 border-2 border-amber-400/50 rounded-2xl p-3.5 text-purple-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md print:hidden">
@@ -414,85 +447,109 @@ export const BkuTunaiView: React.FC = () => {
                   </thead>
 
                   <tbody>
-                    {group.bkuTunai.rows.map((row) => {
-                      if (row.isInitialRow) {
+                    {(() => {
+                      const isSearching = Boolean(searchQuery.trim());
+                      const rowsToDisplay = isSearching
+                        ? group.bkuTunai.rows.filter((r) => {
+                            if (r.isInitialRow) return false;
+                            return matchesBkuTunaiRow(r, searchQuery);
+                          })
+                        : group.bkuTunai.rows;
+
+                      if (isSearching && rowsToDisplay.length === 0) {
                         return (
-                          <tr
-                            key={`initial-tunai-${group.monthKey}`}
-                            className="bg-amber-50/60 font-bold text-black"
-                          >
-                            <td className="border border-slate-900 py-2 px-1 text-center print:hidden bg-amber-100/50 text-slate-400 font-mono text-[10px]">
-                              -
+                          <tr>
+                            <td
+                              colSpan={9}
+                              className="border border-slate-900 py-8 text-center text-slate-500 italic bg-amber-50/40"
+                            >
+                              Tidak ada transaksi di bulan {group.label} yang cocok dengan kata kunci "{searchQuery}"
                             </td>
-                            <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
-                              {row.no}
-                            </td>
-                            <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium text-center">
-                              {row.tanggal}
-                            </td>
-                            <td className="border border-slate-900 py-2 px-3 font-black italic text-purple-950">
-                              {row.uraian}
-                              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 border border-amber-400 print:hidden not-italic">
-                                Saldo Awal Kas Tunai
-                              </span>
-                            </td>
-                            <td className="border border-slate-900 py-2 px-2 text-center text-slate-400 font-mono">-</td>
-                            <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
-                              {formatRupiah(row.penerimaan, false)}
-                            </td>
-                            <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400 font-mono">-</td>
-                            <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
-                              {formatRupiah(row.saldo, false)}
-                            </td>
-                            <td className="border border-slate-900 py-2 px-1 print:hidden"></td>
                           </tr>
                         );
                       }
 
-                      const hasSub =
-                        row.transaction.subItems && row.transaction.subItems.length > 0;
-                      const isSelected = selectedTxIds.includes(row.transaction.id);
+                      return rowsToDisplay.map((row) => {
+                        if (row.isInitialRow) {
+                          return (
+                            <tr
+                              key={`initial-tunai-${group.monthKey}`}
+                              className="bg-amber-50/60 font-bold text-black"
+                            >
+                              <td className="border border-slate-900 py-2 px-1 text-center print:hidden bg-amber-100/50 text-slate-400 font-mono text-[10px]">
+                                -
+                              </td>
+                              <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
+                                {row.no}
+                              </td>
+                              <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium text-center">
+                                {row.tanggal}
+                              </td>
+                              <td className="border border-slate-900 py-2 px-3 font-black italic text-purple-950">
+                                {row.uraian}
+                                <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 text-amber-950 border border-amber-400 print:hidden not-italic">
+                                  Saldo Awal Kas Tunai
+                                </span>
+                              </td>
+                              <td className="border border-slate-900 py-2 px-2 text-center text-slate-400 font-mono">-</td>
+                              <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
+                                {formatRupiah(row.penerimaan, false)}
+                              </td>
+                              <td className="border border-slate-900 py-2 px-2.5 text-right text-slate-400 font-mono">-</td>
+                              <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
+                                {formatRupiah(row.saldo, false)}
+                              </td>
+                              <td className="border border-slate-900 py-2 px-1 print:hidden"></td>
+                            </tr>
+                          );
+                        }
 
-                      const currentIndexInNonInitial = nonInitialRows.findIndex(
-                        (r) => r.transaction.id === row.transaction.id
-                      );
-                      const canMoveUp = currentIndexInNonInitial > 0;
-                      const canMoveDown =
-                        currentIndexInNonInitial >= 0 &&
-                        currentIndexInNonInitial < nonInitialRows.length - 1;
+                        const hasSub =
+                          row.transaction.subItems && row.transaction.subItems.length > 0;
+                        const isSelected = selectedTxIds.includes(row.transaction.id);
 
-                      return (
-                        <React.Fragment key={row.transaction.id}>
-                          {/* Baris Utama Transaksi */}
-                          <tr
-                            className={`hover:bg-slate-50 text-black transition ${
-                              isSelected
-                                ? 'bg-amber-100/70 border-l-4 border-l-amber-500 font-semibold ring-1 ring-amber-300 inset'
-                                : hasSub
-                                ? 'bg-amber-50/20 font-bold'
-                                : 'bg-white'
-                            }`}
-                          >
-                            {/* Kotak Centang (Screen only) */}
-                            <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => handleToggleSelect(row.transaction.id)}
-                                className="w-4 h-4 text-purple-900 rounded cursor-pointer align-middle accent-purple-800"
-                                title="Centang untuk edit / hapus / tukar nomor BKU"
-                              />
-                            </td>
+                        const currentIndexInNonInitial = nonInitialRows.findIndex(
+                          (r) => r.transaction.id === row.transaction.id
+                        );
+                        const canMoveUp = currentIndexInNonInitial > 0;
+                        const canMoveDown =
+                          currentIndexInNonInitial >= 0 &&
+                          currentIndexInNonInitial < nonInitialRows.length - 1;
 
-                            <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
-                              {row.no}
-                            </td>
-                            <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium text-center">
-                              {row.tanggal}
-                            </td>
-                            <td className="border border-slate-900 py-2 px-3 font-bold text-black">
-                              <div>
-                                <span>{row.uraian}</span>
+                        return (
+                          <React.Fragment key={row.transaction.id}>
+                            {/* Baris Utama Transaksi */}
+                            <tr
+                              className={`hover:bg-slate-50 text-black transition ${
+                                isSelected
+                                  ? 'bg-amber-100/70 border-l-4 border-l-amber-500 font-semibold ring-1 ring-amber-300 inset'
+                                  : hasSub
+                                  ? 'bg-amber-50/20 font-bold'
+                                  : 'bg-white'
+                              }`}
+                            >
+                              {/* Kotak Centang (Screen only) */}
+                              <td className="border border-slate-900 py-2 px-1 text-center print:hidden">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => handleToggleSelect(row.transaction.id)}
+                                  className="w-4 h-4 text-purple-900 rounded cursor-pointer align-middle accent-purple-800"
+                                  title="Centang untuk edit / hapus / tukar nomor BKU"
+                                />
+                              </td>
+
+                              <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
+                                {row.no}
+                              </td>
+                              <td className="border border-slate-900 py-2 px-2 whitespace-nowrap text-black font-medium text-center">
+                                <HighlightMatch text={row.tanggal} query={searchQuery} />
+                              </td>
+                              <td className="border border-slate-900 py-2 px-3 font-bold text-black">
+                                <div>
+                                  <span>
+                                    <HighlightMatch text={row.uraian} query={searchQuery} />
+                                  </span>
                                 {hasSub && (
                                   <div className="mt-1 space-y-1">
                                     <div className="flex items-center gap-1.5 flex-wrap print:hidden">
@@ -662,7 +719,7 @@ export const BkuTunaiView: React.FC = () => {
                               </div>
                             </td>
                             <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold text-black">
-                              {row.nomorBukti || ''}
+                              <HighlightMatch text={row.nomorBukti || ''} query={searchQuery} />
                             </td>
                             <td className="border border-slate-900 py-2 px-2.5 text-right font-mono font-bold text-black">
                               {row.penerimaan > 0 ? formatRupiah(row.penerimaan, false) : ''}
@@ -764,7 +821,8 @@ export const BkuTunaiView: React.FC = () => {
                           </tr>
                         </React.Fragment>
                       );
-                    })}
+                      });
+                    })()}
 
                     {/* Baris Total / JUMLAH */}
                     <tr className="bg-slate-100 font-bold text-black text-xs">

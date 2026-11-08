@@ -147,6 +147,21 @@ export function getJenisBiaya(tx: Transaction): string {
   return 'Bahan';
 }
 
+/**
+ * Memeriksa apakah suatu transaksi merupakan Penarikan Dana dari Bank ke Kas Tunai (SP2D).
+ * Sesuai aturan BKU DAK Fisik, transaksi ini dicatat di sisi PENERIMAAN (kas tunai bertambah),
+ * bukan di sisi PENGELUARAN.
+ */
+export function isTarikTunaiOrSp2d(t: Partial<Transaction> | undefined | null): boolean {
+  if (!t) return false;
+  if (t.metode === 'TARIK_TUNAI') return true;
+  const uraian = (t.uraian || '').toLowerCase();
+  const noBukti = (t.nomorBukti || '').toLowerCase();
+  if (uraian.includes('penarikan') || uraian.includes('tarik tunai')) return true;
+  if (noBukti.startsWith('sp2d') || noBukti.includes('sp2d')) return true;
+  return false;
+}
+
 export const INITIAL_PROFILE: ProjectProfile = {
   namaSekolah: 'SD INPRES 2 PALASA',
   alamat: 'Jl. Trans Sulawesi Desa Palasa Lambori',
@@ -165,7 +180,7 @@ export const INITIAL_PROFILE: ProjectProfile = {
   namaPanitia: 'PANITIA PEMBANGUNAN SEKOLAH',
   namaKetuaP2S: 'I MADE SUWITA, S.Pd',
   tempatPelunasan: 'Palasa',
-  tampilkanTarikTunaiDiBku: false,
+  tampilkanTarikTunaiDiBku: true,
   posisiTarikTunaiDiBku: 'penerimaan',
 };
 
@@ -711,7 +726,9 @@ export function groupTransactionsByMonthlyBooks(
     const posisiTarikTunai = profile?.posisiTarikTunaiDiBku || 'penerimaan';
 
     list.forEach((t) => {
-      const isPenarikanBankKeTunai = t.metode === 'TARIK_TUNAI';
+      const isPenarikanBankKeTunai = isTarikTunaiOrSp2d(t);
+      const nominalTarik = t.penerimaan > 0 ? t.penerimaan : (t.pengeluaran > 0 ? t.pengeluaran : 0);
+
       if (!isPenarikanBankKeTunai) {
         runningSaldoBku += t.penerimaan - t.pengeluaran;
         if (t.jenis === 'PENERIMAAN' || t.penerimaan > 0) {
@@ -721,17 +738,9 @@ export function groupTransactionsByMonthlyBooks(
           monthPengeluaranBku += t.pengeluaran;
         }
       } else if (showTarikTunaiInBku) {
-        const nominal = t.penerimaan || t.pengeluaran;
-        if (posisiTarikTunai === 'penerimaan') {
-          monthPenerimaanBku += nominal;
-          runningSaldoBku += nominal;
-        } else if (posisiTarikTunai === 'pengeluaran') {
-          monthPengeluaranBku += nominal;
-          runningSaldoBku -= nominal;
-        } else if (posisiTarikTunai === 'kedua_sisi') {
-          monthPenerimaanBku += nominal;
-          monthPengeluaranBku += nominal;
-        }
+        // Penarikan dana/SP2D selalu masuk di PENERIMAAN
+        monthPenerimaanBku += nominalTarik;
+        runningSaldoBku += nominalTarik;
       }
 
       bkuRows.push({
@@ -739,12 +748,12 @@ export function groupTransactionsByMonthlyBooks(
         tanggal: formatToSlashDate(t.tanggal),
         uraian: t.uraian,
         nomorBukti: t.nomorBukti,
-        jenisBiaya: isPenarikanBankKeTunai ? (t.jenisBiaya || 'Tarik Tunai') : getJenisBiaya(t),
+        jenisBiaya: isPenarikanBankKeTunai ? undefined : getJenisBiaya(t),
         penerimaan: isPenarikanBankKeTunai
-          ? (showTarikTunaiInBku && (posisiTarikTunai === 'penerimaan' || posisiTarikTunai === 'kedua_sisi') ? (t.penerimaan || t.pengeluaran) : 0)
+          ? (showTarikTunaiInBku ? nominalTarik : 0)
           : t.penerimaan,
         pengeluaran: isPenarikanBankKeTunai
-          ? (showTarikTunaiInBku && (posisiTarikTunai === 'pengeluaran' || posisiTarikTunai === 'kedua_sisi') ? (t.pengeluaran || t.penerimaan) : 0)
+          ? 0
           : t.pengeluaran,
         saldo: runningSaldoBku,
         transaction: t,

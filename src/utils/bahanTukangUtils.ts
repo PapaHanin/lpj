@@ -343,6 +343,37 @@ export function getKodeMtp(worker: Partial<PekerjaTukang>): 'K' | 'T' | 'P' {
 }
 
 /**
+ * Nilai hirarki peran tenaga kerja konstruksi:
+ * 1 = Kepala Tukang (K) - Posisi paling atas
+ * 2 = Tukang (T) - Posisi kedua
+ * 3 = Pekerja (P) - Posisi ketiga
+ */
+export function getRoleRank(worker: Partial<PekerjaTukang>): number {
+  const code = getKodeMtp(worker);
+  if (code === 'K') return 1;
+  if (code === 'T') return 2;
+  return 3;
+}
+
+/**
+ * Mengurutkan daftar pekerja sesuai tata tertib hierarki:
+ * Kepala Tukang (K) -> Tukang (T) -> Pekerja (P)
+ * Menggunakan stable sort agar urutan pekerja sesama peran tetap rapi.
+ */
+export function sortWorkersByRoleHierarchy<T extends Partial<PekerjaTukang>>(workers: T[]): T[] {
+  if (!Array.isArray(workers)) return [];
+  return [...workers].sort((a, b) => {
+    const rankA = getRoleRank(a);
+    const rankB = getRoleRank(b);
+    if (rankA !== rankB) {
+      return rankA - rankB;
+    }
+    return 0; // pertahankan urutan pendaftaran pekerja sesama role
+  });
+}
+
+
+/**
  * Daftar Pekerja Bawaan Masing-Masing Bangunan
  */
 export const DEFAULT_WORKERS_BANGUNAN_1: PekerjaTukang[] = [
@@ -527,14 +558,15 @@ export function createDefaultWeeksForBangunan(
   bangunanNama: string,
   initialWorkers?: PekerjaTukang[]
 ): AbsenMingguanTukang[] {
-  const baseWorkers =
+  const baseWorkers = sortWorkersByRoleHierarchy(
     initialWorkers && initialWorkers.length > 0
       ? initialWorkers
       : bangunanId === 'bangunan-2'
       ? DEFAULT_WORKERS_BANGUNAN_2
       : bangunanId === 'bangunan-3'
       ? DEFAULT_WORKERS_BANGUNAN_3
-      : DEFAULT_WORKERS_BANGUNAN_1;
+      : DEFAULT_WORKERS_BANGUNAN_1
+  );
 
   return DAK_FISIK_PERIODS_2026.map((sched) => {
     let id = `absen-${bangunanId}-p${sched.periodeKe}`;

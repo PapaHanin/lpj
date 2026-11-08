@@ -19,6 +19,7 @@ import {
   INITIAL_PROFILE,
   INITIAL_TRANSACTIONS,
   sortTransactionsChronologically,
+  isTarikTunaiOrSp2d,
 } from '../utils/calculations';
 import {
   getClosingDateForMonth,
@@ -40,6 +41,8 @@ import {
   DEFAULT_WORKERS_BANGUNAN_3,
   getKodeMtp,
   cleanMaterialName,
+  getRoleRank,
+  sortWorkersByRoleHierarchy,
 } from '../utils/bahanTukangUtils';
 import {
   SAMPLE_IMAGE_PAJAK_ROWS,
@@ -247,6 +250,7 @@ interface LpjState {
       tempatTinggal?: 'dalam_desa' | 'luar_desa';
     }
   ) => void;
+  reorderAllWorkersByRole: () => void;
   addNewAbsenWeek: (weekNum: number, tanggal?: string, targetBangunanId?: string) => void;
   syncDakFisikSchedule: () => void;
   addCustomBahan: (item: Omit<CustomBahanItem, 'id'>) => void;
@@ -447,8 +451,27 @@ export const useLpjStore = create<LpjState>()(
 
       addTransaction: (newTxData, options) =>
         set((state) => {
+          const isSp2d = isTarikTunaiOrSp2d(newTxData);
+          const nominal =
+            newTxData.penerimaan > 0
+              ? newTxData.penerimaan
+              : newTxData.pengeluaran > 0
+              ? newTxData.pengeluaran
+              : 0;
+
+          const normalizedTxData = isSp2d
+            ? {
+                ...newTxData,
+                metode: 'TARIK_TUNAI' as const,
+                jenis: 'PENERIMAAN' as const,
+                jenisBiaya: undefined,
+                penerimaan: nominal,
+                pengeluaran: nominal,
+              }
+            : newTxData;
+
           const newTx: Transaction = {
-            ...newTxData,
+            ...normalizedTxData,
             id: `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             createdAt: new Date().toISOString(),
           };
@@ -490,6 +513,23 @@ export const useLpjStore = create<LpjState>()(
 
       updateTransaction: (id, updatedData, options) =>
         set((state) => {
+          const isSp2d = isTarikTunaiOrSp2d(updatedData);
+          const nominal =
+            (updatedData.penerimaan !== undefined ? updatedData.penerimaan : 0) > 0
+              ? updatedData.penerimaan!
+              : (updatedData.pengeluaran !== undefined ? updatedData.pengeluaran! : 0);
+
+          const normalizedUpdate = isSp2d
+            ? {
+                ...updatedData,
+                metode: 'TARIK_TUNAI' as const,
+                jenis: 'PENERIMAAN' as const,
+                jenisBiaya: undefined,
+                penerimaan: nominal,
+                pengeluaran: nominal,
+              }
+            : updatedData;
+
           let currentTxs = [...state.transactions];
 
           if (options?.shiftSubsequentBku && updatedData.nomorBukti) {
@@ -518,7 +558,7 @@ export const useLpjStore = create<LpjState>()(
           }
 
           const updatedList = currentTxs.map((tx) =>
-            tx.id === id ? { ...tx, ...updatedData } : tx
+            tx.id === id ? { ...tx, ...normalizedUpdate } : tx
           );
 
           const allTxs = sortTransactionsChronologically(updatedList);
@@ -1173,7 +1213,7 @@ export const useLpjStore = create<LpjState>()(
 
               return {
                 ...week,
-                pekerja: [...week.pekerja, newPekerja],
+                pekerja: sortWorkersByRoleHierarchy([...week.pekerja, newPekerja]),
               };
             }),
           };
@@ -1191,12 +1231,14 @@ export const useLpjStore = create<LpjState>()(
               if ((week.bangunanId || 'bangunan-1') !== targetBangunanId) return week;
               return {
                 ...week,
-                pekerja: week.pekerja.map((p) => {
-                  if (p.id === pekerjaId || (oldName && p.nama.toUpperCase() === oldName)) {
-                    return { ...p, ...updated };
-                  }
-                  return p;
-                }),
+                pekerja: sortWorkersByRoleHierarchy(
+                  week.pekerja.map((p) => {
+                    if (p.id === pekerjaId || (oldName && p.nama.toUpperCase() === oldName)) {
+                      return { ...p, ...updated };
+                    }
+                    return p;
+                  })
+                ),
               };
             }),
           };
@@ -1229,20 +1271,22 @@ export const useLpjStore = create<LpjState>()(
           return {
             absenTukangList: state.absenTukangList.map((week) => ({
               ...week,
-              pekerja: week.pekerja.map((p) => {
-                if (p.nama.trim().toUpperCase() === oldUpper) {
-                  return {
-                    ...p,
-                    nama: newNameClean,
-                    upahHarian: updated.upahHarian,
-                    tenagaKerja: updated.tenagaKerja,
-                    kategori: updated.tenagaKerja,
-                    kodeMtp: updated.kodeMtp,
-                    tempatTinggal: updated.tempatTinggal,
-                  };
-                }
-                return p;
-              }),
+              pekerja: sortWorkersByRoleHierarchy(
+                week.pekerja.map((p) => {
+                  if (p.nama.trim().toUpperCase() === oldUpper) {
+                    return {
+                      ...p,
+                      nama: newNameClean,
+                      upahHarian: updated.upahHarian,
+                      tenagaKerja: updated.tenagaKerja,
+                      kategori: updated.tenagaKerja,
+                      kodeMtp: updated.kodeMtp,
+                      tempatTinggal: updated.tempatTinggal,
+                    };
+                  }
+                  return p;
+                })
+              ),
             })),
           };
         }),
@@ -1282,21 +1326,31 @@ export const useLpjStore = create<LpjState>()(
           return {
             absenTukangList: state.absenTukangList.map((week) => ({
               ...week,
-              pekerja: week.pekerja.map((p) => {
-                if (targets.has(p.nama.trim().toUpperCase())) {
-                  return {
-                    ...p,
-                    ...(updates.upahHarian !== undefined ? { upahHarian: updates.upahHarian } : {}),
-                    ...(updates.kodeMtp !== undefined ? { kodeMtp: updates.kodeMtp } : {}),
-                    ...(updates.tenagaKerja !== undefined ? { tenagaKerja: updates.tenagaKerja, kategori: updates.tenagaKerja } : {}),
-                    ...(updates.tempatTinggal !== undefined ? { tempatTinggal: updates.tempatTinggal } : {}),
-                  };
-                }
-                return p;
-              }),
+              pekerja: sortWorkersByRoleHierarchy(
+                week.pekerja.map((p) => {
+                  if (targets.has(p.nama.trim().toUpperCase())) {
+                    return {
+                      ...p,
+                      ...(updates.upahHarian !== undefined ? { upahHarian: updates.upahHarian } : {}),
+                      ...(updates.kodeMtp !== undefined ? { kodeMtp: updates.kodeMtp } : {}),
+                      ...(updates.tenagaKerja !== undefined ? { tenagaKerja: updates.tenagaKerja, kategori: updates.tenagaKerja } : {}),
+                      ...(updates.tempatTinggal !== undefined ? { tempatTinggal: updates.tempatTinggal } : {}),
+                    };
+                  }
+                  return p;
+                })
+              ),
             })),
           };
         }),
+
+      reorderAllWorkersByRole: () =>
+        set((state) => ({
+          absenTukangList: state.absenTukangList.map((week) => ({
+            ...week,
+            pekerja: sortWorkersByRoleHierarchy(week.pekerja || []),
+          })),
+        })),
 
       syncDakFisikSchedule: () =>
         set((state) => {
@@ -1332,12 +1386,14 @@ export const useLpjStore = create<LpjState>()(
                   periodeKe: schedWeek.periodeKe,
                   mingguKe: schedWeek.periodeKe,
                   hariTanggal: schedWeek.hariTanggal, // Update ke tanggal 2026 yang benar!
-                  pekerja: baseWorkers.map((bw) => {
-                    const foundInMatched = matched.pekerja.find(
-                      (p) => p.nama.toUpperCase() === bw.nama.toUpperCase()
-                    );
-                    return foundInMatched || bw;
-                  }),
+                  pekerja: sortWorkersByRoleHierarchy(
+                    baseWorkers.map((bw) => {
+                      const foundInMatched = matched.pekerja.find(
+                        (p) => p.nama.toUpperCase() === bw.nama.toUpperCase()
+                      );
+                      return foundInMatched || bw;
+                    })
+                  ),
                 };
               }
               return schedWeek;
@@ -1369,16 +1425,18 @@ export const useLpjStore = create<LpjState>()(
           const basePekerja =
             lastWeek?.pekerja || DEFAULT_ABSEN_MINGGU_4.pekerja;
 
-          const clonedPekerja: PekerjaTukang[] = basePekerja.map((p, idx) => ({
-            ...p,
-            id: `pkr-p${weekNum}-${idx + 1}-${Date.now()}`,
-            hariKerja: {
-              m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
-              m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
-              senin: 1, selasa: 1, rabu: 1, kamis: 1, jumat: 1, sabtu: 1, minggu: 0,
-            },
-            paraf: '',
-          }));
+          const clonedPekerja: PekerjaTukang[] = sortWorkersByRoleHierarchy(
+            basePekerja.map((p, idx) => ({
+              ...p,
+              id: `pkr-p${weekNum}-${idx + 1}-${Date.now()}`,
+              hariKerja: {
+                m1_1: 1, m1_2: 1, m1_3: 1, m1_4: 1, m1_5: 1, m1_6: 1, m1_7: 0,
+                m2_1: 1, m2_2: 1, m2_3: 1, m2_4: 1, m2_5: 1, m2_6: 1, m2_7: 0,
+                senin: 1, selasa: 1, rabu: 1, kamis: 1, jumat: 1, sabtu: 1, minggu: 0,
+              },
+              paraf: '',
+            }))
+          );
 
           const mggStart = (weekNum - 1) * 2 + 1;
           const mggEnd = weekNum * 2;
@@ -1572,23 +1630,25 @@ export const useLpjStore = create<LpjState>()(
                   ...week,
                   hariTanggal: formatToSlashDate(week.hariTanggal || ''),
                   pekerja: Array.isArray(week.pekerja)
-                    ? week.pekerja.map((p: PekerjaTukang) => {
-                        let role = p.tenagaKerja || p.kategori || '';
-                        let kat = p.kategori;
-                        let kode = p.kodeMtp;
-                        if (role.toLowerCase().includes('mandor') || (kode as any) === 'M' || kat === 'Mandor') {
-                          role = 'Kepala Tukang';
-                          kat = 'Kepala Tukang';
-                          kode = 'K';
-                        }
-                        return {
-                          ...p,
-                          kategori: kat,
-                          tenagaKerja: role,
-                          kodeMtp: kode || getKodeMtp(p),
-                          tempatTinggal: p.tempatTinggal || 'dalam_desa',
-                        };
-                      })
+                    ? sortWorkersByRoleHierarchy(
+                        week.pekerja.map((p: PekerjaTukang) => {
+                          let role = p.tenagaKerja || p.kategori || '';
+                          let kat = p.kategori;
+                          let kode = p.kodeMtp;
+                          if (role.toLowerCase().includes('mandor') || (kode as any) === 'M' || kat === 'Mandor') {
+                            role = 'Kepala Tukang';
+                            kat = 'Kepala Tukang';
+                            kode = 'K';
+                          }
+                          return {
+                            ...p,
+                            kategori: kat,
+                            tenagaKerja: role,
+                            kodeMtp: kode || getKodeMtp(p),
+                            tempatTinggal: p.tempatTinggal || 'dalam_desa',
+                          };
+                        })
+                      )
                     : [],
                 });
               }
@@ -1613,6 +1673,8 @@ export const useLpjStore = create<LpjState>()(
             if (!state.profile.namaPelaksana) {
               state.profile.namaPelaksana = INITIAL_PROFILE.namaPelaksana;
             }
+            state.profile.tampilkanTarikTunaiDiBku = true;
+            state.profile.posisiTarikTunaiDiBku = 'penerimaan';
           }
           if (Array.isArray(state.transactions)) {
             state.transactions = sortTransactionsChronologically(
@@ -1624,6 +1686,28 @@ export const useLpjStore = create<LpjState>()(
                     updatedNo = `KW-${String(parseInt(match[1], 10)).padStart(3, '0')}`;
                   }
                 }
+
+                // Sesuai permintaan user: Penarikan uang (SP2D) transaksinya masuk di PENERIMAAN, bukan di pengeluaran
+                const isSp2d = isTarikTunaiOrSp2d(tx);
+                if (isSp2d) {
+                  const nominal =
+                    tx.penerimaan > 0
+                      ? tx.penerimaan
+                      : tx.pengeluaran > 0
+                      ? tx.pengeluaran
+                      : 0;
+                  return {
+                    ...tx,
+                    metode: 'TARIK_TUNAI',
+                    jenis: 'PENERIMAAN',
+                    jenisBiaya: undefined,
+                    penerimaan: nominal,
+                    pengeluaran: nominal,
+                    tanggal: formatToSlashDate(tx.tanggal || ''),
+                    nomorBukti: updatedNo,
+                  };
+                }
+
                 return {
                   ...tx,
                   tanggal: formatToSlashDate(tx.tanggal || ''),
@@ -1676,23 +1760,25 @@ export const useLpjStore = create<LpjState>()(
                     ...week,
                     hariTanggal: harmonizedTanggal,
                     pekerja: Array.isArray(week.pekerja)
-                      ? week.pekerja.map((p) => {
-                          let role = p.tenagaKerja || p.kategori || '';
-                          let kat = p.kategori;
-                          let kode = p.kodeMtp;
-                          if (role.toLowerCase().includes('mandor') || (kode as any) === 'M' || kat === 'Mandor') {
-                            role = 'Kepala Tukang';
-                            kat = 'Kepala Tukang';
-                            kode = 'K';
-                          }
-                          return {
-                            ...p,
-                            kategori: kat,
-                            tenagaKerja: role,
-                            kodeMtp: kode || getKodeMtp(p),
-                            tempatTinggal: p.tempatTinggal || 'dalam_desa',
-                          };
-                        })
+                      ? sortWorkersByRoleHierarchy(
+                          week.pekerja.map((p) => {
+                            let role = p.tenagaKerja || p.kategori || '';
+                            let kat = p.kategori;
+                            let kode = p.kodeMtp;
+                            if (role.toLowerCase().includes('mandor') || (kode as any) === 'M' || kat === 'Mandor') {
+                              role = 'Kepala Tukang';
+                              kat = 'Kepala Tukang';
+                              kode = 'K';
+                            }
+                            return {
+                              ...p,
+                              kategori: kat,
+                              tenagaKerja: role,
+                              kodeMtp: kode || getKodeMtp(p),
+                              tempatTinggal: p.tempatTinggal || 'dalam_desa',
+                            };
+                          })
+                        )
                       : [],
                   });
                 }
