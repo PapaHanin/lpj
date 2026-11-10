@@ -533,10 +533,10 @@ export const BkuPajakView: React.FC = () => {
       setFormUraian(found.uraian);
       setFormNominalBelanja(nilai);
       setDetectedTaxHint(
-        'Perhatian Aturan P2SP: Pembelian material toko oleh P2SP swakelola bukan pemungut PPh 22 & PPN (Pajak = Rp 0). Upah tukang <= Rp 450rb/hari juga bebas PPh 21 (TER 0%). Transaksi tanpa pajak tidak perlu dicatat di BKU Pajak kecuali toko rekanan merupakan PKP.'
+        'Perhatian: Upah tukang, material pasir & batu, serta pembelanjaan <= Rp 2.000.000 bebas potongan pajak (Pajak = Rp 0), sehingga tidak dicatat di Buku Pembantu Pajak.'
       );
-      setFormJenisPajak('PPh Pasal 4(2)');
-      setTaxItems(buildTaxItemsFromJenis('PPh Pasal 4(2)', nilai));
+      setFormJenisPajak('PPN');
+      setTaxItems(buildTaxItemsFromJenis('PPN', nilai));
     }
   };
 
@@ -1070,14 +1070,17 @@ export const BkuPajakView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs sm:text-sm font-black text-amber-300">
-                  Penerapan Pajak P2SP (Materi KPP Pratama Palu)
+                  Aturan Khusus BKU Pajak
                 </span>
                 <span className="bg-emerald-400/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-black px-2 py-0.5 rounded-full">
-                  Hanya Belanja yang Ada Pajak
+                  Pasir, Batu &amp; Upah Tukang Bebas Pajak
+                </span>
+                <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  Toko &amp; Kayu &gt; Rp 2 Jt Kena PPN + PPh
                 </span>
               </div>
               <p className="text-[11.5px] text-purple-200/90 mt-0.5">
-                P2SP <strong>Bukan Pemungut PPh 22 &amp; PPN</strong> belanja material toko swakelola. Upah tukang &le; Rp 450rb/hari <strong>Bebas PPh 21 (TER 0%)</strong>. Hanya transaksi kena pajak yang dicatat di Buku Pembantu Pajak.
+                Upah tukang dan material pasir &amp; batu <strong>TIDAK dikenakan pajak</strong> (tidak masuk BKU Pajak). Belanja material toko, kayu, semen, besi, dll. <strong>di atas Rp 2.000.000 dikenakan PPN (11%) + PPh 22 (1,5%)</strong>.
               </p>
             </div>
           </div>
@@ -1114,31 +1117,31 @@ export const BkuPajakView: React.FC = () => {
             <div className="bg-purple-950/70 border border-purple-800 rounded-xl p-3">
               <p className="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                1. Belanja Material Swakelola (Slide 15 &amp; 32)
+                1. Pasir &amp; Batu (Bebas Pajak BKU)
               </p>
               <p className="text-purple-200/90 text-[11px] leading-relaxed">
-                P2SP Swakelola <strong>BUKAN Pemungut PPh 22 dan BUKAN Pemungut PPN</strong>. Pembelian semen, pasir, batu kali, kayu, APD, dll. tidak dipungut pajak oleh P2SP (Pajak = Rp 0). Maka <strong>TIDAK DIMASUKKAN</strong> ke Buku Pembantu Pajak.
+                Pembelian <strong>pasir cor/pasang, batu kali, batu pondasi, batu bata merah, split, dan timbunan</strong> tidak dikenakan pajak dan <strong>TIDAK dimasukkan</strong> ke dalam Buku Pembantu Pajak.
               </p>
             </div>
             <div className="bg-purple-950/70 border border-purple-800 rounded-xl p-3">
               <p className="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                2. Upah Tukang Harian (Slide 21 &amp; 26)
+                2. Upah Tukang (Bebas Pajak BKU)
               </p>
               <p className="text-purple-200/90 text-[11px] leading-relaxed">
-                Upah harian &le; Rp 450.000/hari dikenakan <strong>TER Harian 0% (PPh 21 = Rp 0 / Nihil)</strong>. Upah tukang swakelola sekolah rata-rata Rp 120rb - Rp 250rb/hari sehingga <strong>BEBAS PAJAK</strong> dan tidak dicatat di Buku Pembantu Pajak.
+                Pembayaran <strong>upah tukang, kepala tukang, pekerja, dan panjar tukang</strong> swakelola bebas dari potongan pajak (PPh 21 = Rp 0) dan <strong>TIDAK dicatat</strong> di Buku Pembantu Pajak.
               </p>
             </div>
             <div className="bg-purple-950/70 border border-purple-800 rounded-xl p-3">
               <p className="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                3. Belanja yang WAJIB Masuk BKU Pajak
+                3. Belanja yang Masuk BKU Pajak
               </p>
               <ul className="text-purple-200/90 text-[11px] space-y-1 list-disc list-inside">
-                <li><strong>PPh Final 4(2) (4%):</strong> Jasa Perencana, Pengawas &amp; Borongan Fisik (Slide 45).</li>
-                <li><strong>PPh 23 (2%):</strong> Sewa Alat / Molen / Angkutan (Slide 33-35).</li>
-                <li><strong>PPh 21 (2,5%):</strong> Tenaga Ahli / Fasilitator Non-PNS (Slide 27).</li>
-                <li><strong>PPh 21 (5% / 15%):</strong> Honorarium PNS Gol III / Gol IV (Slide 28).</li>
+                <li><strong>Material Toko &amp; Kayu (&gt; Rp 2 Jt):</strong> Kena <strong>PPN (11%) + PPh 22 (1,5%)</strong>. Belanja &le; Rp 2 Juta bebas pajak.</li>
+                <li><strong>PPh Final 4(2) (4%):</strong> Jasa Perencana, Pengawas &amp; Borongan Fisik.</li>
+                <li><strong>PPh 23 (2%):</strong> Sewa Alat / Molen / Angkutan.</li>
+                <li><strong>PPh 21 (2,5%):</strong> Tenaga Ahli / Fasilitator Non-PNS.</li>
               </ul>
             </div>
           </div>
@@ -2645,7 +2648,7 @@ export const BkuPajakView: React.FC = () => {
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-300 text-slate-600 px-2 py-0.5 rounded-md text-[11px]">
-                              <span>Bebas Pemotongan Pajak (Material Swakelola / Upah &le; 450rb)</span>
+                              <span>Bebas Pajak (Upah Tukang / Pasir &amp; Batu / Belanja &le; 2 Jt)</span>
                             </span>
                           )}
                         </div>

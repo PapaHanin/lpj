@@ -1603,8 +1603,11 @@ export const useLpjStore = create<LpjState>()(
               tanggal: formatToSlashDate(tx.tanggal || ''),
             }));
           }
-          if (!Array.isArray(persistedState.pajakRows) || persistedState.pajakRows.length === 0) {
-            persistedState.pajakRows = SAMPLE_IMAGE_PAJAK_ROWS;
+          const hasOldDummySample =
+            Array.isArray(persistedState.pajakRows) &&
+            persistedState.pajakRows.some((r: any) => r.id && r.id.startsWith('pjk-img-'));
+          if (hasOldDummySample || !Array.isArray(persistedState.pajakRows) || persistedState.pajakRows.length === 0) {
+            persistedState.pajakRows = generatePajakRowsFromTransactions(persistedState.transactions || INITIAL_TRANSACTIONS);
           } else {
             persistedState.pajakRows = persistedState.pajakRows.map((r: any) => ({
               ...r,
@@ -1716,8 +1719,11 @@ export const useLpjStore = create<LpjState>()(
               })
             );
           }
-          if (!Array.isArray(state.pajakRows) || state.pajakRows.length === 0) {
-            state.pajakRows = SAMPLE_IMAGE_PAJAK_ROWS;
+          const hasOldDummySample =
+            Array.isArray(state.pajakRows) &&
+            state.pajakRows.some((r) => r.id && r.id.startsWith('pjk-img-'));
+          if (hasOldDummySample || !Array.isArray(state.pajakRows) || state.pajakRows.length === 0) {
+            state.pajakRows = generatePajakRowsFromTransactions(state.transactions || INITIAL_TRANSACTIONS);
           } else {
             state.pajakRows = state.pajakRows.map((r) => ({
               ...r,

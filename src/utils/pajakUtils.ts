@@ -56,6 +56,13 @@ export interface TaxPresetDef {
 
 export const OFFICIAL_P2SP_TAX_PRESETS: TaxPresetDef[] = [
   {
+    id: 'ppn_pph22_toko_diatas_2jt',
+    label: 'PPN 11% + PPh 22 1,5% (Material Toko / Kayu > Rp 2 Jt)',
+    persen: 12.5,
+    keterangan: 'Pajak material toko, kayu, semen, besi, dll. untuk pembelanjaan di atas Rp 2.000.000',
+    dasarHukum: 'UU HPP (PPN 11%) & PMK 59/2022 (PPh 22 1,5%)',
+  },
+  {
     id: 'pph4_perencana_pengawas',
     label: 'PPh Final Ps 4(2) Perencana / Pengawas (4%)',
     persen: 4,
@@ -131,202 +138,279 @@ export const OFFICIAL_P2SP_TAX_PRESETS: TaxPresetDef[] = [
  * Data contoh persis seperti dokumen resmi yang hanya menampilkan belanja berpajak
  */
 export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
+  // 1. KW-004: Bayar Perencana & Pengawasan (PPh Final 4(2) 4%)
   {
-    id: 'pjk-img-1',
-    tanggal: '01/08/2026',
-    nomorBukti: 'SP2D-001',
-    uraian: 'Saldo Awal Kas Pajak (pengambilan pertama)',
-    penerimaan: 1000000000,
-    pengeluaran: 0,
-    isTaxRow: false,
-  },
-  {
-    id: 'pjk-img-2',
-    tanggal: '01/08/2026',
-    nomorBukti: 'KW-001',
-    uraian: 'Belanja Semen (Toko Rekanan PKP)',
+    id: 'pjk-tx-tx-6',
+    tanggal: '16/08/2026',
+    nomorBukti: 'KW-004',
+    uraian: 'Bayar Perencana & Pengawasan',
     penerimaan: 0,
-    pengeluaran: 3774000,
+    pengeluaran: 15550000,
     isTaxRow: false,
+    linkedTxId: 'tx-6',
   },
   {
-    id: 'pjk-img-3',
-    tanggal: '01/08/2026',
+    id: 'pjk-tax-in-tx-6-0',
+    tanggal: '16/08/2026',
     nomorBukti: '',
-    uraian: 'Diterima PPN Belanja Semen (11%)',
-    penerimaan: 374000,
+    uraian: 'Diterima PPh Pasal 4(2) Perencana & Pengawas (4%) Bayar Perencana & Pengawasan',
+    penerimaan: 622000,
     pengeluaran: 0,
     isTaxRow: true,
-    jenisPajak: 'PPN',
+    jenisPajak: 'PPh Pasal 4(2)',
+    linkedTxId: 'tx-6',
   },
   {
-    id: 'pjk-img-4',
-    tanggal: '01/08/2026',
+    id: 'pjk-tax-out-tx-6-0',
+    tanggal: '16/08/2026',
     nomorBukti: '',
-    uraian: 'Dibayarkan PPN Belanja semen (11%)',
+    uraian: 'Dibayarkan PPh Pasal 4(2) Perencana & Pengawas (4%) Bayar Perencana & Pengawasan',
     penerimaan: 0,
-    pengeluaran: 374000,
+    pengeluaran: 622000,
     isTaxRow: true,
-    jenisPajak: 'PPN',
+    jenisPajak: 'PPh Pasal 4(2)',
+    linkedTxId: 'tx-6',
   },
+
+  // 2. KW-005: Belanja Material Pasir & Kayu (Kayu > Rp 2 Jt kena PPN 11% + PPh 22 1,5%, Pasir Bebas)
   {
-    id: 'pjk-img-5',
-    tanggal: '01/08/2026',
-    nomorBukti: '',
-    uraian: 'Diterima PPh 22 Belanja semen (1,5%)',
-    penerimaan: 51000,
-    pengeluaran: 0,
-    isTaxRow: true,
-    jenisPajak: 'PPh 22',
-  },
-  {
-    id: 'pjk-img-6',
-    tanggal: '01/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPh 22 Belanja semen (1,5%)',
+    id: 'pjk-tx-tx-7',
+    tanggal: '16/08/2026',
+    nomorBukti: 'KW-005',
+    uraian: 'Belanja Material Pasir & Kayu',
     penerimaan: 0,
-    pengeluaran: 51000,
-    isTaxRow: true,
-    jenisPajak: 'PPh 22',
-  },
-  {
-    id: 'pjk-img-7',
-    tanggal: '03/08/2026',
-    nomorBukti: 'KW-002',
-    uraian: 'Pembelian Alat Tulis Kantor (Toko PKP > Rp 2 Jt)',
-    penerimaan: 0,
-    pengeluaran: 3000000,
+    pengeluaran: 3900000,
     isTaxRow: false,
+    linkedTxId: 'tx-7',
   },
   {
-    id: 'pjk-img-8',
-    tanggal: '03/08/2026',
+    id: 'pjk-tax-in-tx-7-0',
+    tanggal: '16/08/2026',
     nomorBukti: '',
-    uraian: 'Diterima PPN Pembelian alat tulis (11%)',
+    uraian: 'Diterima PPN (11%) Belanja Material Pasir & Kayu (Kayu Lata)',
     penerimaan: 330000,
     pengeluaran: 0,
     isTaxRow: true,
     jenisPajak: 'PPN',
+    linkedTxId: 'tx-7',
   },
   {
-    id: 'pjk-img-9',
-    tanggal: '03/08/2026',
+    id: 'pjk-tax-out-tx-7-0',
+    tanggal: '16/08/2026',
     nomorBukti: '',
-    uraian: 'Dibayarkan PPN Belanja alat tulis (11%)',
+    uraian: 'Dibayarkan PPN (11%) Belanja Material Pasir & Kayu (Kayu Lata)',
     penerimaan: 0,
     pengeluaran: 330000,
     isTaxRow: true,
     jenisPajak: 'PPN',
+    linkedTxId: 'tx-7',
   },
   {
-    id: 'pjk-img-10',
-    tanggal: '03/08/2026',
+    id: 'pjk-tax-in-tx-7-1',
+    tanggal: '16/08/2026',
     nomorBukti: '',
-    uraian: 'Diterima PPh 22 Belanja alat tulis (1,5%)',
+    uraian: 'Diterima PPh 22 (1,5%) Belanja Material Pasir & Kayu (Kayu Lata)',
     penerimaan: 45000,
     pengeluaran: 0,
     isTaxRow: true,
     jenisPajak: 'PPh 22',
+    linkedTxId: 'tx-7',
   },
   {
-    id: 'pjk-img-11',
-    tanggal: '03/08/2026',
+    id: 'pjk-tax-out-tx-7-1',
+    tanggal: '16/08/2026',
     nomorBukti: '',
-    uraian: 'Dibayarkan PPh 22 Belanja alat tulis (1,5%)',
+    uraian: 'Dibayarkan PPh 22 (1,5%) Belanja Material Pasir & Kayu (Kayu Lata)',
     penerimaan: 0,
     pengeluaran: 45000,
     isTaxRow: true,
     jenisPajak: 'PPh 22',
+    linkedTxId: 'tx-7',
   },
+
+  // 3. KW-008: Belanja Bahan Material Toko (> Rp 2 Jt kena PPN 11% + PPh 22 1,5%)
   {
-    id: 'pjk-img-12',
-    tanggal: '06/08/2026',
-    nomorBukti: 'KW-003',
-    uraian: 'Membayar Upah Tenaga Teknis Ahli an. Wasito',
+    id: 'pjk-tx-tx-10',
+    tanggal: '18/08/2026',
+    nomorBukti: 'KW-008',
+    uraian: 'Belanja Bahan Material Toko',
     penerimaan: 0,
-    pengeluaran: 20000000,
+    pengeluaran: 7620000,
     isTaxRow: false,
+    linkedTxId: 'tx-10',
   },
   {
-    id: 'pjk-img-13',
-    tanggal: '06/08/2026',
+    id: 'pjk-tax-in-tx-10-0',
+    tanggal: '18/08/2026',
     nomorBukti: '',
-    uraian: 'Diterima PPh 21 an. Wasito (5%)',
-    penerimaan: 1000000,
+    uraian: 'Diterima PPN (11%) Belanja Bahan Material Toko',
+    penerimaan: 838200,
+    pengeluaran: 0,
+    isTaxRow: true,
+    jenisPajak: 'PPN',
+    linkedTxId: 'tx-10',
+  },
+  {
+    id: 'pjk-tax-out-tx-10-0',
+    tanggal: '18/08/2026',
+    nomorBukti: '',
+    uraian: 'Dibayarkan PPN (11%) Belanja Bahan Material Toko',
+    penerimaan: 0,
+    pengeluaran: 838200,
+    isTaxRow: true,
+    jenisPajak: 'PPN',
+    linkedTxId: 'tx-10',
+  },
+  {
+    id: 'pjk-tax-in-tx-10-1',
+    tanggal: '18/08/2026',
+    nomorBukti: '',
+    uraian: 'Diterima PPh 22 (1,5%) Belanja Bahan Material Toko',
+    penerimaan: 114300,
+    pengeluaran: 0,
+    isTaxRow: true,
+    jenisPajak: 'PPh 22',
+    linkedTxId: 'tx-10',
+  },
+  {
+    id: 'pjk-tax-out-tx-10-1',
+    tanggal: '18/08/2026',
+    nomorBukti: '',
+    uraian: 'Dibayarkan PPh 22 (1,5%) Belanja Bahan Material Toko',
+    penerimaan: 0,
+    pengeluaran: 114300,
+    isTaxRow: true,
+    jenisPajak: 'PPh 22',
+    linkedTxId: 'tx-10',
+  },
+
+  // 4. KW-009: Belanja Bahan Material Toko (> Rp 2 Jt kena PPN 11% + PPh 22 1,5%)
+  {
+    id: 'pjk-tx-tx-11',
+    tanggal: '19/08/2026',
+    nomorBukti: 'KW-009',
+    uraian: 'Belanja Bahan Material Toko',
+    penerimaan: 0,
+    pengeluaran: 17500000,
+    isTaxRow: false,
+    linkedTxId: 'tx-11',
+  },
+  {
+    id: 'pjk-tax-in-tx-11-0',
+    tanggal: '19/08/2026',
+    nomorBukti: '',
+    uraian: 'Diterima PPN (11%) Belanja Bahan Material Toko',
+    penerimaan: 1925000,
+    pengeluaran: 0,
+    isTaxRow: true,
+    jenisPajak: 'PPN',
+    linkedTxId: 'tx-11',
+  },
+  {
+    id: 'pjk-tax-out-tx-11-0',
+    tanggal: '19/08/2026',
+    nomorBukti: '',
+    uraian: 'Dibayarkan PPN (11%) Belanja Bahan Material Toko',
+    penerimaan: 0,
+    pengeluaran: 1925000,
+    isTaxRow: true,
+    jenisPajak: 'PPN',
+    linkedTxId: 'tx-11',
+  },
+  {
+    id: 'pjk-tax-in-tx-11-1',
+    tanggal: '19/08/2026',
+    nomorBukti: '',
+    uraian: 'Diterima PPh 22 (1,5%) Belanja Bahan Material Toko',
+    penerimaan: 262500,
+    pengeluaran: 0,
+    isTaxRow: true,
+    jenisPajak: 'PPh 22',
+    linkedTxId: 'tx-11',
+  },
+  {
+    id: 'pjk-tax-out-tx-11-1',
+    tanggal: '19/08/2026',
+    nomorBukti: '',
+    uraian: 'Dibayarkan PPh 22 (1,5%) Belanja Bahan Material Toko',
+    penerimaan: 0,
+    pengeluaran: 262500,
+    isTaxRow: true,
+    jenisPajak: 'PPh 22',
+    linkedTxId: 'tx-11',
+  },
+
+  // 5. KW-011: Bayar Fasilitator Teknik (PPh 21 2,5%)
+  {
+    id: 'pjk-tx-tx-13',
+    tanggal: '22/08/2026',
+    nomorBukti: 'KW-011',
+    uraian: 'Bayar Fasilitator Teknik',
+    penerimaan: 0,
+    pengeluaran: 6668000,
+    isTaxRow: false,
+    linkedTxId: 'tx-13',
+  },
+  {
+    id: 'pjk-tax-in-tx-13-0',
+    tanggal: '22/08/2026',
+    nomorBukti: '',
+    uraian: 'Diterima PPh 21 Fasilitator / Tenaga Ahli (2,5%) Bayar Fasilitator Teknik',
+    penerimaan: 166700,
     pengeluaran: 0,
     isTaxRow: true,
     jenisPajak: 'PPh 21',
+    linkedTxId: 'tx-13',
   },
   {
-    id: 'pjk-img-14',
-    tanggal: '06/08/2026',
+    id: 'pjk-tax-out-tx-13-0',
+    tanggal: '22/08/2026',
     nomorBukti: '',
-    uraian: 'Dibayarkan PPh 21 an. Wasito (5%)',
+    uraian: 'Dibayarkan PPh 21 Fasilitator / Tenaga Ahli (2,5%) Bayar Fasilitator Teknik',
     penerimaan: 0,
-    pengeluaran: 1000000,
+    pengeluaran: 166700,
     isTaxRow: true,
     jenisPajak: 'PPh 21',
+    linkedTxId: 'tx-13',
   },
+
+  // 6. KW-013: Biaya Fasilitator Manajemen (PPh 21 2,5%)
   {
-    id: 'pjk-img-15',
-    tanggal: '08/08/2026',
-    nomorBukti: 'KW-004',
-    uraian: 'Biaya Perencana Konstruksi',
+    id: 'pjk-tx-tx-15',
+    tanggal: '30/08/2026',
+    nomorBukti: 'KW-013',
+    uraian: 'Biaya Fasilitator Manajemen',
     penerimaan: 0,
-    pengeluaran: 20000000,
+    pengeluaran: 8001000,
     isTaxRow: false,
+    linkedTxId: 'tx-15',
   },
   {
-    id: 'pjk-img-16',
-    tanggal: '08/08/2026',
+    id: 'pjk-tax-in-tx-15-0',
+    tanggal: '30/08/2026',
     nomorBukti: '',
-    uraian: 'Diterima PPh Pasal 4(2) Perencana (4%)',
-    penerimaan: 800000,
+    uraian: 'Diterima PPh 21 Fasilitator / Tenaga Ahli (2,5%) Biaya Fasilitator Manajemen',
+    penerimaan: 200025,
     pengeluaran: 0,
     isTaxRow: true,
-    jenisPajak: 'PPh Pasal 4(2)',
+    jenisPajak: 'PPh 21',
+    linkedTxId: 'tx-15',
   },
   {
-    id: 'pjk-img-17',
-    tanggal: '08/08/2026',
+    id: 'pjk-tax-out-tx-15-0',
+    tanggal: '30/08/2026',
     nomorBukti: '',
-    uraian: 'Dibayarkan PPh Pasal 4(2) Perencana (4%)',
+    uraian: 'Dibayarkan PPh 21 Fasilitator / Tenaga Ahli (2,5%) Biaya Fasilitator Manajemen',
     penerimaan: 0,
-    pengeluaran: 800000,
+    pengeluaran: 200025,
     isTaxRow: true,
-    jenisPajak: 'PPh Pasal 4(2)',
+    jenisPajak: 'PPh 21',
+    linkedTxId: 'tx-15',
   },
-  {
-    id: 'pjk-img-18',
-    tanggal: '08/08/2026',
-    nomorBukti: 'KW-005',
-    uraian: 'Biaya Pengawas Konstruksi (70%)',
-    penerimaan: 0,
-    pengeluaran: 10000000,
-    isTaxRow: false,
-  },
-  {
-    id: 'pjk-img-19',
-    tanggal: '08/08/2026',
-    nomorBukti: '',
-    uraian: 'Diterima PPh Pasal 4(2) Pengawas (4%)',
-    penerimaan: 400000,
-    pengeluaran: 0,
-    isTaxRow: true,
-    jenisPajak: 'PPh Pasal 4(2)',
-  },
-  {
-    id: 'pjk-img-20',
-    tanggal: '08/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPh Pasal 4(2) Pengawas (4%)',
-    penerimaan: 0,
-    pengeluaran: 400000,
-    isTaxRow: true,
-    jenisPajak: 'PPh Pasal 4(2)',
-  },
-  // CATATAN: Transaksi tanpa pajak (misal Biaya Pengelolaan tanpa potongan pajak)
-  // TIDAK DIMASUKKAN ke Buku Pembantu Pajak sesuai permintaan user & aturan perpajakan!
+  // CATATAN:
+  // - Upah tukang (KW-002, KW-003, KW-012) = BEBAS PAJAK (TIDAK MASUK BKU PAJAK).
+  // - Material Pasir & Batu (KW-006 Pasir Cor, KW-007 Batu kali pondasi, KW-010 Batu bata) = BEBAS PAJAK (TIDAK MASUK BKU PAJAK).
+  // - Belanja material toko/kayu > Rp 2 Juta (KW-005, KW-008, KW-009) = KENA PPN (11%) + PPh 22 (1,5%).
 ];
 
 export interface DetectedTaxItem {
@@ -338,8 +422,71 @@ export interface DetectedTaxItem {
 }
 
 /**
- * Deteksi kewajiban pajak transaksi belanja berdasarkan materi perpajakan P2SP KPP Pratama.
- * Mengembalikan array pajak (kosong jika tidak ada pajak / bebas pajak).
+ * Memeriksa apakah suatu transaksi atau subItem adalah Upah Tukang / Pekerja.
+ * Upah tukang swakelola dikecualikan dari BKU Pajak (Pajak = Rp 0).
+ */
+export function isUpahTukang(t: Transaction): boolean {
+  if (t.jenisBiaya === 'Upah' || (t.jenisBiaya as string) === 'UPAH') return true;
+  const penerima = (t.penerima || '').toLowerCase();
+  if (
+    penerima.includes('tukang') ||
+    penerima.includes('pekerja') ||
+    penerima.includes('mandor') ||
+    penerima.includes('kelompok kerja')
+  ) {
+    return true;
+  }
+  const uLower = (t.uraian || '').toLowerCase();
+  const upahKeywords = [
+    'upah',
+    'tukang',
+    'ongkos kerja',
+    'ongkos tukang',
+    'bayar pemasangan',
+    'pembersihan',
+    'pembongkaran',
+    'pekerja',
+    'kepala tukang',
+  ];
+  return upahKeywords.some((k) => uLower.includes(k));
+}
+
+/**
+ * Memeriksa apakah suatu nama barang/material adalah Pasir atau Batu (Galian C) yang bebas pajak BKU.
+ */
+export function isPasirOrBatuItem(itemName: string): boolean {
+  const n = (itemName || '').toLowerCase();
+  const exemptKeywords = [
+    'pasir',
+    'batu kali',
+    'batu pondasi',
+    'batu pecah',
+    'batu belah',
+    'batu bata',
+    'bata merah',
+    'batu alam',
+    'batu split',
+    'split',
+    'kerikil',
+    'sirtu',
+    'timbunan',
+    'tanah timbun',
+    'tanah urug',
+    'galian c',
+  ];
+  return exemptKeywords.some((k) => n.includes(k));
+}
+
+/**
+ * Deteksi kewajiban pajak transaksi belanja berdasarkan aturan khusus BKU Pajak:
+ * 1. Upah tukang: Bebas pajak / Tidak dimasukkan ke BKU Pajak (Pajak = Rp 0).
+ * 2. Material Pasir & Batu: Bebas pajak / Tidak dimasukkan ke BKU Pajak (Pajak = Rp 0).
+ * 3. Selain itu (seperti material toko, kayu, semen, besi, cat, dll.):
+ *    - Belanja > Rp 2.000.000: Dikenakan PPN (11%) + PPh 22 (1,5%).
+ *    - Belanja <= Rp 2.000.000: Bebas pajak (Pajak = Rp 0).
+ * 4. Jasa Perencana / Pengawas: PPh Final 4(2) sebesar 4%.
+ * 5. Sewa Alat / Molen: PPh 23 sebesar 2%.
+ * 6. Fasilitator / Tenaga Ahli Non-PNS: PPh 21 sebesar 2,5%.
  */
 export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
   // Transaksi tarik tunai atau penerimaan bukan objek pajak belanja
@@ -351,7 +498,12 @@ export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
   const nominal = t.pengeluaran;
   const items: DetectedTaxItem[] = [];
 
-  // 1. Jasa Perencana / Pengawas Konstruksi -> PPh Final Pasal 4(2) sebesar 4% (Slide 45)
+  // ATURAN 1: UPAH TUKANG TIDAK DIBERIKAN PAJAK (BEBAS PAJAK / JANGAN MASUK BKU PAJAK)
+  if (isUpahTukang(t)) {
+    return [];
+  }
+
+  // ATURAN 2: JASA KONSULTAN PERENCANA & PENGAWAS KONSTRUKSI (PPh Final 4(2) 4%)
   if (
     uLower.includes('perencana') ||
     uLower.includes('pengawas') ||
@@ -370,12 +522,12 @@ export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
       label,
       persen,
       nominal: nominalPajak,
-      keterangan: 'PPh Final Pasal 4(2) Jasa Konsultan Konstruksi 4% (Slide 45)',
+      keterangan: 'PPh Final Pasal 4(2) Jasa Konsultan Konstruksi 4%',
     });
     return items;
   }
 
-  // 2. Sewa Alat / Molen Cor / Mesin / Kendaraan Angkut -> PPh Pasal 23 sebesar 2% (Slide 33-35)
+  // ATURAN 3: SEWA ALAT / MOLEN / KENDARAAN (PPh 23 2%)
   if (
     uLower.includes('sewa molen') ||
     uLower.includes('sewa alat') ||
@@ -392,12 +544,12 @@ export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
       label: 'PPh Pasal 23 Sewa Alat (2%)',
       persen,
       nominal: nominalPajak,
-      keterangan: 'PPh Pasal 23 Sewa Harta/Peralatan 2% (Slide 33-35)',
+      keterangan: 'PPh Pasal 23 Sewa Harta/Peralatan 2%',
     });
     return items;
   }
 
-  // 3. Pekerjaan Borongan Konstruksi Fisik oleh pihak ketiga / mandor borong -> PPh Final Pasal 4(2) 4% (Slide 45)
+  // ATURAN 4: BORONGAN FISIK PIHAK KETIGA / KONTRAKTOR (PPh Final 4(2) 4%)
   if (
     uLower.includes('borongan') ||
     uLower.includes('subkon') ||
@@ -411,19 +563,18 @@ export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
       label: 'PPh Final Borongan Konstruksi (4%)',
       persen,
       nominal: nominalPajak,
-      keterangan: 'PPh Final Pasal 4(2) Pelaksanaan Konstruksi Tanpa Sertifikat 4% (Slide 45)',
+      keterangan: 'PPh Final Pasal 4(2) Pelaksanaan Konstruksi 4%',
     });
     return items;
   }
 
-  // 4. Honor Fasilitator Teknik / Manajemen / Tenaga Ahli Non-PNS -> PPh 21 Bukan Pegawai 2,5% (Slide 27)
+  // ATURAN 5: HONOR FASILITATOR / TENAGA AHLI BUKAN PEGAWAI (PPh 21 2,5%)
   if (
     uLower.includes('fasilitator') ||
     uLower.includes('tenaga ahli') ||
     uLower.includes('tim teknis') ||
     uLower.includes('narasumber')
   ) {
-    // Tarif PPh 21 Bukan Pegawai: 50% x 5% = 2,5%
     const persen = 2.5;
     const nominalPajak = Math.round(nominal * 0.025);
     items.push({
@@ -431,35 +582,88 @@ export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
       label: 'PPh 21 Fasilitator / Tenaga Ahli (2,5%)',
       persen,
       nominal: nominalPajak,
-      keterangan: 'PPh 21 Imbalan Tenaga Ahli Bukan Pegawai (50% x 5% = 2,5%) (Slide 27)',
+      keterangan: 'PPh 21 Imbalan Tenaga Ahli Bukan Pegawai (2,5%)',
     });
     return items;
   }
 
-  // 5. Belanja Rekanan Toko yang secara eksplisit bertanda PKP
-  if (uLower.includes('pkp') || uLower.includes('ppn')) {
-    const ppn = Math.round(nominal * 0.11);
+  // ATURAN 6: MATERIAL PASIR & BATU TIDAK DIBERIKAN PAJAK
+  // DAN SELAIN ITU (MATERIAL TOKO, KAYU, SEMEN, BESI, DLL.) DIKENAKAN PPN (11%) + PPh 22 (1,5%) JIKA BELANJA > RP 2 JUTA
+  let taxableNominal = 0;
+  let hasOtherGoods = false;
+
+  if (t.subItems && t.subItems.length > 0) {
+    // Jika ada rincian subItems: pisahkan item pasir & batu (bebas) dengan material lainnya
+    let taxableSum = 0;
+    t.subItems.forEach((sub) => {
+      const isExempt = isPasirOrBatuItem(sub.nama) || /upah|tukang|ongkos/i.test(sub.nama);
+      if (!isExempt) {
+        hasOtherGoods = true;
+        taxableSum += sub.subtotal || 0;
+      }
+    });
+
+    // Jika seluruh subItem adalah pasir/batu/upah, tidak kena pajak
+    if (!hasOtherGoods) {
+      return [];
+    }
+    taxableNominal = taxableSum;
+  } else {
+    // Tanpa subItems: periksa uraian transaksi
+    const isExemptPasirOrBatu = isPasirOrBatuItem(t.uraian);
+    const hasTaxableKeyword =
+      uLower.includes('kayu') ||
+      uLower.includes('toko') ||
+      uLower.includes('material toko') ||
+      uLower.includes('semen') ||
+      uLower.includes('besi') ||
+      uLower.includes('cat') ||
+      uLower.includes('seng') ||
+      uLower.includes('keramik') ||
+      uLower.includes('pipa') ||
+      uLower.includes('triplek') ||
+      uLower.includes('spanduk') ||
+      uLower.includes('atk') ||
+      uLower.includes('papan') ||
+      uLower.includes('baut') ||
+      uLower.includes('paku');
+
+    // Jika uraian murni pasir atau batu tanpa material toko/kayu, bebas pajak
+    if (isExemptPasirOrBatu && !hasTaxableKeyword) {
+      return [];
+    }
+
+    taxableNominal = nominal;
+  }
+
+  // Batas nominal belanja toko/kayu/material: DI ATAS 2 JUTA (> Rp 2.000.000)
+  if (taxableNominal > 2_000_000) {
+    const ppn = Math.round(taxableNominal * 0.11);
+    const pph22 = Math.round(taxableNominal * 0.015);
+
+    // 1. PPN 11%
     items.push({
       jenisPajak: 'PPN',
-      label: 'PPN Toko Rekanan PKP (11%)',
+      label: 'PPN (11%)',
       persen: 11,
       nominal: ppn,
-      keterangan: 'PPN Rekanan PKP 11% (Slide 38)',
+      keterangan: 'PPN 11% Belanja Material Toko/Kayu > Rp 2 Jt',
     });
+
+    // 2. PPh Pasal 22 (1,5%)
+    items.push({
+      jenisPajak: 'PPh 22',
+      label: 'PPh 22 (1,5%)',
+      persen: 1.5,
+      nominal: pph22,
+      keterangan: 'PPh Pasal 22 (1,5%) Belanja Material Toko/Kayu > Rp 2 Jt',
+    });
+
     return items;
   }
 
-  // 6. UPAH TUKANG SWAKELOLA HARIAN (Slide 21 & 26):
-  // Upah per orang per hari rata-rata Rp 120.000 - Rp 200.000 (di bawah batas Rp 450.000/hari).
-  // Sesuai aturan PP 58/2023 & PMK 168/2023: TER Harian = 0%, PPh 21 = Rp 0 (BEBAS PAJAK).
-  // Maka TIDAK ADA PAJAK untuk upah tukang harian biasa!
-
-  // 7. BELANJA MATERIAL TOKO SWAKELOLA (Slide 15 & Slide 32 Kasus 2):
-  // P2SP BUKAN Pemungut PPh 22 dan BUKAN Pemungut PPN!
-  // Maka belanja material toko biasa oleh P2SP TIDAK DIPOTONG PAJAK oleh sekolah (Pajak = Rp 0).
-
-  // Semua belanja lainnya yang bebas pajak mengembalikan array kosong [].
-  return items;
+  // Belanja <= Rp 2.000.000 bebas pajak
+  return [];
 }
 
 /**
@@ -638,6 +842,9 @@ export function hitungPajakDariBruto(
 
   const jLower = jenis.toLowerCase();
 
+  if (jLower.includes('ppn + pph 22')) {
+    return Math.round(base * 0.125);
+  }
   if (jLower.includes('ppn')) {
     return Math.round(base * 0.11);
   }
