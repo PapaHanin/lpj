@@ -1603,11 +1603,19 @@ export const useLpjStore = create<LpjState>()(
               tanggal: formatToSlashDate(tx.tanggal || ''),
             }));
           }
-          const hasOldDummySample =
-            Array.isArray(persistedState.pajakRows) &&
-            persistedState.pajakRows.some((r: any) => r.id && r.id.startsWith('pjk-img-'));
-          if (hasOldDummySample || !Array.isArray(persistedState.pajakRows) || persistedState.pajakRows.length === 0) {
-            persistedState.pajakRows = generatePajakRowsFromTransactions(persistedState.transactions || INITIAL_TRANSACTIONS);
+          const needsBimtekTaxUpgrade =
+            !Array.isArray(persistedState.pajakRows) ||
+            persistedState.pajakRows.length === 0 ||
+            persistedState.pajakRows.some(
+              (r: any) =>
+                (r.id && r.id.startsWith('pjk-img-')) ||
+                (r.id && r.id.startsWith('pjk-tax-out-') && !r.nomorBukti) ||
+                (r.id && r.id.startsWith('pjk-tax-in-tx-10-') && r.penerimaan === 838200)
+            );
+          if (needsBimtekTaxUpgrade) {
+            persistedState.pajakRows = generatePajakRowsFromTransactions(
+              persistedState.transactions || INITIAL_TRANSACTIONS
+            );
           } else {
             persistedState.pajakRows = persistedState.pajakRows.map((r: any) => ({
               ...r,
@@ -1719,10 +1727,16 @@ export const useLpjStore = create<LpjState>()(
               })
             );
           }
-          const hasOldDummySample =
-            Array.isArray(state.pajakRows) &&
-            state.pajakRows.some((r) => r.id && r.id.startsWith('pjk-img-'));
-          if (hasOldDummySample || !Array.isArray(state.pajakRows) || state.pajakRows.length === 0) {
+          const needsBimtekTaxUpgrade =
+            !Array.isArray(state.pajakRows) ||
+            state.pajakRows.length === 0 ||
+            state.pajakRows.some(
+              (r) =>
+                (r.id && r.id.startsWith('pjk-img-')) ||
+                (r.id && r.id.startsWith('pjk-tax-out-') && !r.nomorBukti) ||
+                (r.id && r.id.startsWith('pjk-tax-in-tx-10-') && r.penerimaan === 838200)
+            );
+          if (needsBimtekTaxUpgrade) {
             state.pajakRows = generatePajakRowsFromTransactions(state.transactions || INITIAL_TRANSACTIONS);
           } else {
             state.pajakRows = state.pajakRows.map((r) => ({

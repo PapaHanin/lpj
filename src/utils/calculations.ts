@@ -148,17 +148,34 @@ export function getJenisBiaya(tx: Transaction): string {
 }
 
 /**
- * Memeriksa apakah suatu transaksi merupakan Penarikan Dana dari Bank ke Kas Tunai (SP2D).
- * Sesuai aturan BKU DAK Fisik, transaksi ini dicatat di sisi PENERIMAAN (kas tunai bertambah),
- * bukan di sisi PENGELUARAN.
+ * Memeriksa apakah suatu transaksi merupakan Penarikan Dana dari Bank ke Kas Tunai.
+ * Dana masuk bantuan (SP2D DAK Fisik/Revitalisasi ke Bank) adalah PENERIMAAN BANTUAN murni,
+ * BUKAN penarikan dana ke kas tunai.
  */
 export function isTarikTunaiOrSp2d(t: Partial<Transaction> | undefined | null): boolean {
   if (!t) return false;
   if (t.metode === 'TARIK_TUNAI') return true;
   const uraian = (t.uraian || '').toLowerCase();
-  const noBukti = (t.nomorBukti || '').toLowerCase();
-  if (uraian.includes('penarikan') || uraian.includes('tarik tunai')) return true;
-  if (noBukti.startsWith('sp2d') || noBukti.includes('sp2d')) return true;
+  // Penerimaan bantuan/dana masuk ke rekening bank bukan penarikan tunai
+  if (
+    t.metode === 'BANK' &&
+    t.jenis === 'PENERIMAAN' &&
+    (uraian.includes('dana masuk') ||
+      uraian.includes('bantuan') ||
+      uraian.includes('tahap') ||
+      uraian.includes('hibah') ||
+      uraian.includes('penerimaan'))
+  ) {
+    return false;
+  }
+  if (
+    uraian.includes('penarikan') ||
+    uraian.includes('tarik tunai') ||
+    uraian.includes('ambil tunai') ||
+    uraian.includes('tarik dari bank')
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -181,7 +198,7 @@ export const INITIAL_PROFILE: ProjectProfile = {
   namaKetuaP2S: 'I MADE SUWITA, S.Pd',
   tempatPelunasan: 'Palasa',
   tampilkanTarikTunaiDiBku: true,
-  posisiTarikTunaiDiBku: 'penerimaan',
+  posisiTarikTunaiDiBku: 'kedua_sisi',
 };
 
 export const INITIAL_TRANSACTIONS: Transaction[] = [
@@ -737,27 +754,52 @@ export function groupTransactionsByMonthlyBooks(
         if (t.jenis === 'PENGELUARAN' || t.pengeluaran > 0) {
           monthPengeluaranBku += t.pengeluaran;
         }
-      } else if (showTarikTunaiInBku) {
-        // Penarikan dana/SP2D selalu masuk di PENERIMAAN
-        monthPenerimaanBku += nominalTarik;
-        runningSaldoBku += nominalTarik;
-      }
 
-      bkuRows.push({
-        no: bkuRowNo++,
-        tanggal: formatToSlashDate(t.tanggal),
-        uraian: t.uraian,
-        nomorBukti: t.nomorBukti,
-        jenisBiaya: isPenarikanBankKeTunai ? undefined : getJenisBiaya(t),
-        penerimaan: isPenarikanBankKeTunai
-          ? (showTarikTunaiInBku ? nominalTarik : 0)
-          : t.penerimaan,
-        pengeluaran: isPenarikanBankKeTunai
-          ? 0
-          : t.pengeluaran,
-        saldo: runningSaldoBku,
-        transaction: t,
-      });
+        bkuRows.push({
+          no: bkuRowNo++,
+          tanggal: formatToSlashDate(t.tanggal),
+          uraian: t.uraian,
+          nomorBukti: t.nomorBukti,
+          jenisBiaya: getJenisBiaya(t),
+          penerimaan: t.penerimaan,
+          pengeluaran: t.pengeluaran,
+          saldo: runningSaldoBku,
+          transaction: t,
+        });
+      } else if (showTarikTunaiInBku) {
+        // Mutasi Kas Internal (Penarikan Bank -> Kas Tunai)
+        // Menurut standar Bimtek Revitalisasi SD, jika dicatat di BKU Umum:
+        // Baris 1: Pengeluaran dari Rekening Bank (BB-...)
+        // Baris 2: Penerimaan di Kas Tunai (SP2D-... / BKT-...)
+        // Dampak neto saldo = 0, sehingga Saldo BKU = Saldo Bank + Saldo Kas Tunai
+        monthPengeluaranBku += nominalTarik;
+        const saldoSetelahBankOut = runningSaldoBku - nominalTarik;
+        bkuRows.push({
+          no: bkuRowNo++,
+          tanggal: formatToSlashDate(t.tanggal),
+          uraian: `Penarikan tunai dari rekening Bank (untuk Kas Tunai)`,
+          nomorBukti: t.nomorBukti || 'BB-001',
+          jenisBiaya: undefined,
+          penerimaan: 0,
+          pengeluaran: nominalTarik,
+          saldo: saldoSetelahBankOut,
+          transaction: t,
+        });
+
+        monthPenerimaanBku += nominalTarik;
+        runningSaldoBku = saldoSetelahBankOut + nominalTarik;
+        bkuRows.push({
+          no: bkuRowNo++,
+          tanggal: formatToSlashDate(t.tanggal),
+          uraian: `Penerimaan kas tunai dari penarikan Bank`,
+          nomorBukti: t.nomorBukti || 'SP2D-001',
+          jenisBiaya: undefined,
+          penerimaan: nominalTarik,
+          pengeluaran: 0,
+          saldo: runningSaldoBku,
+          transaction: t,
+        });
+      }
     });
 
     const totalPenerimaanBku = isFirstMonth

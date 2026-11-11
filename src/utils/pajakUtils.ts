@@ -152,7 +152,7 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-in-tx-6-0',
     tanggal: '16/08/2026',
-    nomorBukti: '',
+    nomorBukti: 'KW-004',
     uraian: 'Diterima PPh Pasal 4(2) Perencana & Pengawas (4%) Bayar Perencana & Pengawasan',
     penerimaan: 622000,
     pengeluaran: 0,
@@ -163,8 +163,8 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-out-tx-6-0',
     tanggal: '16/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPh Pasal 4(2) Perencana & Pengawas (4%) Bayar Perencana & Pengawasan',
+    nomorBukti: 'BPN-08-001',
+    uraian: 'Disetor PPh Pasal 4(2) Perencana & Pengawas (4%) ke Kas Negara via NTPN',
     penerimaan: 0,
     pengeluaran: 622000,
     isTaxRow: true,
@@ -172,7 +172,7 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
     linkedTxId: 'tx-6',
   },
 
-  // 2. KW-005: Belanja Material Pasir & Kayu (Kayu > Rp 2 Jt kena PPN 11% + PPh 22 1,5%, Pasir Bebas)
+  // 2. KW-005: Belanja Material Pasir & Kayu (Kayu Lata > Rp 2 Jt kena PPN 11% + PPh 22 1,5% DPP 100/111, Pasir Bebas)
   {
     id: 'pjk-tx-tx-7',
     tanggal: '16/08/2026',
@@ -186,9 +186,9 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-in-tx-7-0',
     tanggal: '16/08/2026',
-    nomorBukti: '',
+    nomorBukti: 'KW-005',
     uraian: 'Diterima PPN (11%) Belanja Material Pasir & Kayu (Kayu Lata)',
-    penerimaan: 330000,
+    penerimaan: 297297,
     pengeluaran: 0,
     isTaxRow: true,
     jenisPajak: 'PPN',
@@ -197,10 +197,10 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-out-tx-7-0',
     tanggal: '16/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPN (11%) Belanja Material Pasir & Kayu (Kayu Lata)',
+    nomorBukti: 'BPN-08-002',
+    uraian: 'Disetor PPN (11%) Belanja Material Pasir & Kayu ke Kas Negara via NTPN',
     penerimaan: 0,
-    pengeluaran: 330000,
+    pengeluaran: 297297,
     isTaxRow: true,
     jenisPajak: 'PPN',
     linkedTxId: 'tx-7',
@@ -208,9 +208,9 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-in-tx-7-1',
     tanggal: '16/08/2026',
-    nomorBukti: '',
+    nomorBukti: 'KW-005',
     uraian: 'Diterima PPh 22 (1,5%) Belanja Material Pasir & Kayu (Kayu Lata)',
-    penerimaan: 45000,
+    penerimaan: 40541,
     pengeluaran: 0,
     isTaxRow: true,
     jenisPajak: 'PPh 22',
@@ -219,16 +219,16 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-out-tx-7-1',
     tanggal: '16/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPh 22 (1,5%) Belanja Material Pasir & Kayu (Kayu Lata)',
+    nomorBukti: 'BPN-08-003',
+    uraian: 'Disetor PPh 22 (1,5%) Belanja Material Pasir & Kayu ke Kas Negara via NTPN',
     penerimaan: 0,
-    pengeluaran: 45000,
+    pengeluaran: 40541,
     isTaxRow: true,
     jenisPajak: 'PPh 22',
     linkedTxId: 'tx-7',
   },
 
-  // 3. KW-008: Belanja Bahan Material Toko (> Rp 2 Jt kena PPN 11% + PPh 22 1,5%)
+  // 3. KW-008: Belanja Bahan Material Toko (> Rp 2 Jt kena PPN 11% + PPh 22 1,5% DPP 100/111)
   {
     id: 'pjk-tx-tx-10',
     tanggal: '18/08/2026',
@@ -242,9 +242,9 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-in-tx-10-0',
     tanggal: '18/08/2026',
-    nomorBukti: '',
+    nomorBukti: 'KW-008',
     uraian: 'Diterima PPN (11%) Belanja Bahan Material Toko',
-    penerimaan: 838200,
+    penerimaan: 755135,
     pengeluaran: 0,
     isTaxRow: true,
     jenisPajak: 'PPN',
@@ -253,10 +253,10 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-out-tx-10-0',
     tanggal: '18/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPN (11%) Belanja Bahan Material Toko',
+    nomorBukti: 'BPN-08-004',
+    uraian: 'Disetor PPN (11%) Belanja Bahan Material Toko ke Kas Negara via NTPN',
     penerimaan: 0,
-    pengeluaran: 838200,
+    pengeluaran: 755135,
     isTaxRow: true,
     jenisPajak: 'PPN',
     linkedTxId: 'tx-10',
@@ -264,9 +264,9 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-in-tx-10-1',
     tanggal: '18/08/2026',
-    nomorBukti: '',
+    nomorBukti: 'KW-008',
     uraian: 'Diterima PPh 22 (1,5%) Belanja Bahan Material Toko',
-    penerimaan: 114300,
+    penerimaan: 102973,
     pengeluaran: 0,
     isTaxRow: true,
     jenisPajak: 'PPh 22',
@@ -275,16 +275,16 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-out-tx-10-1',
     tanggal: '18/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPh 22 (1,5%) Belanja Bahan Material Toko',
+    nomorBukti: 'BPN-08-005',
+    uraian: 'Disetor PPh 22 (1,5%) Belanja Bahan Material Toko ke Kas Negara via NTPN',
     penerimaan: 0,
-    pengeluaran: 114300,
+    pengeluaran: 102973,
     isTaxRow: true,
     jenisPajak: 'PPh 22',
     linkedTxId: 'tx-10',
   },
 
-  // 4. KW-009: Belanja Bahan Material Toko (> Rp 2 Jt kena PPN 11% + PPh 22 1,5%)
+  // 4. KW-009: Belanja Bahan Material Toko (> Rp 2 Jt kena PPN 11% + PPh 22 1,5% DPP 100/111)
   {
     id: 'pjk-tx-tx-11',
     tanggal: '19/08/2026',
@@ -298,9 +298,9 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-in-tx-11-0',
     tanggal: '19/08/2026',
-    nomorBukti: '',
+    nomorBukti: 'KW-009',
     uraian: 'Diterima PPN (11%) Belanja Bahan Material Toko',
-    penerimaan: 1925000,
+    penerimaan: 1734234,
     pengeluaran: 0,
     isTaxRow: true,
     jenisPajak: 'PPN',
@@ -309,10 +309,10 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-out-tx-11-0',
     tanggal: '19/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPN (11%) Belanja Bahan Material Toko',
+    nomorBukti: 'BPN-08-006',
+    uraian: 'Disetor PPN (11%) Belanja Bahan Material Toko ke Kas Negara via NTPN',
     penerimaan: 0,
-    pengeluaran: 1925000,
+    pengeluaran: 1734234,
     isTaxRow: true,
     jenisPajak: 'PPN',
     linkedTxId: 'tx-11',
@@ -320,9 +320,9 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-in-tx-11-1',
     tanggal: '19/08/2026',
-    nomorBukti: '',
+    nomorBukti: 'KW-009',
     uraian: 'Diterima PPh 22 (1,5%) Belanja Bahan Material Toko',
-    penerimaan: 262500,
+    penerimaan: 236486,
     pengeluaran: 0,
     isTaxRow: true,
     jenisPajak: 'PPh 22',
@@ -331,10 +331,10 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-out-tx-11-1',
     tanggal: '19/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPh 22 (1,5%) Belanja Bahan Material Toko',
+    nomorBukti: 'BPN-08-007',
+    uraian: 'Disetor PPh 22 (1,5%) Belanja Bahan Material Toko ke Kas Negara via NTPN',
     penerimaan: 0,
-    pengeluaran: 262500,
+    pengeluaran: 236486,
     isTaxRow: true,
     jenisPajak: 'PPh 22',
     linkedTxId: 'tx-11',
@@ -354,7 +354,7 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-in-tx-13-0',
     tanggal: '22/08/2026',
-    nomorBukti: '',
+    nomorBukti: 'KW-011',
     uraian: 'Diterima PPh 21 Fasilitator / Tenaga Ahli (2,5%) Bayar Fasilitator Teknik',
     penerimaan: 166700,
     pengeluaran: 0,
@@ -365,8 +365,8 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-out-tx-13-0',
     tanggal: '22/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPh 21 Fasilitator / Tenaga Ahli (2,5%) Bayar Fasilitator Teknik',
+    nomorBukti: 'BPN-08-008',
+    uraian: 'Disetor PPh 21 Fasilitator / Tenaga Ahli (2,5%) ke Kas Negara via NTPN',
     penerimaan: 0,
     pengeluaran: 166700,
     isTaxRow: true,
@@ -388,7 +388,7 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-in-tx-15-0',
     tanggal: '30/08/2026',
-    nomorBukti: '',
+    nomorBukti: 'KW-013',
     uraian: 'Diterima PPh 21 Fasilitator / Tenaga Ahli (2,5%) Biaya Fasilitator Manajemen',
     penerimaan: 200025,
     pengeluaran: 0,
@@ -399,18 +399,18 @@ export const SAMPLE_IMAGE_PAJAK_ROWS: PajakRowItem[] = [
   {
     id: 'pjk-tax-out-tx-15-0',
     tanggal: '30/08/2026',
-    nomorBukti: '',
-    uraian: 'Dibayarkan PPh 21 Fasilitator / Tenaga Ahli (2,5%) Biaya Fasilitator Manajemen',
+    nomorBukti: 'BPN-08-009',
+    uraian: 'Disetor PPh 21 Fasilitator / Tenaga Ahli (2,5%) ke Kas Negara via NTPN',
     penerimaan: 0,
     pengeluaran: 200025,
     isTaxRow: true,
     jenisPajak: 'PPh 21',
     linkedTxId: 'tx-15',
   },
-  // CATATAN:
+  // CATATAN SESUAI BIMTEK REVITALISASI 2026:
   // - Upah tukang (KW-002, KW-003, KW-012) = BEBAS PAJAK (TIDAK MASUK BKU PAJAK).
   // - Material Pasir & Batu (KW-006 Pasir Cor, KW-007 Batu kali pondasi, KW-010 Batu bata) = BEBAS PAJAK (TIDAK MASUK BKU PAJAK).
-  // - Belanja material toko/kayu > Rp 2 Juta (KW-005, KW-008, KW-009) = KENA PPN (11%) + PPh 22 (1,5%).
+  // - Belanja material toko/kayu > Rp 2 Juta (KW-005, KW-008, KW-009) = KENA PPN (11%) + PPh 22 (1,5%) dengan rumus DPP 100/111.
 ];
 
 export interface DetectedTaxItem {
@@ -637,9 +637,15 @@ export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
   }
 
   // Batas nominal belanja toko/kayu/material: DI ATAS 2 JUTA (> Rp 2.000.000)
+  // Sesuai Juknis Pajak Bimtek Revitalisasi SD 2026 (Slide 7, 8, 9, 21):
+  // Nilai belanja kuitansi bruto sudah termasuk PPN:
+  // DPP = round(100/111 * Nilai Belanja)
+  // PPN (11%) = round(11/111 * Nilai Belanja)
+  // PPh 22 (1,5%) = round(1.5% * DPP)
   if (taxableNominal > 2_000_000) {
-    const ppn = Math.round(taxableNominal * 0.11);
-    const pph22 = Math.round(taxableNominal * 0.015);
+    const dpp = Math.round((taxableNominal * 100) / 111);
+    const ppn = Math.round((taxableNominal * 11) / 111);
+    const pph22 = Math.round(dpp * 0.015);
 
     // 1. PPN 11%
     items.push({
@@ -647,7 +653,7 @@ export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
       label: 'PPN (11%)',
       persen: 11,
       nominal: ppn,
-      keterangan: 'PPN 11% Belanja Material Toko/Kayu > Rp 2 Jt',
+      keterangan: 'PPN 11% Belanja Material Toko/Kayu > Rp 2 Jt (DPP 100/111)',
     });
 
     // 2. PPh Pasal 22 (1,5%)
@@ -656,7 +662,7 @@ export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
       label: 'PPh 22 (1,5%)',
       persen: 1.5,
       nominal: pph22,
-      keterangan: 'PPh Pasal 22 (1,5%) Belanja Material Toko/Kayu > Rp 2 Jt',
+      keterangan: 'PPh Pasal 22 (1,5%) Belanja Material Toko/Kayu > Rp 2 Jt (DPP 100/111)',
     });
 
     return items;
@@ -668,7 +674,7 @@ export function detectTaxForTransaction(t: Transaction): DetectedTaxItem[] {
 
 /**
  * Menghasilkan baris-baris BKU Pajak secara otomatis HANYA dari transaksi yang ada pajaknya!
- * Transaksi belanja tanpa pajak (material toko swakelola biasa, upah tukang <= 450rb/hari)
+ * Transaksi belanja tanpa pajak (material toko swakelola biasa <= 2jt, pasir & batu kali, upah tukang <= 450rb/hari)
  * DIKECUALIKAN / TIDAK DIMASUKKAN ke Buku Pembantu Pajak.
  */
 export function generatePajakRowsFromTransactions(
@@ -705,6 +711,8 @@ export function generatePajakRowsFromTransactions(
     (t) => t.metode !== 'TARIK_TUNAI' && t.jenis === 'PENGELUARAN' && t.pengeluaran > 0
   );
 
+  let bpnCounter = 1;
+
   expenseTxs.forEach((t) => {
     const taxItems = detectTaxForTransaction(t);
 
@@ -716,6 +724,9 @@ export function generatePajakRowsFromTransactions(
 
     const tgl = formatToSlashDate(t.tanggal);
     const nominalBelanja = t.pengeluaran;
+    const my = extractMonthAndYear(t.tanggal);
+    const mIdx = BULAN_LIST.findIndex((m) => m.toLowerCase() === (my?.month || 'Agustus').toLowerCase());
+    const padMonth = String(mIdx >= 0 ? mIdx + 1 : 8).padStart(2, '0');
 
     // Baris Induk Belanja yang Dikenai Pajak
     if (includeParent) {
@@ -733,11 +744,13 @@ export function generatePajakRowsFromTransactions(
 
     // Baris Pajak Diterima (Penerimaan) & Pajak Dibayarkan/Disetor (Pengeluaran)
     taxItems.forEach((tax, taxIdx) => {
-      // 1. Diterima Potongan Pajak
+      const bpnNumber = `BPN-${padMonth}-${String(bpnCounter++).padStart(3, '0')}`;
+
+      // 1. Diterima / Dipungut Pajak (No. Bukti = Kuitansi Belanja KW-...)
       rows.push({
         id: `pjk-tax-in-${t.id}-${taxIdx}`,
         tanggal: tgl,
-        nomorBukti: '',
+        nomorBukti: t.nomorBukti || '-',
         uraian: `Diterima ${tax.label} ${t.uraian}`,
         penerimaan: tax.nominal,
         pengeluaran: 0,
@@ -746,12 +759,12 @@ export function generatePajakRowsFromTransactions(
         linkedTxId: t.id,
       });
 
-      // 2. Dibayarkan / Disetorkan ke Kas Negara
+      // 2. Dibayarkan / Disetorkan ke Kas Negara (No. Bukti = BPN-BB-NNN)
       rows.push({
         id: `pjk-tax-out-${t.id}-${taxIdx}`,
         tanggal: tgl,
-        nomorBukti: '',
-        uraian: `Dibayarkan ${tax.label} ${t.uraian}`,
+        nomorBukti: bpnNumber,
+        uraian: `Disetor ${tax.label} ke Kas Negara via NTPN`,
         penerimaan: 0,
         pengeluaran: tax.nominal,
         isTaxRow: true,

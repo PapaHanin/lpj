@@ -1,8 +1,13 @@
 import * as XLSX from 'xlsx';
 import { ProjectProfile, Transaction } from '../types';
-import { groupTransactionsByMonthlyBooks } from './calculations';
+import { groupTransactionsByMonthlyBooks, isTarikTunaiOrSp2d } from './calculations';
 import { formatRupiahBulat, terbilangRupiah } from './terbilang';
-import { formatToSlashDate } from './dateUtils';
+import {
+  formatToSlashDate,
+  indonesianDateToIso,
+  getFirstDateForMonth,
+} from './dateUtils';
+import { groupPajakRowsByMonthlyBooks } from './pajakUtils';
 import { useLpjStore } from '../store/lpjStore';
 import {
   extractDaftarBahan,
@@ -16,6 +21,12 @@ import {
   getDayValue,
   getKodeMtp,
 } from './bahanTukangUtils';
+
+function extractBuktiNum(noBukti: string | undefined | null): number {
+  if (!noBukti) return 999999;
+  const match = noBukti.match(/\d+/);
+  return match ? parseInt(match[0], 10) : 999999;
+}
 
 export function exportLpjToExcel(
   profile: ProjectProfile,
@@ -34,11 +45,17 @@ export function exportLpjToExcel(
     const monthlyGroups = groupTransactionsByMonthlyBooks(transactions, profile);
 
     // ==========================================
-    // SHEET 1: BK UMUM (Format Resmi 2 Sisi Sesuai Gambar: Penerimaan 1-4 & Pengeluaran 5-9)
+    // SHEET 1: BK UMUM (Format Resmi 7 Kolom: No, Tanggal, Uraian, No. Bukti, Penerimaan, Pengeluaran, Saldo)
     // ==========================================
     const sheet1Rows: (string | number)[][] = [];
+    const monthlyPajakGroups = groupPajakRowsByMonthlyBooks(store.pajakRows || [], transactions, profile, true);
+
+    let runningCumulativeSaldoExcel = 0;
 
     monthlyGroups.forEach((group, gIdx) => {
+      const isFirstMonth = gIdx === 0;
+      const prevMonthSaldo = runningCumulativeSaldoExcel;
+
       if (gIdx > 0) {
         sheet1Rows.push(['']);
         sheet1Rows.push(['']);
@@ -56,157 +73,298 @@ export function exportLpjToExcel(
       sheet1Rows.push(['KABUPATEN', `: ${profile.kabupaten}`]);
       sheet1Rows.push(['']);
 
-      // Tier 1 Header: Penerimaan vs Pengeluaran
+      // Header 7 Kolom Resmi Sesuai Screenshot
       sheet1Rows.push([
-        'PENERIMAAN', '', '', '',
-        'PENGELUARAN', '', '', '', ''
-      ]);
-
-      // Tier 2 Header: 9 Kolom Resmi
-      sheet1Rows.push([
+        'No',
         'Tanggal',
         'Uraian',
         'No. Bukti',
-        'Jumlah (Rp.)',
-        'Tanggal',
-        'Uraian',
-        'No. Bukti',
-        'Jenis Biaya',
-        'Jumlah (Rp.)',
+        'Penerimaan (Rp)',
+        'Pengeluaran (Rp)',
+        'Saldo (Rp)',
       ]);
 
-      // Tier 3 Header: Nomor Kolom 1 s/d 9
-      sheet1Rows.push(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+      // Siapkan baris transaksi terpadu (Bank, Tunai, dan Pajak)
+      interface ExcelBkuRow {
+        sortDate: string;
+        tanggal: string;
+        uraian: string;
+        nomorBukti: string;
+        penerimaan: number;
+        pengeluaran: number;
+        isInitial?: boolean;
+        isTax?: boolean;
+      }
 
-      // Siapkan item penerimaan & pengeluaran per baris sejajar
-      const penerimaanList: { tanggal: string; uraian: string; noBukti: string; jumlah: number }[] = [];
-      if (!group.isFirstMonth && group.bku.initialRow) {
-        penerimaanList.push({
-          tanggal: formatToSlashDate(group.bku.initialRow.tanggal),
-          uraian: group.bku.initialRow.uraian,
-          noBukti: '-',
-          jumlah: group.bku.initialRow.saldo,
+      const rowsForMonth: ExcelBkuRow[] = [];
+
+      // 1. Sisa saldo bulan lalu
+      if (!isFirstMonth) {
+        const prevGroupName = monthlyGroups[gIdx - 1]?.monthName || '';
+        const firstDateStr = getFirstDateForMonth(group.monthName, group.year);
+        rowsForMonth.push({
+          sortDate: indonesianDateToIso(firstDateStr) || `${group.year}-01-01`,
+          tanggal: formatToSlashDate(firstDateStr),
+          uraian: `Sisa Saldo Bulan ${prevGroupName}`,
+          nomorBukti: '-',
+          penerimaan: prevMonthSaldo,
+          pengeluaran: 0,
+          isInitial: true,
         });
       }
+
+      // 2. Transaksi Operasional
       const showTarikTunai = Boolean(profile.tampilkanTarikTunaiDiBku);
       const posisiTarikTunai = profile.posisiTarikTunaiDiBku || 'penerimaan';
 
-      group.transactions.forEach((t) => {
-        if (t.jenis === 'PENERIMAAN' && t.metode !== 'TARIK_TUNAI') {
-          penerimaanList.push({
-            tanggal: formatToSlashDate(t.tanggal),
+      // 2. Kumpulkan Baris Pajak Bulan Ini
+      const matchingPajak = monthlyPajakGroups.find((pg) => pg.monthKey === group.monthKey);
+      const taxRowsThisMonth = (matchingPajak?.rows || []).filter(
+        (pRow) => pRow.isTax && !pRow.isInitialRow
+      );
+      const usedTaxRowIds = new Set<string>();
+
+      // 3. Urutkan Transaksi Utama Bulan Ini secara Kronologis & Nomor Bukti (KW-006, KW-007, KW-008)
+      const sortedTransactions = [...group.transactions].sort((a, b) => {
+        const dateA = indonesianDateToIso(a.tanggal) || '9999-99-99';
+        const dateB = indonesianDateToIso(b.tanggal) || '9999-99-99';
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+
+        const isFundingA = a.metode === 'BANK' && (a.jenis === 'PENERIMAAN' || a.penerimaan > 0);
+        const isFundingB = b.metode === 'BANK' && (b.jenis === 'PENERIMAAN' || b.penerimaan > 0);
+        if (isFundingA && !isFundingB) return -1;
+        if (!isFundingA && isFundingB) return 1;
+
+        const isTarikA = isTarikTunaiOrSp2d(a);
+        const isTarikB = isTarikTunaiOrSp2d(b);
+        if (isTarikA && !isTarikB) return -1;
+        if (!isTarikA && isTarikB) return 1;
+
+        const numA = extractBuktiNum(a.nomorBukti);
+        const numB = extractBuktiNum(b.nomorBukti);
+        if (numA !== numB) return numA - numB;
+
+        return a.id.localeCompare(b.id);
+      });
+
+      // 4. Susun Baris BKU: Setiap belanja KW langsung diikuti pajak miliknya masing-masing
+      sortedTransactions.forEach((t) => {
+        const isSp2d = isTarikTunaiOrSp2d(t);
+        const tDate = formatToSlashDate(t.tanggal);
+        const sortDate = indonesianDateToIso(t.tanggal) || '9999-99-99';
+
+        if (isSp2d) {
+          const nominal = t.penerimaan > 0 ? t.penerimaan : t.pengeluaran > 0 ? t.pengeluaran : 0;
+          if (showTarikTunai) {
+            rowsForMonth.push({
+              sortDate,
+              tanggal: tDate,
+              uraian: 'Penarikan tunai dari rekening Bank (untuk Kas Tunai)',
+              nomorBukti: t.nomorBukti || 'BB-001',
+              penerimaan: 0,
+              pengeluaran: nominal,
+            });
+            rowsForMonth.push({
+              sortDate,
+              tanggal: tDate,
+              uraian: 'Penerimaan kas tunai dari penarikan Bank',
+              nomorBukti: t.nomorBukti || 'SP2D-001',
+              penerimaan: nominal,
+              pengeluaran: 0,
+            });
+          }
+        } else if (t.metode === 'BANK' && (t.jenis === 'PENERIMAAN' || t.penerimaan > 0)) {
+          rowsForMonth.push({
+            sortDate,
+            tanggal: tDate,
             uraian: t.uraian,
-            noBukti: t.nomorBukti || '-',
-            jumlah: t.penerimaan,
+            nomorBukti: t.nomorBukti || 'SP2D-001',
+            penerimaan: t.penerimaan,
+            pengeluaran: 0,
           });
-        } else if (
-          t.metode === 'TARIK_TUNAI' &&
-          showTarikTunai &&
-          (posisiTarikTunai === 'penerimaan' || posisiTarikTunai === 'kedua_sisi')
-        ) {
-          penerimaanList.push({
-            tanggal: formatToSlashDate(t.tanggal),
-            uraian: `${t.uraian} [Tarik Tunai]`,
-            noBukti: t.nomorBukti || '-',
-            jumlah: t.penerimaan || t.pengeluaran,
+        } else if (t.metode === 'BANK' && (t.jenis === 'PENGELUARAN' || t.pengeluaran > 0)) {
+          rowsForMonth.push({
+            sortDate,
+            tanggal: tDate,
+            uraian: t.uraian,
+            nomorBukti: t.nomorBukti || 'BB-001',
+            penerimaan: 0,
+            pengeluaran: t.pengeluaran,
+          });
+        } else if (t.metode === 'TUNAI' && (t.jenis === 'PENGELUARAN' || t.pengeluaran > 0)) {
+          rowsForMonth.push({
+            sortDate,
+            tanggal: tDate,
+            uraian: t.uraian,
+            nomorBukti: t.nomorBukti || 'KW-001',
+            penerimaan: 0,
+            pengeluaran: t.pengeluaran,
+          });
+        } else if (t.metode === 'TUNAI' && (t.jenis === 'PENERIMAAN' || t.penerimaan > 0)) {
+          rowsForMonth.push({
+            sortDate,
+            tanggal: tDate,
+            uraian: t.uraian,
+            nomorBukti: t.nomorBukti || 'BKT-001',
+            penerimaan: t.penerimaan,
+            pengeluaran: 0,
+          });
+        }
+
+        // Tepat di bawah belanja ini: sisipkan pajak terkait
+        const linkedTaxes = taxRowsThisMonth.filter((pRow) => {
+          if (usedTaxRowIds.has(pRow.id)) return false;
+          if (pRow.linkedTxId && pRow.linkedTxId === t.id) return true;
+          if (t.nomorBukti && pRow.nomorBukti && pRow.nomorBukti.trim() === t.nomorBukti.trim()) return true;
+          return false;
+        });
+
+        if (linkedTaxes.length > 0) {
+          const potonganList = linkedTaxes.filter((p) => p.penerimaan > 0);
+          potonganList.forEach((pRow) => {
+            usedTaxRowIds.add(pRow.id);
+            const pDate = formatToSlashDate(pRow.tanggal);
+            const pSortDate = indonesianDateToIso(pRow.tanggal) || sortDate;
+            rowsForMonth.push({
+              sortDate: pSortDate,
+              tanggal: pDate,
+              uraian: pRow.uraian,
+              nomorBukti: pRow.nomorBukti || t.nomorBukti || '-',
+              penerimaan: pRow.penerimaan,
+              pengeluaran: 0,
+              isTax: true,
+            });
+          });
+
+          const setoranList = linkedTaxes.filter((p) => p.pengeluaran > 0);
+          setoranList.forEach((pRow) => {
+            usedTaxRowIds.add(pRow.id);
+            const pDate = formatToSlashDate(pRow.tanggal);
+            const pSortDate = indonesianDateToIso(pRow.tanggal) || sortDate;
+            rowsForMonth.push({
+              sortDate: pSortDate,
+              tanggal: pDate,
+              uraian: pRow.uraian,
+              nomorBukti: pRow.nomorBukti || 'BPN-001',
+              penerimaan: 0,
+              pengeluaran: pRow.pengeluaran,
+              isTax: true,
+            });
           });
         }
       });
 
-      const pengeluaranList: { tanggal: string; uraian: string; noBukti: string; jenisBiaya: string; jumlah: number }[] = [];
-      group.transactions.forEach((t) => {
-        if (t.jenis === 'PENGELUARAN' || (t.metode !== 'TARIK_TUNAI' && t.pengeluaran > 0)) {
-          pengeluaranList.push({
-            tanggal: formatToSlashDate(t.tanggal),
-            uraian: t.uraian,
-            noBukti: t.nomorBukti || '',
-            jenisBiaya: t.jenisBiaya || '',
-            jumlah: t.pengeluaran,
+      // Sisipkan baris pajak mandiri jika ada
+      const unlinkedTaxes = taxRowsThisMonth.filter((p) => !usedTaxRowIds.has(p.id));
+      unlinkedTaxes.forEach((pRow) => {
+        const pDate = formatToSlashDate(pRow.tanggal);
+        const pSortDate = indonesianDateToIso(pRow.tanggal) || '9999-99-99';
+        if (pRow.penerimaan > 0) {
+          rowsForMonth.push({
+            sortDate: pSortDate,
+            tanggal: pDate,
+            uraian: pRow.uraian,
+            nomorBukti: pRow.nomorBukti || '-',
+            penerimaan: pRow.penerimaan,
+            pengeluaran: 0,
+            isTax: true,
           });
-        } else if (
-          t.metode === 'TARIK_TUNAI' &&
-          showTarikTunai &&
-          (posisiTarikTunai === 'pengeluaran' || posisiTarikTunai === 'kedua_sisi')
-        ) {
-          pengeluaranList.push({
-            tanggal: formatToSlashDate(t.tanggal),
-            uraian: `${t.uraian} [Tarik Tunai]`,
-            noBukti: t.nomorBukti || '',
-            jenisBiaya: t.jenisBiaya || 'Tarik Tunai',
-            jumlah: t.pengeluaran || t.penerimaan,
+        }
+        if (pRow.pengeluaran > 0) {
+          rowsForMonth.push({
+            sortDate: pSortDate,
+            tanggal: pDate,
+            uraian: pRow.uraian,
+            nomorBukti: pRow.nomorBukti || 'BPN-001',
+            penerimaan: 0,
+            pengeluaran: pRow.pengeluaran,
+            isTax: true,
           });
         }
       });
 
-      const maxR = Math.max(penerimaanList.length, pengeluaranList.length, 6);
-      const totalPenerimaan = penerimaanList.reduce((sum, p) => sum + p.jumlah, 0);
-      const totalPengeluaran = pengeluaranList.reduce((sum, q) => sum + q.jumlah, 0);
-      const saldoKasUmum = totalPenerimaan - totalPengeluaran;
+      const finalExcelRows: ExcelBkuRow[] = rowsForMonth;
 
-      for (let i = 0; i < maxR; i++) {
-        const p = penerimaanList[i];
-        const q = pengeluaranList[i];
+      let runningSaldo = 0;
+      let monthTotPenerimaan = 0;
+      let monthTotPengeluaran = 0;
+
+      finalExcelRows.forEach((r, idx) => {
+        if (r.isInitial) {
+          runningSaldo = r.penerimaan;
+        } else {
+          runningSaldo += r.penerimaan - r.pengeluaran;
+          monthTotPenerimaan += r.penerimaan;
+          monthTotPengeluaran += r.pengeluaran;
+        }
+
         sheet1Rows.push([
-          p ? p.tanggal : '',
-          p ? p.uraian : '',
-          p ? p.noBukti : '',
-          p ? p.jumlah : '',
-          q ? q.tanggal : '',
-          q ? q.uraian : '',
-          q ? q.noBukti : '',
-          q ? q.jenisBiaya : '',
-          q ? q.jumlah : '',
+          idx + 1,
+          r.tanggal,
+          r.uraian,
+          r.nomorBukti,
+          r.penerimaan > 0 ? r.penerimaan : '-',
+          r.pengeluaran > 0 ? r.pengeluaran : '-',
+          runningSaldo,
         ]);
-      }
+      });
 
-      // Baris Bawah: Total Pengeluaran (III)
-      sheet1Rows.push(['', '', '', '', 'Total Pengeluaran (III)', '', '', '', totalPengeluaran]);
-      // Baris Bawah: Saldo Kas Umum (IV = I - III)
-      sheet1Rows.push(['', '', '', '', 'Saldo Kas Umum (IV = I - III)', '', '', '', saldoKasUmum]);
-      // Baris Bawah: Total Penerimaan Penyeimbang (I & II)
+      runningCumulativeSaldoExcel = runningSaldo;
+
+      const totalPenerimaanSheet = isFirstMonth ? monthTotPenerimaan : prevMonthSaldo + monthTotPenerimaan;
+      const totalPengeluaranSheet = monthTotPengeluaran;
+
+      // Baris Bawah: JUMLAH
       sheet1Rows.push([
-        'Total Penerimaan (I)', '', '', totalPenerimaan,
-        'Total Penerimaan (II = III + IV)', '', '', '', totalPengeluaran + saldoKasUmum
+        '',
+        '',
+        'JUMLAH',
+        '',
+        totalPenerimaanSheet,
+        totalPengeluaranSheet,
+        runningCumulativeSaldoExcel,
       ]);
 
       const tglTutup = formatToSlashDate(group.tanggalTutupBuku);
       sheet1Rows.push(['']);
       sheet1Rows.push([`Pada hari ini : ${tglTutup} Buku Kas Umum ditutup dengan keadaan/posisi Buku sebagai berikut :`]);
-      sheet1Rows.push(['Saldo Buku Kas Umum', '', '', group.summary.saldoKumulatif]);
+      sheet1Rows.push(['Saldo Buku Kas Umum', '', '', '', '', '', runningCumulativeSaldoExcel]);
       sheet1Rows.push(['Terdiri dari :']);
-      sheet1Rows.push(['1. Saldo Bank', '', '', group.summary.saldoBank]);
-      sheet1Rows.push(['2. Saldo Kas Tunai', '', '', group.summary.saldoTunai]);
-      sheet1Rows.push(['Jumlah (Bank + Tunai)', '', '', group.summary.saldoBank + group.summary.saldoTunai]);
-      sheet1Rows.push(['Perbedaan', '', '', 0]);
+      sheet1Rows.push(['1. Saldo Bank', '', '', '', '', '', group.summary.saldoBank]);
+      sheet1Rows.push(['2. Saldo Kas Tunai', '', '', '', '', '', group.summary.saldoTunai]);
+      const taxSaldoMonth = matchingPajak ? matchingPajak.saldoAkhirPajak : 0;
+      if (taxSaldoMonth !== 0) {
+        sheet1Rows.push(['3. Saldo Kas Pajak (Belum Disetor)', '', '', '', '', '', taxSaldoMonth]);
+      }
+      sheet1Rows.push(['Jumlah (Bank + Tunai + Pajak)', '', '', '', '', '', group.summary.saldoBank + group.summary.saldoTunai + taxSaldoMonth]);
+      sheet1Rows.push(['Perbedaan', '', '', '', '', '', 0]);
       sheet1Rows.push(['']);
 
       // 3 Tanda Tangan: Kepala Sekolah, Ketua P2S, Bendahara
-      sheet1Rows.push(['Mengetahui,', '', '', 'Ketua P2SP', '', '', `${profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, ${tglTutup}`, '', '']);
-      sheet1Rows.push([`Kepala ${profile.namaSekolah || 'Sekolah'}`, '', '', '', '', '', 'Bendahara', '', '']);
-      sheet1Rows.push(['', '', '', '', '', '', '', '', '']);
-      sheet1Rows.push(['', '', '', '', '', '', '', '', '']);
+      sheet1Rows.push(['Mengetahui,', '', '', 'Ketua P2SP', '', `${profile.tempatPelunasan || profile.kabupaten || 'Palasa'}, ${tglTutup}`, '']);
+      sheet1Rows.push([`Kepala ${profile.namaSekolah || 'Sekolah'}`, '', '', '', '', 'Bendahara', '']);
+      sheet1Rows.push(['', '', '', '', '', '', '']);
+      sheet1Rows.push(['', '', '', '', '', '', '']);
       sheet1Rows.push([
         profile.namaKepalaSekolah, '', '',
-        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2SP', '', '',
-        profile.namaBendahara, '', ''
+        profile.namaKetuaP2S || profile.namaPanitia || 'Ketua P2SP', '',
+        profile.namaBendahara, ''
       ]);
       sheet1Rows.push([
         `NIP. ${profile.nipKepalaSekolah}`, '', '',
-        '-', '', '',
-        `NIP. ${profile.nipBendahara}`, '', ''
+        '-', '',
+        `NIP. ${profile.nipBendahara}`, ''
       ]);
     });
 
     const ws1 = XLSX.utils.aoa_to_sheet(sheet1Rows);
     ws1['!cols'] = [
+      { wch: 6 },
       { wch: 14 },
-      { wch: 38 },
-      { wch: 14 },
-      { wch: 18 },
-      { wch: 14 },
-      { wch: 38 },
-      { wch: 14 },
+      { wch: 42 },
       { wch: 16 },
+      { wch: 18 },
+      { wch: 18 },
       { wch: 18 },
     ];
     XLSX.utils.book_append_sheet(wb, ws1, 'BK UMUM');
